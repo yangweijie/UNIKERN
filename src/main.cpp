@@ -1,77 +1,262 @@
-// CLI: unikern solve|hcs|backends|verify|ledger  (ASCII console output)
+// CLI: unikern solve|hcs|backends|run|verify|ledger  (ASCII console output)
+// solve: KML demo tree -> deterministic solve -> three backends generate.
+//   --emit <dir> writes each vendor source to dir/uk_amd.cpp, dir/uk_apple.metal,
+//   dir/uk_intel.cl and reports line counts; without it sources go to stdout.
+//   --dims M N K overrides the demo GEMM dims (default 4096^3 fp32).
+// run: HCS + tree -> ledger lookup (a hit reuses the recorded solution) ->
+//   compile + execute the AMD generated program on the real device; only a
+//   verified PASS may commit to the ledger (R6.3).
+// verify: identical to run, but never writes the ledger.
 #include "unikern/components.hpp"
+#include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 using namespace unikern;
 
+namespace {
 
-static int cmd_backends() {
-  std::cout << "vendor    backend      available  note\n";
-  for (auto& b : make_backends()) {
-    const char* v = b->vendor() == Vendor::Amd ? "amd       "
-                    : b->vendor() == Vendor::Apple ? "apple     "
-                                                   : "intel     ";
-    std::cout << v << b->name() << "     " << (b->available() ? "yes" : "no")
-              << "        source-gen ready (Phase 5 full)\n";
+// R6.2 graded tolerance as wired into the generated AMD program: relative
+// 2^-5 for fp32, with the relative denominator floored at 1e-6 (its
+// effective absolute term). Printed in LEDGER COMMIT for auditability.
+constexpr double kEpsilonAbs = 1e-6;
+constexpr double kEpsilonRel = 0.03125;
+
+struct Options {
+  std::string hcs_path;
+  std::string ledger = "ledger.jsonl";
+  std::string emit_dir;
+  std::string workdir = "uk_run";
+  int dims[3] = {0, 0, 0};  // dims[0] > 0 => override the demo tree dims
+  bool selfcheck = false;
+};
+
+// Shared flag parsing for solve/run/verify. Returns false on a malformed
+// value; unknown flags are ignored (lenient, as before).
+bool parse_options(int argc, char** argv, Options* o) {
+  for (int i = 0; i < argc; ++i) {
+    const std::string a = argv[i];
+    if (a == "--hcs" && i + 1 < argc) {
+      o->hcs_path = argv[++i];
+    } else if (a == "--ledger" && i + 1 < argc) {
+      o->ledger = argv[++i];
+    } else if (a == "--emit" && i + 1 < argc) {
+      o->emit_dir = argv[++i];
+    } else if (a == "--workdir" && i + 1 < argc) {
+      o->workdir = argv[++i];
+    } else if (a == "--dims") {
+      if (i + 3 >= argc) return false;
+      o->dims[0] = std::atoi(argv[i + 1]);
+      o->dims[1] = std::atoi(argv[i + 2]);
+      o->dims[2] = std::atoi(argv[i + 3]);
+      i += 3;
+    } else if (a == "--selfcheck") {
+      o->selfcheck = true;
+    }
   }
-  return 0;
+  if (o->dims[0] || o->dims[1] || o->dims[2]) {
+    if (o->dims[0] <= 0 || o->dims[1] <= 0 || o->dims[2] <= 0) return false;
+  }
+  return true;
 }
 
-static int cmd_solve(int argc, char** argv) {
-  std::string hcs_path, out_ledger = "ledger.jsonl";
-  bool selfcheck = false;
-  for (int i = 0; i < argc; ++i) {
-    if (!std::strcmp(argv[i], "--hcs") && i + 1 < argc) hcs_path = argv[++i];
-    else if (!std::strcmp(argv[i], "--ledger") && i + 1 < argc) out_ledger = argv[++i];
-    else if (!std::strcmp(argv[i], "--selfcheck")) selfcheck = true;
+// Demo KML tree: GEMM fp32, dims default 4096^3 unless overridden.
+KmlTree demo_tree(const Options& o) {
+  KmlTree t;
+  if (o.dims[0] > 0) {
+    t.dims[0] = o.dims[0];
+    t.dims[1] = o.dims[1];
+    t.dims[2] = o.dims[2];
   }
-  if (hcs_path.empty()) {
-    std::cerr << "usage: unikern solve --hcs <file.json> [--ledger f] [--selfcheck]\n";
-    return 2;
+  return t;
+}
+
+// Read + import an HCS file (R9); on failure print the rejection reason.
+std::optional<Hcs> load_hcs(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) {
+    std::cerr << "cannot read HCS file: " << path << "\n";
+    return std::nullopt;
   }
-  std::ifstream in(hcs_path);
   std::stringstream ss;
   ss << in.rdbuf();
   std::string err;
-  auto hcs = hcs_import(ss.str(), &err);
-  if (!hcs) {
-    std::cerr << "HCS rejected: " << err << "\n";
+  auto h = hcs_import(ss.str(), &err);
+  if (!h) std::cerr << "HCS rejected: " << err << "\n";
+  return h;
+}
+
+Key ledger_key(const Hcs& hcs, const KmlTree& tree) {
+  return Key{op_signature(tree), hcs_fingerprint(hcs), fnv1a_hex(canonical_form(tree))};
+}
+
+// R5.1: write each vendor's generated source into dir under its fixed name.
+// Forward slashes throughout: valid on Windows and POSIX alike.
+int emit_sources(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
+                 const std::string& dir) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  if (ec) {
+    std::cerr << "emit: cannot create directory " << dir << ": " << ec.message() << "\n";
     return 2;
   }
-  KmlTree tree;  // skeleton demo: 4096^3 fp32 GEMM
-  auto key = Key{op_signature(tree), hcs_fingerprint(*hcs), fnv1a_hex(canonical_form(tree))};
-  auto ledger = make_file_ledger(out_ledger);
+  int rc = 0;
+  for (auto& b : make_backends()) {
+    const char* name = b->vendor() == Vendor::Amd    ? "uk_amd.cpp"
+                       : b->vendor() == Vendor::Apple ? "uk_apple.metal"
+                                                      : "uk_intel.cl";
+    const std::string dst = (fs::path(dir) / name).generic_string();
+    std::ofstream out(dst, std::ios::binary);
+    if (!out) {
+      std::cerr << "emit: cannot write " << dst << "\n";
+      rc = 2;
+      continue;
+    }
+    const std::string src = b->generate(sol, hcs, tree);
+    out << src;
+    out.close();
+    if (!out) {
+      std::cerr << "emit: write failed: " << dst << "\n";
+      rc = 2;
+      continue;
+    }
+    std::cout << "EMIT " << b->name() << " -> " << dst << " lines="
+              << std::count(src.begin(), src.end(), '\n')
+              << (b->available() ? "" : " (toolchain absent)") << "\n";
+  }
+  return rc;
+}
+
+// R5: generate for all vendors to stdout (previous solve behavior).
+void print_sources(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  for (auto& b : make_backends()) {
+    std::cout << "-- " << b->name() << (b->available() ? "" : " (toolchain absent)")
+              << " --\n";
+    std::cout << b->generate(sol, hcs, tree);
+  }
+}
+
+void print_infeasible(const Solution& sol) {
+  std::cerr << "INFEASIBLE: "
+            << (sol.worst.empty() ? std::string("no candidates") : sol.worst[0].constraint)
+            << "\n";
+}
+
+}  // namespace
+
+static int cmd_solve(int argc, char** argv) {
+  Options o;
+  const char* usage =
+      "usage: unikern solve --hcs <file.json> [--ledger f] [--emit dir] "
+      "[--dims M N K] [--selfcheck]\n";
+  if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
+    std::cerr << usage;
+    return 2;
+  }
+  auto hcs = load_hcs(o.hcs_path);
+  if (!hcs) return 2;
+  KmlTree tree = demo_tree(o);
+  const Key key = ledger_key(*hcs, tree);
+  auto ledger = make_file_ledger(o.ledger);
   if (auto hit = ledger->lookup(key)) {  // R7.2: ledger hit skips search
     std::cout << "LEDGER HIT  c_cached_ms=" << hit->c_ms << "\n"
               << hit->placement_record << "\n";
-    return 0;
+    if (o.emit_dir.empty()) return 0;
+    // An explicit --emit still produces the three sources; the file ledger
+    // records only c_ms + placement_record, so tiles fall back to tree
+    // defaults until Phase 6 (SQLite) stores the full solution.
+    return emit_sources(*hit, *hcs, tree, o.emit_dir);
   }
   Solution sol = solve(*hcs, tree);
   if (sol.feasible_count == 0) {
-    std::cerr << "INFEASIBLE: " << (sol.worst.empty() ? std::string("no candidates")
-                                                       : sol.worst[0].constraint)
-              << "\n";
+    print_infeasible(sol);
     return 3;
   }
   std::cout << "SOLVED  x* tile=" << sol.best.tile_m << "x" << sol.best.tile_n
             << "  c_ms=" << sol.c_ms << "  |X|=" << sol.feasible_count
             << "  hcs_fp=" << key.hcs_fp.substr(0, 8) << "\n"
             << sol.placement_record << "\n";
-  for (auto& b : make_backends()) {  // R5: generate for all vendors
-    std::cout << "-- " << b->name() << (b->available() ? "" : " (toolchain absent)")
-              << " --\n";
-    std::cout << b->generate(sol, *hcs);
+  if (o.emit_dir.empty()) {
+    print_sources(sol, *hcs, tree);
+  } else {
+    const int rc = emit_sources(sol, *hcs, tree, o.emit_dir);
+    if (rc != 0) return rc;
   }
   ledger->commit(key, sol, sol.c_ms);  // skeleton: measured==c until Phase 6
-  if (selfcheck) {  // P1: pure-function determinism
+  if (o.selfcheck) {  // P1: pure-function determinism
     Solution again = solve(*hcs, tree);
     bool ok = again.c_ms == sol.c_ms && again.best.tile_m == sol.best.tile_m;
     std::cout << (ok ? "SELFCHECK OK (deterministic)" : "SELFCHECK FAIL") << "\n";
     return ok ? 0 : 1;
   }
+  return 0;
+}
+
+// run (write_ledger=true) and verify (write_ledger=false) share one flow:
+// ledger lookup -> hit reuses the recorded solution, miss solves fresh ->
+// compile + execute the generated AMD program on the real device.
+static int cmd_run(int argc, char** argv, bool write_ledger) {
+  Options o;
+  const char* usage =
+      "usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] "
+      "[--dims M N K]\n";
+  if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
+    std::cerr << usage;
+    return 2;
+  }
+  auto hcs = load_hcs(o.hcs_path);
+  if (!hcs) return 2;
+  KmlTree tree = demo_tree(o);
+  const Key key = ledger_key(*hcs, tree);
+  auto ledger = make_file_ledger(o.ledger);
+  Solution sol;
+  if (auto rec = ledger->lookup(key)) {  // R7.2: hit reuses the recorded solution
+    sol = *rec;
+    std::cout << "LEDGER HIT  c_cached_ms=" << sol.c_ms << "\n"
+              << sol.placement_record << "\n";
+  } else {
+    sol = solve(*hcs, tree);
+    if (sol.feasible_count == 0) {
+      print_infeasible(sol);
+      return 3;
+    }
+  }
+  // AMD is the only backend this host can compile + execute (findings.md);
+  // Apple/Intel stay at source generation until their machines run them.
+  std::string program;
+  for (auto& b : make_backends()) {
+    if (b->vendor() == Vendor::Amd) program = b->generate(sol, *hcs, tree);
+  }
+  const RunOutcome r = run_hip(program, o.workdir);
+  std::cout << "RUN amd:hip built=" << (r.built ? "yes" : "no")
+            << " ran=" << (r.ran ? "yes" : "no")
+            << " verified=" << (r.verified ? "PASS" : "FAIL")
+            << " max_rel=" << r.max_rel << " measured_ms=" << r.measured_ms << "\n";
+  if (!r.log.empty()) {  // tail of the compile/run log
+    constexpr size_t kTail = 600;
+    std::cout << "-- log tail --\n"
+              << (r.log.size() > kTail ? r.log.substr(r.log.size() - kTail) : r.log);
+    if (r.log.back() != '\n') std::cout << "\n";
+  }
+  if (!r.built || !r.ran || !r.verified) {
+    std::cerr << "RUN FAILED; solution NOT committed to ledger (R6.3)\n";
+    return 1;
+  }
+  if (!write_ledger) {  // verify mode: read-only, no commit
+    std::cout << "VERIFY PASS (no ledger write)\n";
+    return 0;
+  }
+  ledger->commit(key, sol, r.measured_ms);  // R7.3: measured time into ledger
+  std::cout << "LEDGER COMMIT predicted_ms=" << sol.c_ms
+            << " measured_ms=" << r.measured_ms
+            << " epsilon_abs=" << kEpsilonAbs
+            << " epsilon_rel=" << kEpsilonRel << "\n";
   return 0;
 }
 
@@ -91,20 +276,32 @@ static int cmd_hcs(const char* path) {
   return 0;
 }
 
+static int cmd_backends() {
+  std::cout << "vendor    backend      available  note\n";
+  for (auto& b : make_backends()) {
+    const char* v = b->vendor() == Vendor::Amd ? "amd       "
+                    : b->vendor() == Vendor::Apple ? "apple     "
+                                                   : "intel     ";
+    std::cout << v << b->name() << "     " << (b->available() ? "yes" : "no")
+              << "        source-gen ready (Phase 5 full)\n";
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   if (argc < 2) {
     std::cerr << "unikern (MVP skeleton)\n"
-              << "  solve --hcs f.json [--ledger f] [--selfcheck]\n"
-              << "  hcs <f.json> | backends | verify | ledger\n";
+              << "  solve --hcs f.json [--ledger f] [--emit dir] [--dims M N K] [--selfcheck]\n"
+              << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]\n"
+              << "  verify --hcs f.json [--workdir dir] [--dims M N K]  (= run, no ledger write)\n"
+              << "  hcs <f.json> | backends | ledger\n";
     return 2;
   }
   if (!std::strcmp(argv[1], "solve")) return cmd_solve(argc - 2, argv + 2);
   if (!std::strcmp(argv[1], "hcs")) return cmd_hcs(argc >= 3 ? argv[2] : "");
   if (!std::strcmp(argv[1], "backends")) return cmd_backends();
-  if (!std::strcmp(argv[1], "verify")) {
-    std::cout << "verify: runner integration lands in Phase 6\n";
-    return 0;
-  }
+  if (!std::strcmp(argv[1], "run")) return cmd_run(argc - 2, argv + 2, true);
+  if (!std::strcmp(argv[1], "verify")) return cmd_run(argc - 2, argv + 2, false);
   if (!std::strcmp(argv[1], "ledger")) {
     std::cout << "ledger entries: " << make_file_ledger("ledger.jsonl")->size() << "\n";
     return 0;

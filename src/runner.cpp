@@ -1,0 +1,118 @@
+// Runner (R5.2/R6): compile + execute a generated program, parse the result
+// contract line "UNIKERN_RESULT backend=... verify=... max_rel=... measured_ms=...".
+// Paths use forward slashes throughout: valid on Windows and POSIX, and immune
+// to the backslash-mangling editing path that broke this file before (E10).
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <string>
+
+#include "unikern/codegen.hpp"
+
+#ifdef _WIN32
+#define UK_POPEN _popen
+#define UK_PCLOSE _pclose
+#else
+#define UK_POPEN popen
+#define UK_PCLOSE pclose
+#endif
+
+namespace unikern {
+
+namespace {
+
+std::string run_capture(const std::string& cmd, int* exit_code) {
+  std::string out;
+  FILE* p = UK_POPEN(cmd.c_str(), "r");
+  if (!p) {
+    if (exit_code) *exit_code = -1;
+    return out;
+  }
+  std::array<char, 512> buf{};
+  while (std::fgets(buf.data(), int(buf.size()), p)) out += buf.data();
+  const int rc = UK_PCLOSE(p);
+  if (exit_code) *exit_code = rc;
+  return out;
+}
+
+// Parse "key=value" tokens from the UNIKERN_RESULT line.
+std::string field(const std::string& line, const std::string& key) {
+  const std::string pat = key + "=";
+  const auto p = line.find(pat);
+  if (p == std::string::npos) return {};
+  const auto start = p + pat.size();
+  const auto e = line.find_first_of(" \t\r\n", start);
+  return line.substr(start, e == std::string::npos ? std::string::npos : e - start);
+}
+
+}  // namespace
+
+std::string find_hipcc() {
+  const char* hip = std::getenv("HIP_PATH");
+  if (!hip || !*hip) return {};
+  std::string base = hip;
+  while (!base.empty() && (base.back() == '/' || base.back() == '\\')) base.pop_back();
+  namespace fs = std::filesystem;
+  const fs::path cands[] = {fs::path(base) / "bin" / "hipcc.exe",
+                            fs::path(base) / "hipcc.exe"};
+  for (const auto& c : cands) {
+    std::error_code ec;
+    if (fs::exists(c, ec)) return c.generic_string();  // forward slashes
+  }
+  return {};
+}
+
+RunOutcome run_hip(const std::string& program, const std::string& workdir) {
+  RunOutcome r;
+  const std::string hipcc = find_hipcc();
+  if (hipcc.empty()) {
+    r.log = "hipcc not found (HIP_PATH unset or bin/hipcc.exe missing)";
+    return r;
+  }
+  std::error_code ec;
+  std::filesystem::create_directories(workdir, ec);
+  const std::string src = workdir + "/uk_amd.cpp";
+  const std::string exe = workdir + "/uk_amd.exe";
+  {
+    std::ofstream f(src, std::ios::binary);
+    if (!f) {
+      r.log = "cannot write " + src;
+      return r;
+    }
+    f << program;
+  }
+
+  int rc = 0;
+  const std::string build_cmd =
+      "\"\"" + hipcc + "\" \"" + src + "\" -O3 -o \"" + exe + "\" 2>&1\"";
+  const std::string build_out = run_capture(build_cmd, &rc);
+  r.log = build_out;
+  if (rc != 0) {
+    r.log = "compile failed (rc=" + std::to_string(rc) + "): " + build_out;
+    return r;
+  }
+  r.built = true;
+
+  const std::string run_cmd = "\"\"" + exe + "\" 2>&1\"";
+  const std::string out = run_capture(run_cmd, &rc);
+  r.log += out;
+  if (rc != 0) r.log += "(exit=" + std::to_string(rc) + ")";
+  r.ran = true;
+
+  const auto p = out.find("UNIKERN_RESULT");
+  if (p == std::string::npos) {
+    r.log += "\n(no UNIKERN_RESULT line)";
+    return r;
+  }
+  const auto nl = out.find('\n', p);
+  const std::string line =
+      out.substr(p, nl == std::string::npos ? std::string::npos : nl - p);
+  r.verified = field(line, "verify") == "PASS";
+  r.max_rel = std::atof(field(line, "max_rel").c_str());
+  r.measured_ms = std::atof(field(line, "measured_ms").c_str());
+  return r;
+}
+
+}  // namespace unikern
