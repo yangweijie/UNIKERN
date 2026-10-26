@@ -264,6 +264,53 @@ int main(int argc, char** argv) {
   std::remove(crash_db);
   std::remove((std::string(crash_db) + ".marker").c_str());
 
+  // --- R8 (Phase 7): HIP codegen emission contract, checked on the generated
+  // source (no device needed): timing dims follow the tree dims uncapped, the
+  // HCS vram constant and solver shard/prefetch params are emitted, the
+  // program self-selects resident|streamed, and the result line carries
+  // measured_ms + kernel_ms + mode + payload_mb.
+  {
+    Hcs amd = sample_hcs(false);  // vram tier = 8 GiB = 8589934592 bytes
+    KmlTree t;                    // demo 4096^3 fp32
+    Solution sol = solve(amd, t);
+    const std::string prog = hip_runnable_program(sol, amd, t);
+    // Timing dims straight from tree dims (16-aligned, floor 32, no 1024 cap).
+    assert(prog.find("const int PM = 4096, PN = 4096, PK = 4096;") != std::string::npos);
+    KmlTree small = t;
+    small.dims[0] = 40; small.dims[1] = 40; small.dims[2] = 40;
+    const std::string psmall = hip_runnable_program(solve(amd, small), amd, small);
+    assert(psmall.find("const int PM = 32, PN = 32, PK = 32;") != std::string::npos);
+    KmlTree big = t;
+    big.dims[0] = 32768; big.dims[1] = 32768; big.dims[2] = 32768;
+    const std::string pbig = hip_runnable_program(solve(amd, big), amd, big);
+    assert(pbig.find("const int PM = 32768, PN = 32768, PK = 32768;") != std::string::npos);
+    // shard_rows = shard_mb(64 MiB) / (PK * 4B): 4096 rows @4096, 512 rows @32768.
+    assert(prog.find("UK_SHARD_ROWS = 4096") != std::string::npos);
+    assert(pbig.find("UK_SHARD_ROWS = 512") != std::string::npos);
+    assert(prog.find("UK_PREFETCH_D = 2") != std::string::npos);  // sol.best.prefetch_d
+    // vram + threshold constants emitted from the HCS (R8.2 selection).
+    assert(prog.find("UK_VRAM_BYTES = 8589934592ULL") != std::string::npos);
+    assert(prog.find("UK_STREAM_FRAC = 0.85") != std::string::npos);
+    // Result-line contract: e2e measured_ms + kernel-only reference + mode +
+    // payload, and both execution paths present in the program.
+    assert(prog.find(" measured_ms=") != std::string::npos);
+    assert(prog.find(" kernel_ms=") != std::string::npos);
+    assert(prog.find(" mode=") != std::string::npos);
+    assert(prog.find(" payload_mb=") != std::string::npos);
+    assert(prog.find("mode = \"resident\";") != std::string::npos);
+    assert(prog.find("mode = \"streamed\";") != std::string::npos);
+    // R8.3 double-buffering machinery in the streamed path.
+    assert(prog.find("uk_stream_pass") != std::string::npos);
+    assert(prog.find("hipHostMalloc") != std::string::npos);
+    assert(prog.find("hipStreamWaitEvent") != std::string::npos);
+    // MSL / OpenCL sources carry the R8.1 + R8.6 honesty notes.
+    const std::string msl = msl_kernel_source(sol, amd, t);
+    const std::string ocl = ocl_kernel_source(sol, amd, t);
+    assert(msl.find("R8.1") != std::string::npos && msl.find("R8.6") != std::string::npos);
+    assert(ocl.find("R8.1") != std::string::npos && ocl.find("R8.6") != std::string::npos);
+    std::cout << "[codegen/R8] dims->PM/PN/PK uncapped + stream emission contract OK\n";
+  }
+
   std::cout << "SMOKE PASS\n";
   return 0;
 }

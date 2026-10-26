@@ -18,15 +18,25 @@ TileInfo info_for(const KmlTree& tree, const Solution& sol) {
   const EmittedTile t = emit_tile_for(tree, sol);
   return {t.tm, t.tn, t.tm / 16, t.tn / 16, t.clamped};
 }
-std::string banner(const char* lang, const Solution& sol, const Hcs& hcs,
-                   const TileInfo& ti) {
+std::string banner(const char* lang, const char* r8_note, const Solution& sol,
+                   const Hcs& hcs, const TileInfo& ti) {
   std::ostringstream o;
   o << "// unikern generated — " << lang << "\n"
     << "// hcs=" << hcs.vendor << "/" << hcs.device << " fp="
     << hcs_fingerprint(hcs).substr(0, 12) << "\n"
     << "// solved tile=" << sol.best.tile_m << "x" << sol.best.tile_n
     << " -> emitted " << ti.tm << "x" << ti.tn << (ti.clamped ? " (clamped)" : "")
-    << "\n// placement: " << sol.placement_record << "\n";
+    << "\n// placement: " << sol.placement_record << "\n"
+    << "// R8.1: on scenario A targets (unified memory) execution is zero-copy\n"
+    << "//   full residency — device buffers alias host unified storage, so this\n"
+    << "//   source emits no explicit copy path; " << r8_note << "\n"
+    << "// R8.6: the placement line above is the explicit data-placement record\n"
+    << "//   and the kernel is generated to assume exactly that placement, so\n"
+    << "//   source and record stay consistent; a different placement requires a\n"
+    << "//   re-solve, never a silent tier change.\n"
+    << "// R8 honesty: this execution path cannot be verified on the build host\n"
+    << "//   (no Metal / Intel toolchain here — findings.md Phase 5), so the MVP\n"
+    << "//   emits kernel source only and no execution/streaming implementation.\n";
   return o.str();
 }
 }  // namespace
@@ -34,7 +44,10 @@ std::string banner(const char* lang, const Solution& sol, const Hcs& hcs,
 std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
   const TileInfo ti = info_for(tree, sol);
   std::ostringstream o;
-  o << banner("Metal Shading Language (scenario A: unified memory)", sol, hcs, ti)
+  o << banner("Metal Shading Language (scenario A: unified memory)",
+              "Apple Silicon is scenario A, so the recorded placement is"
+              " unified memory.",
+              sol, hcs, ti)
     << "#include <metal_stdlib>\n"
     << "using namespace metal;\n\n"
     << "constant int TM = " << ti.tm << ";\n"
@@ -86,7 +99,11 @@ std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
 std::string ocl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
   const TileInfo ti = info_for(tree, sol);
   std::ostringstream o;
-  o << banner("OpenCL C (Intel Xe -> SPIR-V via ocloc)", sol, hcs, ti)
+  o << banner("OpenCL C (Intel Xe -> SPIR-V via ocloc)",
+              "Intel Arc is scenario B: an oversubscribed workload takes the"
+              " explicit streaming path (R8.2/R8.3 double buffering), which"
+              " this MVP implements only in the AMD HIP program.",
+              sol, hcs, ti)
     << "#define TM " << ti.tm << "\n"
     << "#define TN " << ti.tn << "\n"
     << "#define TK 16\n"

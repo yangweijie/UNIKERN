@@ -25,10 +25,11 @@ namespace {
 // R6.2 graded tolerance as wired into the generated AMD program: relative
 // 2^-5 for fp32, with the relative denominator floored at 1e-6 (its
 // effective absolute term). Printed in LEDGER COMMIT for auditability.
-// KNOWN CALIBRATION CAVEAT (unchanged, unified in Phase 7): hipEvent timing
-// covers the kernel only, not the H2D/D2H copies, so a first-run measured_ms
-// can beat the predicted c_ms even when the copy term dominates C. The numbers
-// are reported as measured — no fudging to make epsilon look better.
+// Phase 7 unified the timing basis: the generated program now measures
+// end-to-end per pass (H2D + kernel + D2H) — the same byte movement the C(x)
+// copy term charges — so predicted vs measured compares like with like. The
+// numbers are still reported as measured; no fudging to make epsilon look
+// better.
 constexpr double kEpsilonAbs = 1e-6;
 constexpr double kEpsilonRel = 0.03125;
 
