@@ -10,6 +10,10 @@ build-o2/
 # generated artifacts
 ledger.jsonl
 smoke_ledger.jsonl
+ledger.sqlite3
+*.sqlite3
+*.sqlite3-journal
+*.marker
 *.exe
 *.obj
 *.o

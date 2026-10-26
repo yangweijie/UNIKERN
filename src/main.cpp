@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -24,17 +25,35 @@ namespace {
 // R6.2 graded tolerance as wired into the generated AMD program: relative
 // 2^-5 for fp32, with the relative denominator floored at 1e-6 (its
 // effective absolute term). Printed in LEDGER COMMIT for auditability.
+// KNOWN CALIBRATION CAVEAT (unchanged, unified in Phase 7): hipEvent timing
+// covers the kernel only, not the H2D/D2H copies, so a first-run measured_ms
+// can beat the predicted c_ms even when the copy term dominates C. The numbers
+// are reported as measured — no fudging to make epsilon look better.
 constexpr double kEpsilonAbs = 1e-6;
 constexpr double kEpsilonRel = 0.03125;
 
+// R7 (Phase 6): the default ledger is SQLite; a --ledger path ending in
+// .jsonl opts back into the append-only file ledger.
+constexpr char kDefaultLedger[] = "ledger.sqlite3";
+
 struct Options {
   std::string hcs_path;
-  std::string ledger = "ledger.jsonl";
+  std::string ledger = kDefaultLedger;
   std::string emit_dir;
   std::string workdir = "uk_run";
   int dims[3] = {0, 0, 0};  // dims[0] > 0 => override the demo tree dims
   bool selfcheck = false;
 };
+
+// Ledger factory: .jsonl -> file ledger, anything else -> SQLite ledger.
+std::unique_ptr<ILedger> make_ledger(const std::string& path) {
+  const std::string suffix = ".jsonl";
+  if (path.size() >= suffix.size() &&
+      path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0) {
+    return make_file_ledger(path);
+  }
+  return make_sqlite_ledger(path);
+}
 
 // Shared flag parsing for solve/run/verify. Returns false on a malformed
 // value; unknown flags are ignored (lenient, as before).
@@ -163,14 +182,16 @@ static int cmd_solve(int argc, char** argv) {
   if (!hcs) return 2;
   KmlTree tree = demo_tree(o);
   const Key key = ledger_key(*hcs, tree);
-  auto ledger = make_file_ledger(o.ledger);
+  auto ledger = make_ledger(o.ledger);
   if (auto hit = ledger->lookup(key)) {  // R7.2: ledger hit skips search
-    std::cout << "LEDGER HIT  c_cached_ms=" << hit->c_ms << "\n"
+    std::cout << "LEDGER HIT  c_cached_ms=" << hit->c_ms
+              << "  tile=" << hit->best.tile_m << "x" << hit->best.tile_n
+              << "\n"
               << hit->placement_record << "\n";
     if (o.emit_dir.empty()) return 0;
-    // An explicit --emit still produces the three sources; the file ledger
-    // records only c_ms + placement_record, so tiles fall back to tree
-    // defaults until Phase 6 (SQLite) stores the full solution.
+    // An explicit --emit still produces the three sources; the recorded tile
+    // dimensions are reused from the ledger entry (both ledger kinds store
+    // them since Phase 6).
     return emit_sources(*hit, *hcs, tree, o.emit_dir);
   }
   Solution sol = solve(*hcs, tree);
@@ -188,7 +209,10 @@ static int cmd_solve(int argc, char** argv) {
     const int rc = emit_sources(sol, *hcs, tree, o.emit_dir);
     if (rc != 0) return rc;
   }
-  ledger->commit(key, sol, sol.c_ms);  // skeleton: measured==c until Phase 6
+  ledger->commit(key, sol, sol.c_ms);  // solve has no runtime measurement:
+                                       // measured_ms is seeded with c_ms and
+                                       // overwritten by run's real value on
+                                       // the same key (Phase 7 unifies口径)
   if (o.selfcheck) {  // P1: pure-function determinism
     Solution again = solve(*hcs, tree);
     bool ok = again.c_ms == sol.c_ms && again.best.tile_m == sol.best.tile_m;
@@ -214,11 +238,13 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   if (!hcs) return 2;
   KmlTree tree = demo_tree(o);
   const Key key = ledger_key(*hcs, tree);
-  auto ledger = make_file_ledger(o.ledger);
+  auto ledger = make_ledger(o.ledger);
   Solution sol;
   if (auto rec = ledger->lookup(key)) {  // R7.2: hit reuses the recorded solution
     sol = *rec;
-    std::cout << "LEDGER HIT  c_cached_ms=" << sol.c_ms << "\n"
+    std::cout << "LEDGER HIT  c_cached_ms=" << sol.c_ms
+              << "  tile=" << sol.best.tile_m << "x" << sol.best.tile_n
+              << (sol.from_ledger ? "  (from ledger)" : "") << "\n"
               << sol.placement_record << "\n";
   } else {
     sol = solve(*hcs, tree);
@@ -294,18 +320,26 @@ int main(int argc, char** argv) {
               << "  solve --hcs f.json [--ledger f] [--emit dir] [--dims M N K] [--selfcheck]\n"
               << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]\n"
               << "  verify --hcs f.json [--workdir dir] [--dims M N K]  (= run, no ledger write)\n"
-              << "  hcs <f.json> | backends | ledger\n";
+              << "  hcs <f.json> | backends | ledger\n"
+              << "  ledger paths: *.jsonl = file ledger, else SQLite (default "
+              << kDefaultLedger << ")\n";
     return 2;
   }
-  if (!std::strcmp(argv[1], "solve")) return cmd_solve(argc - 2, argv + 2);
-  if (!std::strcmp(argv[1], "hcs")) return cmd_hcs(argc >= 3 ? argv[2] : "");
-  if (!std::strcmp(argv[1], "backends")) return cmd_backends();
-  if (!std::strcmp(argv[1], "run")) return cmd_run(argc - 2, argv + 2, true);
-  if (!std::strcmp(argv[1], "verify")) return cmd_run(argc - 2, argv + 2, false);
-  if (!std::strcmp(argv[1], "ledger")) {
-    std::cout << "ledger entries: " << make_file_ledger("ledger.jsonl")->size() << "\n";
-    return 0;
+  try {
+    if (!std::strcmp(argv[1], "solve")) return cmd_solve(argc - 2, argv + 2);
+    if (!std::strcmp(argv[1], "hcs")) return cmd_hcs(argc >= 3 ? argv[2] : "");
+    if (!std::strcmp(argv[1], "backends")) return cmd_backends();
+    if (!std::strcmp(argv[1], "run")) return cmd_run(argc - 2, argv + 2, true);
+    if (!std::strcmp(argv[1], "verify")) return cmd_run(argc - 2, argv + 2, false);
+    if (!std::strcmp(argv[1], "ledger")) {
+      std::cout << "ledger entries: " << make_ledger(kDefaultLedger)->size()
+                << "\n";
+      return 0;
+    }
+    std::cerr << "unknown command: " << argv[1] << "\n";
+    return 2;
+  } catch (const std::exception& e) {
+    std::cerr << "ERROR: " << e.what() << "\n";  // e.g. sqlite open failure
+    return 1;
   }
-  std::cerr << "unknown command: " << argv[1] << "\n";
-  return 2;
 }

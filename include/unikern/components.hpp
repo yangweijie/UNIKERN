@@ -36,6 +36,9 @@ struct ILedger {
   virtual int size() const = 0;
 };
 std::unique_ptr<ILedger> make_file_ledger(const std::string& path);
+// R7 (Phase 6): real SQLite ledger (amalgamation in third_party/sqlite).
+// Throws std::runtime_error when the database cannot be opened/created.
+std::unique_ptr<ILedger> make_sqlite_ledger(const std::string& path);
 
 // R6: differential verification vs CPU reference, graded tolerance.
 struct Tolerance {

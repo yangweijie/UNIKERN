@@ -1,12 +1,20 @@
-// Runtime: JSON-lines ledger (R7) + CPU differential verification (R6).
-// NOTE: ledger key is a 3-part composite ("op|hcs|tree"); the line separator is
-// TAB, because '|' occurs inside the key itself.
+// Runtime: JSON-lines file ledger (R7, kept for .jsonl paths; SQLite is the
+// default in Phase 6, see sqlite_ledger.cpp) + CPU differential verification
+// (R6).
+// NOTE: ledger key is a 3-part composite ("op|hcs|tree"); the field separator
+// is TAB, because '|' occurs inside the key itself (E3).
+// Line format since Phase 6 (6 fields):
+//   key TAB c_ms TAB measured_ms TAB tm TAB tn TAB placement
+// Legacy format (Phases 2-5, 4 fields): key TAB c_ms TAB measured_ms TAB
+//   placement — lookups resolve it with tile dimensions 0 (no tiles recorded).
 #include "unikern/components.hpp"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace unikern {
 
@@ -15,7 +23,7 @@ constexpr char kSep = '\t';
 std::string key_str(const Key& k) { return k.op_sig + "|" + k.hcs_fp + "|" + k.tree_hash; }
 }  // namespace
 
-class FileLedger : public ILedger {  // TODO(Phase 6): SQLite transactions (P5)
+class FileLedger : public ILedger {
 public:
   explicit FileLedger(std::string path) : path_(std::move(path)) {}
 
@@ -24,21 +32,38 @@ public:
     std::ifstream in(path_);
     std::string line;
     while (std::getline(in, line)) {
-      auto sep = line.find(kSep);
-      if (sep == std::string::npos) continue;
-      if (line.compare(0, sep, want) != 0) continue;
-      // fields: c_ms \t measured_ms \t placement
-      auto p2 = line.find(kSep, sep + 1);
-      if (p2 == std::string::npos) continue;
-      auto p3 = line.find(kSep, p2 + 1);
+      // Split into TAB-separated fields; trailing placement is field 5 (6-field
+      // format) or field 3 (legacy 4-field format, tile dimensions absent).
+      std::vector<std::string> f;
+      size_t pos = 0;
+      while (true) {
+        const size_t tab = line.find(kSep, pos);
+        f.push_back(line.substr(pos, tab));
+        if (tab == std::string::npos) break;
+        pos = tab + 1;
+      }
+      if (f.size() < 4 || f[0] != want) continue;
       Solution s;
       try {
-        s.c_ms = std::stod(line.substr(sep + 1, p2 - sep - 1));
+        s.c_ms = std::stod(f[1]);
       } catch (...) {
         continue;  // corrupt line: skip rather than surface a bad solution
       }
-      s.placement_record = p3 == std::string::npos ? std::string()
-                                                   : line.substr(p3 + 1);
+      if (f.size() >= 6) {
+        try {
+          s.best.tile_m = std::stoi(f[3]);
+          s.best.tile_n = std::stoi(f[4]);
+        } catch (...) {
+          s.best.tile_m = 0;
+          s.best.tile_n = 0;
+        }
+        s.placement_record = f[5];
+      } else {  // legacy row: no tm/tn recorded -> fill 0
+        s.best.tile_m = 0;
+        s.best.tile_n = 0;
+        s.placement_record = f[3];
+      }
+      s.from_ledger = true;  // R7.2
       return s;
     }
     return std::nullopt;
@@ -48,6 +73,7 @@ public:
     std::ofstream out(path_, std::ios::app);
     out.precision(std::numeric_limits<double>::max_digits10);  // exact round-trip
     out << key_str(key) << kSep << sol.c_ms << kSep << measured_ms << kSep
+        << sol.best.tile_m << kSep << sol.best.tile_n << kSep
         << sol.placement_record << "\n";
     out.flush();
   }
