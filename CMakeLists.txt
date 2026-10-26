@@ -17,6 +17,9 @@ add_library(unikern_core STATIC
   src/hcs.cpp
   src/solver.cpp
   src/backends.cpp
+  src/codegen_hip.cpp
+  src/codegen_other.cpp
+  src/runner.cpp
   src/runtime.cpp
 )
 target_include_directories(unikern_core PUBLIC include)

@@ -2,12 +2,15 @@
 // contract line "UNIKERN_RESULT backend=... verify=... max_rel=... measured_ms=...".
 // Paths use forward slashes throughout: valid on Windows and POSIX, and immune
 // to the backslash-mangling editing path that broke this file before (E10).
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "unikern/codegen.hpp"
 
@@ -49,6 +52,82 @@ std::string field(const std::string& line, const std::string& key) {
 
 }  // namespace
 
+// Host-only HIP probe (zero __global__ functions, so hipcc's default offload
+// target cannot matter): prints one "UK_ARCH <gcnArchName>" line per visible
+// device. The runner feeds those names to the real build as --offload-arch
+// flags. Without them hipcc defaults to gfx906; on any other device every
+// kernel launch then fails with "device kernel image is invalid" (error 200)
+// while hipDeviceSynchronize still reports success — the silent zero-output
+// failure that produced verify=FAIL max_rel=1 with a ~0 ms measurement.
+const char* kArchProbeSrc = R"PROBE(#include <hip/hip_runtime.h>
+#include <iostream>
+int main() {
+  int n = 0;
+  hipError_t e = hipGetDeviceCount(&n);
+  if (e != hipSuccess || n <= 0) {
+    std::cout << "UK_ARCH_FAIL " << hipGetErrorString(e)
+              << " count=" << n << std::endl;
+    return 1;
+  }
+  for (int d = 0; d < n; ++d) {
+    hipDeviceProp_t p{};
+    e = hipGetDeviceProperties(&p, d);
+    if (e != hipSuccess) {
+      std::cout << "UK_ARCH_FAIL " << hipGetErrorString(e) << std::endl;
+      return 1;
+    }
+    std::cout << "UK_ARCH " << p.gcnArchName << std::endl;
+  }
+  return 0;
+}
+)PROBE";
+
+// Compile + run the arch probe, parse "UK_ARCH <arch>" lines (deduplicated,
+// order kept). Returns false with a diagnostic in *log when no arch is found.
+bool probe_gpu_arches(const std::string& hipcc, const std::string& workdir,
+                      std::vector<std::string>* arches, std::string* log) {
+  namespace fs = std::filesystem;
+  const std::string src = workdir + "/uk_arch_probe.cpp";
+  const std::string exe = workdir + "/uk_arch_probe.exe";
+  {
+    std::ofstream f(src, std::ios::binary);
+    if (!f) {
+      *log = "cannot write " + src;
+      return false;
+    }
+    f << kArchProbeSrc;
+  }
+  int rc = 0;
+  const std::string build_cmd =
+      "\"\"" + hipcc + "\" \"" + src + "\" -O2 -o \"" + exe + "\" 2>&1\"";
+  const std::string build_out = run_capture(build_cmd, &rc);
+  if (rc != 0) {
+    *log = "arch probe compile failed (rc=" + std::to_string(rc) + "): " + build_out;
+    return false;
+  }
+  const std::string out = run_capture("\"\"" + exe + "\" 2>&1\"", &rc);
+  if (rc != 0) {
+    *log = "arch probe run failed (rc=" + std::to_string(rc) + "): " + out;
+    return false;
+  }
+  std::istringstream iss(out);
+  std::string line;
+  while (std::getline(iss, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    const std::string tag = "UK_ARCH ";
+    if (line.compare(0, tag.size(), tag) == 0) {
+      const std::string arch = line.substr(tag.size());
+      if (std::find(arches->begin(), arches->end(), arch) == arches->end())
+        arches->push_back(arch);
+    }
+  }
+  if (arches->empty()) {
+    *log = "arch probe found no device (output: " + out + ")";
+    return false;
+  }
+  return true;
+}
+
 std::string find_hipcc() {
   const char* hip = std::getenv("HIP_PATH");
   if (!hip || !*hip) return {};
@@ -85,10 +164,21 @@ RunOutcome run_hip(const std::string& program, const std::string& workdir) {
   }
 
   int rc = 0;
+  std::vector<std::string> arches;
+  std::string probe_log;
+  if (!probe_gpu_arches(hipcc, workdir, &arches, &probe_log)) {
+    r.log = "GPU arch probe failed: " + probe_log;
+    return r;
+  }
+  std::string arch_flags;
+  for (const auto& a : arches) arch_flags += " --offload-arch=" + a;
   const std::string build_cmd =
-      "\"\"" + hipcc + "\" \"" + src + "\" -O3 -o \"" + exe + "\" 2>&1\"";
+      "\"\"" + hipcc + "\" \"" + src + "\" -O3" + arch_flags + " -o \"" + exe +
+      "\" 2>&1\"";
   const std::string build_out = run_capture(build_cmd, &rc);
-  r.log = build_out;
+  r.log = "offload-arch:";
+  for (const auto& a : arches) r.log += " " + a;
+  r.log += "\n" + build_out;
   if (rc != 0) {
     r.log = "compile failed (rc=" + std::to_string(rc) + "): " + build_out;
     return r;

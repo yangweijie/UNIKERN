@@ -28,7 +28,7 @@ Phase 5（后端代码生成 + Runner）— **有 2 个构建阻塞待解**
 | 真机探测：hipcc / 设备 / Intel 工具链 | done |
 | `src/runner.cpp` 编译修复（反斜杠折叠破坏，E10） | **blocked** |
 | `src/main.cpp` 适配新签名 `generate(sol, hcs, tree)` | **blocked** |
-| HIP 真编译 + 真运行 + 与 CPU 参考对拍（RX 6600M） | pending |
+| HIP 真编译 + 真运行 + 与 CPU 参考对拍（RX 6600M） | done（1024³ 实测 0.554 ms，max_rel=0 PASS，E12 修复后） |
 | Ledger 写入实测 ms 并报告 ε = \|C − T\| | pending |
 
 ## Decisions
@@ -62,3 +62,4 @@ Phase 5（后端代码生成 + Runner）— **有 2 个构建阻塞待解**
 | E9 | 大 heredoc 被传输层截断（codegen_hip.cpp 停在 151 行） | 1 | **分块追加，每块 ≤ 80 行，写完立即 wc -l 校验** |
 | E10 | 反斜杠折叠再现（`\` → `\`），破坏 runner.cpp 与 codegen_hip.cpp 的字符串字面量 | 2 | **生成器改用 `<iostream>` 输出、路径一律前斜杠、源码中零反斜杠**；仍需修 runner.cpp |
 | E11 | `build/` `build-dbg/` `build-o2/` 被 git 跟踪（已提交进 d4b0f8f） | 1 | `.gitignore` 加三项 + `git rm -r --cached` |
+| E12 | HIP 真机闭环 verify=FAIL max_rel=1、measured_ms=0.00038：hipcc 无 `--offload-arch` 时默认 gfx906，gfx1032 上所有 launch 静默失败（error 200 device kernel image is invalid），dC 保持驱动清零 → 对拍全错；且生成程序不检查 launch 返回值（launch 表达式在本平台返回 void，须用 hipGetLastError） | 1 | runner 编译 host-only 探针（无 kernel，默认 target 无关）取 gcnArchName，构建加 `--offload-arch=<arch>`；生成程序全部 HIP 调用过 uk_ok 检查，失败打 UNIKERN_ERROR 退 4（负测：gfx906 码对象 → 大声失败） |

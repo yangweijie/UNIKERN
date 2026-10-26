@@ -58,4 +58,20 @@
 - 传输层事实（影响一切后续编辑）：
   - 单行 shell 中反斜杠会被折叠；heredoc 中 `\`→`\` 不可靠
   - 超长 heredoc 会被截断（约 150 行处）
-  → 规则：源码零反斜杠；分块写入 ≤80 行；每块写完 `wc -l` 校验
+  → 规则（2026-10-27 更新）：**Write/Edit 文件工具不经 shell 传输，反斜杠与长文件都安全**
+    → 源码编辑一律用 Write/Edit；Bash 仅用于构建/运行；源码路径字符串仍约定前斜杠
+
+## Phase 5 HIP 真机闭环事实（2026-10-27，E12）
+- **hipcc（ROCm 7.1 Windows）无 `--offload-arch` 时默认 gfx906**，本机 gfx1032 上
+  每次 launch 返回 error 200 "device kernel image is invalid"；hipDeviceSynchronize
+  仍返回 success，hipMalloc 显存是驱动清零的 → 对拍 max_rel 恰为 1.0、计时 ~0，
+  症状与"算错"完全一致，实际是"没跑"
+- 本机探测架构的可用路径 = host-only 探针（无 `__global__` 函数 → 无码对象 → 默认
+  target 无关）：编译运行打印 `gcnArchName`；`amdgpu-arch.exe`/`hipInfo.exe`/
+  `--offload-arch=native` 在本机全部失效
+- 生成程序的 launch 检查必须用 `hipGetLastError()`：本平台 launch 表达式返回 void，
+  不能赋给 hipError_t
+- 修复后闭环：1024³ GEMM 实测 0.554 ms（≈3.9 TFLOP/s FP32），max_rel=0（确定性
+  初始化全是 2^-4 倍数，FP32 部分和全部精确可表示，对拍位级一致）
+- 负测护栏：错误架构码对象 → `UNIKERN_ERROR what=launch verify` 退 4，
+  不再产出貌似合理的 UNIKERN_RESULT

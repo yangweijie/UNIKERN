@@ -2,16 +2,10 @@
 // Component interfaces — see design.md "Components and Interfaces"
 #include <memory>
 
+#include "codegen.hpp"
 #include "core.hpp"
 
 namespace unikern {
-
-// Search nominator. MVP = systematic sketch enumeration; LLM guidance is V1
-// (design decision 4), so this interface stays at the nomination boundary only.
-struct INominator {
-  virtual ~INominator() = default;
-  virtual std::vector<Instance> nominate(const KmlTree& tree, const Hcs& hcs) = 0;
-};
 
 // R5: independent generation per vendor; inputs are KML + HCS only (P7).
 enum class Vendor { Amd, Apple, Intel };
@@ -22,9 +16,9 @@ struct IBackend {
   virtual Vendor vendor() const = 0;
   virtual std::string name() const = 0;
   virtual bool available() const = 0;  // toolchain probe (R10 honesty)
-  virtual std::string generate(const Solution& sol, const Hcs& hcs) const = 0;
+  virtual std::string generate(const Solution& sol, const Hcs& hcs,
+                               const KmlTree& tree) const = 0;
 };
-
 std::vector<std::unique_ptr<IBackend>> make_backends();
 
 // R2-R4: deterministic solve. Pure function of (hcs, tree) => P1.
@@ -45,7 +39,7 @@ std::unique_ptr<ILedger> make_file_ledger(const std::string& path);
 
 // R6: differential verification vs CPU reference, graded tolerance.
 struct Tolerance {
-  double fp32_rel = 0.03125;  // 2^-5  (R6.2 default, configurable)
+  double fp32_rel = 0.03125;  // 2^-5 (R6.2 default, configurable)
   double fp16_rel = 0.0625;   // 2^-4
 };
 struct Verdict {
