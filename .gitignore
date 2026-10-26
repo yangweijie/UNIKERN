@@ -18,3 +18,4 @@ ledger.sqlite3
 *.obj
 *.o
 uk_*.cpp
+uk_evidence/

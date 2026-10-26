@@ -2,3 +2,4 @@ gemm:fp32|1e636ee415a09fe7|af8cee1c7ef69343	12.5387	12.5387	placement=vram+ram+n
 gemm:fp32|af6e99af08d1b260|af8cee1c7ef69343	5.28611	5.28611	placement=unified_memory (scenario A, zero-copy)
 gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b	0.4908288930909091	0.55425000000000002	placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
 gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b	0.4908288930909091	0.52668000000000004	placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+gemm:fp32:4096x4096x4096|8039464947ce283c|1e0693d160e22553	12.538681157818182	0.54376000000000002	placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
