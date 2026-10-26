@@ -1,10 +1,15 @@
 {
   "vendor": "intel",
-  "device": "intel-device",
+  "device": "Arc B-series (16GB discrete)",
   "unified_memory": false,
-  "vram_bytes": 17179869184,
-  "mem_bw_gbps": 560,
   "link_bw_gbps": 32,
-  "flops_gflops": 22000,
-  "compute_units": 36
+  "flops_gflops": 24000,
+  "compute_units": 32,
+  "toolchain": "level-zero-1.x",
+  "confidence": "predicted",
+  "tiers": [
+    { "name": "vram", "bytes": 17179869184, "bw_gbps": 560, "confidence": "measured" },
+    { "name": "ram",  "bytes": 68719476736, "bw_gbps": 60,  "confidence": "official" },
+    { "name": "nvme", "bytes": 2000398934016, "bw_gbps": 7, "confidence": "measured" }
+  ]
 }

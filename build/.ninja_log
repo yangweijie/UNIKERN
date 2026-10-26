@@ -25,3 +25,17 @@
 803	890	8147311715294457	libunikern_core.a	438e4b6f0a6eed9c
 892	1202	8147311716180590	unikern_smoke.exe	de05f95b835677de
 890	1205	8147311716170617	unikern.exe	b3bbe9dcc72029a6
+8	734	8147320875953955	CMakeFiles/unikern_core.dir/src/backends.cpp.obj	49e067590eb0196b
+10	740	8147320875979206	CMakeFiles/unikern.dir/src/main.cpp.obj	fd1e92c8af2367bc
+9	907	8147320875958999	CMakeFiles/unikern_core.dir/src/runtime.cpp.obj	a0ba42c163b228ae
+7	1033	8147320875938969	CMakeFiles/unikern_core.dir/src/solver.cpp.obj	c34b2c1c16502abc
+5	1076	8147320875928960	CMakeFiles/unikern_core.dir/src/hcs.cpp.obj	77080ba17196759f
+3	1232	8147320875908722	CMakeFiles/unikern_core.dir/src/kml.cpp.obj	f86fca13382cde9b
+3	88	8147321753664066	libunikern_core.a	438e4b6f0a6eed9c
+88	357	8147321754518997	unikern.exe	b3bbe9dcc72029a6
+5	899	8147321753684060	CMakeFiles/unikern_smoke.dir/tests/smoke.cpp.obj	70579c819ba5129d
+899	1158	8147321762622042	unikern_smoke.exe	de05f95b835677de
+3	711	8147322507730148	CMakeFiles/unikern_core.dir/src/runtime.cpp.obj	a0ba42c163b228ae
+711	789	8147322514811433	libunikern_core.a	438e4b6f0a6eed9c
+791	1066	8147322515608822	unikern_smoke.exe	de05f95b835677de
+789	1068	8147322515593618	unikern.exe	b3bbe9dcc72029a6

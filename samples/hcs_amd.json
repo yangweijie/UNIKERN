@@ -1,10 +1,15 @@
 {
   "vendor": "amd",
-  "device": "amd-device",
+  "device": "RDNA gfx103x (8GB discrete)",
   "unified_memory": false,
-  "vram_bytes": 8589934592,
-  "mem_bw_gbps": 512,
   "link_bw_gbps": 32,
   "flops_gflops": 22000,
-  "compute_units": 36
+  "compute_units": 36,
+  "toolchain": "rocm-7.13",
+  "confidence": "official",
+  "tiers": [
+    { "name": "vram", "bytes": 8589934592,  "bw_gbps": 512, "confidence": "official" },
+    { "name": "ram",  "bytes": 68719476736, "bw_gbps": 50,  "confidence": "official" },
+    { "name": "nvme", "bytes": 2000398934016, "bw_gbps": 7, "confidence": "measured" }
+  ]
 }

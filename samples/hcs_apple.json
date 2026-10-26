@@ -1,10 +1,14 @@
 {
   "vendor": "apple",
-  "device": "Apple M-series",
+  "device": "Apple M-series (unified)",
   "unified_memory": true,
-  "unified_bytes": 34359738368,
-  "mem_bw_gbps": 400,
-  "link_bw_gbps": 32,
+  "link_bw_gbps": 600,
   "flops_gflops": 26000,
-  "compute_units": 40
+  "compute_units": 40,
+  "toolchain": "metal-3.x",
+  "confidence": "official",
+  "tiers": [
+    { "name": "unified", "bytes": 34359738368, "bw_gbps": 400, "confidence": "official" },
+    { "name": "nvme",    "bytes": 1000204886016, "bw_gbps": 6,  "confidence": "measured" }
+  ]
 }

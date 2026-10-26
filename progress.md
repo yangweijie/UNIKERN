@@ -12,3 +12,14 @@
       Ledger 浮点精度、NDEBUG 断言失效
 - [x] 冒烟测试 100% 通过（确定性/规范化/HCS 拒绝/账本往返+键隔离）
 - [ ] Phase 3 核心域 → 进行中
+
+## Session 2026-10-26（续）
+- [x] Phase 3 核心域：KML 增加 op/dtype/dims[6]/tile/layout；canonical_form 支持
+      尾零归一 + 子节点排序（交换律）；workload_of 输出 roofline 输入（GEMM/Conv/Reduce）
+- [x] HCS schema v2：tiers[] 三层级（vram/unified/ram/nvme，各自带宽+置信度），
+      兼容 v1 扁平；拒绝时列出全部缺失字段
+- [x] Phase 4 求解核心：5×5 tile 网格枚举（|X|≤25）、容量谓词、分层 roofline 代价
+      （算力/带宽/占用惩罚/场景 B 拷贝项）、字典序 argmin
+- [x] 三厂商求解验证：AMD 12.54ms / Apple 5.29ms（零拷贝）/ Intel 12.02ms
+- [x] 冒烟测试全绿（确定性/规范化/HCS/账本/场景 A·B）
+- [ ] Phase 5 后端生成 + Runner → 进行中
