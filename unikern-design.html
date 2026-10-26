@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UNIKERN — 跨厂商 GPU 内核统一抽象与最优求解平台 · 设计白皮书</title>
+<style>
+:root{
+  --ink:#1a2332; --muted:#5a6b82; --accent:#0b5fff; --accent2:#0aa37f;
+  --warn:#b3541e; --bg:#f7f9fc; --card:#ffffff; --line:#dde5ef;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.78 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;}
+.page{max-width:1020px;margin:0 auto;padding:44px 36px 90px;}
+header.hero{border-bottom:3px solid var(--accent);padding-bottom:26px;margin-bottom:36px;}
+h1{font-size:31px;margin:0 0 6px;letter-spacing:.5px;}
+.subtitle{color:var(--muted);font-size:15px;margin:0;}
+.meta{margin-top:14px;font-size:13px;color:var(--muted);}
+.meta span{display:inline-block;margin-right:18px;}
+h2{font-size:22px;margin:52px 0 14px;padding-left:12px;border-left:5px solid var(--accent);}
+h3{font-size:17px;margin:30px 0 10px;color:#20304a;}
+p{margin:10px 0;}
+ul,ol{margin:8px 0 8px 0;padding-left:24px;}
+li{margin:5px 0;}
+code,.mono{font-family:"Cascadia Code","JetBrains Mono",Consolas,monospace;font-size:.92em;
+  background:#eef2f8;padding:1px 5px;border-radius:4px;color:#0d3a8c;}
+.callout{background:#eef4ff;border:1px solid #c6d8ff;border-left:5px solid var(--accent);
+  border-radius:8px;padding:14px 18px;margin:18px 0;}
+.warnbox{background:#fff4ec;border:1px solid #f3d5bd;border-left:5px solid var(--warn);
+  border-radius:8px;padding:14px 18px;margin:18px 0;}
+.goodbox{background:#ecfaf5;border:1px solid #bfe9db;border-left:5px solid var(--accent2);
+  border-radius:8px;padding:14px 18px;margin:18px 0;}
+.formula{background:#0f1726;color:#dbe7ff;border-radius:8px;padding:16px 20px;margin:16px 0;
+  font-family:"Cascadia Code",Consolas,monospace;font-size:14.5px;line-height:1.9;
+  white-space:pre-wrap;overflow-x:auto;}
+.formula .cm{color:#7d93b8;} .formula .kw{color:#7fb4ff;} .formula .hl{color:#5ef0c0;}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px;background:var(--card);}
+th{background:#20304a;color:#fff;text-align:left;padding:9px 12px;font-weight:600;}
+td{border:1px solid var(--line);padding:8px 12px;vertical-align:top;}
+tr:nth-child(even) td{background:#f4f7fb;}
+.toc{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 28px;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;padding:18px 24px;font-size:14.5px;}
+.toc a{color:var(--accent);text-decoration:none;}
+.toc a:hover{text-decoration:underline;}
+.figwrap{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:18px 10px 8px;margin:20px 0;text-align:center;}
+.figwrap svg{max-width:100%;height:auto;}
+.figcap{font-size:13px;color:var(--muted);padding:6px 10px 10px;}
+.reflist{font-size:14px;}
+.reflist li{margin:6px 0;}
+.layerchip{display:inline-block;background:#20304a;color:#fff;border-radius:5px;
+  padding:1px 9px;font-size:13px;font-weight:600;margin-right:8px;}
+footer{margin-top:70px;padding-top:18px;border-top:1px solid var(--line);
+  color:var(--muted);font-size:13px;}
+@media print{ body{background:#fff} .page{padding:0} }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="hero">
+  <h1>UNIKERN · 跨厂商 GPU 内核统一抽象与最优求解平台</h1>
+  <p class="subtitle">设计白皮书（评审稿）— 物理 GPU 剥离 · 数学化定制 · AOT 预开发 · 异构统一内存</p>
+  <div class="meta">
+    <span>版本：v1.0 评审稿</span>
+    <span>日期：2026-10-26</span>
+    <span>范围：仅设计与参考资料，不含实现</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1. 执行摘要</a>
+  <a href="#s2">2. 问题定义与目标</a>
+  <a href="#s3">3. 研究事实基础（四路参考资料）</a>
+  <a href="#s4">4. 总体架构：七层设计</a>
+  <a href="#s5">5. L0–L2：情报、抽象与数学表示</a>
+  <a href="#s6">6. L3：求解器与唯一最优解的形式化</a>
+  <a href="#s7">7. L4–L6：闭环、AOT 与多级存储运行时</a>
+  <a href="#s8">8. 技术选型</a>
+  <a href="#s9">9. 风险清单与诚实边界</a>
+  <a href="#s10">10. 路线图（范围制，不含时间承诺）</a>
+  <a href="#s11">11. 参考资料</a>
+</nav>
+
+<h2 id="s1">1. 执行摘要</h2>
+
+<p>UNIKERN 的使命是：把物理 GPU（NVIDIA / AMD / Intel）抽象成统一的中间表示，让内核可跨厂商复用；
+把"针对硬件定制内核"从手工艺变成<strong>可求解的数学优化问题</strong>；并支持在硬件到手之前完成大部分开发工作（AOT 预开发）、
+CPU+GPU 并行与统一内存。</p>
+
+<div class="warnbox">
+<strong>关键诚实点（先泼冷水）：</strong>
+"一个数学问题只有一个最优解"在真实 GPU 调优中<strong>并不成立</strong>。WaveTune（2026）对 GPU 内核延迟地形的实测证明：
+性能地形是非凸的，且在寄存器 / 共享内存 / 缓存容量边界处呈<strong>离散跳变</strong>——不存在连续优化意义上唯一的全局最优。
+任何宣称"自动找到真实硬件全局唯一最优"的系统都是在自我欺骗。
+</div>
+
+<div class="callout">
+<strong>因此本设计的核心巧思是改写命题：</strong>不追求"真实时间意义上的唯一最优"，
+而是把问题分解为
+<strong>（a）多面体约束刻画的可行域 <code>F</code></strong> ＋
+<strong>（b）确定性解析代价模型 <code>C</code> 作为唯一仲裁者</strong>。
+固定 (F, C, 字典序) 三元组后，<strong>求解过程是一个纯函数</strong>：同输入必产生同一输出解，
+唯一性、可复现性、可审计性在数学上成立。搜索器（Ansor 式枚举 + LLM 引导）只负责探索残差子空间，
+<strong>最终排序与选择权归 <code>C</code></strong>；<code>C</code> 与真实时间的偏差由实测闭环（L4）校准并给出误差上界。
+这是"唯一最优"在工程上唯一站得住的形态。
+</div>
+
+<div class="goodbox">
+<strong>交付形态：</strong>七层架构（L0 情报 → L1 抽象 → L2 数学表示 KML → L3 求解器 → L4 闭环 → L5 AOT → L6 异构运行时与多级存储），
+配架构图、优化闭环图、唯一最优解形式化、技术选型与风险清单。
+明确不做的事：不翻译 CUDA（法律红线，见 §9）。
+</div>
+
+<h2 id="s2">2. 问题定义与目标</h2>
+
+<table>
+<tr><th style="width:90px">编号</th><th style="width:240px">目标</th><th>良定义化</th></tr>
+<tr><td><strong>O1</strong></td><td>跨厂商内核复用</td><td>物理 GPU → 厂商中立统一计算模型 UCM；内核以数学对象（tile / layout / 原语树）表达，与 ISA 无关</td></tr>
+<tr><td><strong>O2</strong></td><td>定制 = 数学优化</td><td>定制问题归约为：在可行域 X 上最小化确定性代价 C(x)，固定 (X, C, 字典序) 后解唯一确定</td></tr>
+<tr><td><strong>O3</strong></td><td>提前获取 GPU 情报做 AOT 开发</td><td>持续情报流（发布前规格、SDK 节奏、ISA 文档）→ 硬件能力规格 HCS → 新卡宣布即触发预开发，上市即加载预缓存配置</td></tr>
+<tr><td><strong>O4</strong></td><td>CPU+GPU 并行与多级存储</td><td>任务图分区 + 双缓冲重叠；覆盖全谱系硬件：传统离散 GPU（显存 + RAM + NVMe 盘的显式拷贝与流式预取）、小显存 out-of-core 分层驻留、物理统一内存（Grace Hopper / MI300A）与 CXL 远内存；放置与预取决策统一进 C 求解</td></tr>
+</table>
+
+<h3>非目标（明确排除）</h3>
+<ul>
+<li><strong>不翻译 CUDA 源码 / PTX 到其他后端</strong>——NVIDIA EULA 禁止逆向翻译，ZLUDA 的先例证明该路线法律上不可持续。KML 独立生成各后端代码。</li>
+<li>不承诺"真实硬件时间全局唯一最优"（见 §1 诚实点），只承诺"良定义数学意义上的解唯一确定 + 实测校准的误差上界"。</li>
+<li>不在硅前做 ISA 级调优——ISA 微调只能在硬件到手后进行，AOT 的边界在"后端 IR 级"。</li>
+</ul>
+
+<h2 id="s3">3. 研究事实基础（四路参考资料）</h2>
+<p>以下事实来自四路并行调研，是后续设计的依据。每条注明来源方向，并给出它对设计的直接推论。</p>
+
+<h3>方向 A — 可移植 IR 与硬件抽象框架</h3>
+<table>
+<tr><th style="width:34%">事实</th><th style="width:26%">来源</th><th>设计推论</th></tr>
+<tr><td>MLIR 以多级 IR / Dialect 机制支持从高层语义逐级 lowering 到 NVPTX / AMDGPU / SPIR-V 等后端，是跨硬件抽象的最成熟路径</td><td>MLIR 官方文档 / LLVM 项目</td><td>KML 做成独立 MLIR Dialect，复用其 lowering 基础设施（§5 L2）</td></tr>
+<tr><td>CUTLASS CuTe 把 <code>tile / stride / layout / swizzle</code> 作为一等数学对象，layout 代数（如 swizzle 等价类）可静态推理</td><td>NVIDIA CUTLASS / CuTe 论文</td><td>以 <strong>tile 为原子数学对象</strong>构建 KML，layout 代数可移植为 KML 的组合规则</td></tr>
+<tr><td>AMD Composable Kernel 在 device 内以参数驱动组合内核片段，证明"内核 = 可组合原语"在真实硬件上可行</td><td>ROCm Composable Kernel 项目</td><td>KML 内核建模为<strong>原语树</strong>，组合发生在生成期而非运行期</td></tr>
+<tr><td>Triton 基于 MLIR 的 tile 级 DSL 已横跨 NVIDIA 与 AMD（部分）后端</td><td>Triton / OpenAI 项目</td><td>tile 级 DSL 的跨厂商路线已验证可行，风险显著低于 ISA 级方案</td></tr>
+<tr><td>SYCL / oneAPI + Level Zero 证明"单一高层抽象 + 多硬件后端"的工业可行性（Intel 自身实践）</td><td>Intel oneAPI 规范</td><td>UCM（统一计算模型）的分层接口设计参考其抽象切面</td></tr>
+<tr><td>NVIDIA EULA 禁止对 CUDA 进行逆向翻译；ZLUDA 类项目长期处于法律灰色地带</td><td>NVIDIA EULA / 公开报道</td><td><strong>放弃翻译路线</strong>：KML 独立生成 PTX / RDNA / SPIR-V，不从 CUDA 派生</td></tr>
+</table>
+
+<h3>方向 B — 自动调优与"最优解"的现实</h3>
+<table>
+<tr><th style="width:34%">事实</th><th style="width:26%">来源</th><th>设计推论</th></tr>
+<tr><td>Ansor 将搜索空间拆为"sketch + annotation"两层， sketch 保证结构合法、annotation 负责参数探索</td><td>OSDI 2020 · Ansor</td><td>L3 搜索器沿用两层结构：F 管 sketch 合法性，枚举只做 annotation 探索</td></tr>
+<tr><td>OpenTuner / ATF 等启发式搜索（遗传、笛卡儿）不保证唯一性、不可复现（依赖随机种子与采样路径）</td><td>OpenTuner / ATF 论文</td><td>搜索器只许"提名候选"，<strong>不得做最终裁决</strong>——裁决权归确定性 C</td></tr>
+<tr><td>学习型代价模型（如 TVM 的 XGBoost cost model）训练成本高、输出随训练集变动，非确定性</td><td>TVM autotvm 文档</td><td>拒绝学习模型做仲裁者；其只可用于<strong>候选预筛</strong>（残差子空间）</td></tr>
+<tr><td><strong>WaveTune（2026）：实测 GPU 内核延迟地形非凸，且跨寄存器 / SMEM / 缓存容量边界呈离散跳变</strong>；凸优化/单峰假设在该领域失效</td><td>WaveTune 2026 论文</td><td>本设计唯一最优性的重新定位依据（§6 形式化 + §9 风险 R2）</td></tr>
+<tr><td>解析代价模型（roofline 及其分层扩展）在 memory-bound 区间可达高保真，在 tensor-core 区间依赖原语吞吐表</td><td>Roofline 模型及衍生工作</td><td>C 采用分层 roofline + 原语吞吐表（来自 L0 情报），保持解析、确定性</td></tr>
+</table>
+
+<h3>方向 C — 异构统一内存与多级存储层级</h3>
+<table>
+<tr><th style="width:34%">事实</th><th style="width:26%">来源</th><th>设计推论</th></tr>
+<tr><td>CUDA UVA / UVM 提供统一虚拟地址，但底层是按缺页迁移（page migration），放置不当会产生显著性能塌陷</td><td>CUDA 统一内存文档</td><td>统一地址 ≠ 统一性能：<strong>显式放置/预取</strong>必须是一等 API（§7 L6）</td></tr>
+<tr><td>Grace Hopper 的 NVLink-C2C 提供 900 GB/s 级 CPU–GPU 一致互联，物理上共享同一地址空间</td><td>NVIDIA Grace Hopper 白皮书</td><td>存在物理近层统一内存的平台，优先级高于软件 UVM（§7 L6）</td></tr>
+<tr><td>MI300A 是 CPU+GPU 融合 APU，统一物理内存（数百 GB 级），无迁移语义</td><td>AMD MI300A 资料</td><td>同上——按"物理统一 &gt; 软件统一"分层选择内存策略</td></tr>
+<tr><td>CXL Type-3 允许将 DRAM 池化为远内存层级，代价是额外延迟层级</td><td>CXL 规范</td><td>作为统一内存的远端兜底层，纳入代价模型 C 的延迟项</td></tr>
+<tr><td>Linux HMM/SVM 让 GPU 参与系统页表一致性，是厂商中立路径</td><td>Linux 内核文档</td><td>Intel / 开源栈的统一内存实现基座</td></tr>
+<tr><td>传统离散 GPU 上，pinned memory + 异步 H2D/D2H 与独立 copy engine 是标准重叠手段：拷贝与 SM 计算可并行流水</td><td>CUDA 异步拷贝 / copy engine 文档</td><td>场景 B 的双缓冲重叠成为一等调度对象，拷贝时间进入 C（§7 L6）</td></tr>
+<tr><td>GPUDirect Storage 让 NVMe 经 DMA 直达显存，绕过 CPU 暂存；DirectStorage 在 Windows 侧同理</td><td>NVIDIA GPUDirect Storage · Microsoft DirectStorage</td><td>盘→显存直读作为候选数据通路，纳入放置求解的动作集</td></tr>
+<tr><td>ZeRO-Infinity 把训练/推理状态分层卸载到 CPU RAM 与 NVMe，突破显存容量墙；llama.cpp 以 mmap 流式加载权重；vLLM PagedAttention 以页式管理显存 KV 块</td><td>DeepSpeed ZeRO-Infinity · llama.cpp · vLLM</td><td>「小显存 + 大内存 + 大硬盘」是主流工程现实；驻留粒度与预取距离应交 C 统一求解，而非各自手工策略</td></tr>
+</table>
+
+<h3>方向 D — GPU 情报自动获取</h3>
+<table>
+<tr><th style="width:34%">事实</th><th style="width:26%">来源</th><th>设计推论</th></tr>
+<tr><td>thegpu.guru 提供结构化 GraphQL API 查询 GPU 规格（算力、显存、带宽、层级等）</td><td>thegpu.guru</td><td>L0 情报层首选 API 源，归一化为 HCS（§5 L0）</td></tr>
+<tr><td>TechPowerUp GPU 数据库覆盖全量消费/专业卡规格，社区维护、更新快</td><td>TechPowerUp</td><td>情报交叉验证源 + 历史数据回填</td></tr>
+<tr><td>MLPerf 提供跨厂商可比的实测性能参考（HPC / AI 类别）</td><td>MLCommons</td><td>C 模型保真度的公开校准点（不依赖自有实测也能起步）</td></tr>
+<tr><td>三大厂商 ISA / IR 手册公开：PTX ISA、RDNA/CDNA ISA、Intel Xe ISA；且 SDK / 文档先于硬件零售发布</td><td>NVIDIA / AMD / Intel 官方文档</td><td>AOT 预开发的信息基础：宣布期即可拿到 IR 目标与编译器工具链（§7 L5）</td></tr>
+<tr><td>新卡规格在发布前存在泄露/预测数据，置信度参差</td><td>行业惯例</td><td>HCS 必须带<strong>置信度分级</strong>，预开发产出按置信度标记（§9 R5）</td></tr>
+<tr><td>互联与存储带宽档位是常规公开信息：PCIe 代际/通道数、NVMe 4.0/5.0 带宽、内存通道数与容量上限</td><td>PCI-SIG / NVMe 规范 · 厂商规格页</td><td>HCS 增加存储与互联层级表，C 的多级放置项据此取值（§5 L0、§7 L6 场景 B）</td></tr>
+</table>
+
+<h2 id="s4">4. 总体架构：七层设计</h2>
+<p>七层自下而上逐层剥离物理 GPU。核心原则有三：<strong>① 翻译禁令</strong>——各后端代码从 KML 独立生成，不经 CUDA；
+<strong>② 仲裁唯一</strong>——任何搜索/学习组件都无最终裁决权，裁决权归确定性解析代价模型 C；
+<strong>③ 情报先行</strong>——硬件到手前，L0 情报流已驱动 L5 完成大部分开发。</p>
+
+<div class="figwrap">
+<svg viewBox="0 0 940 700" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#33475f"/>
+    </marker>
+    <marker id="arg" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#0aa37f"/>
+    </marker>
+    <marker id="aro" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#b3541e"/>
+    </marker>
+  </defs>
+
+  <text x="470" y="34" text-anchor="middle" font-size="19" font-weight="bold" fill="#1a2332">UNIKERN 七层架构（自下而上剥离物理 GPU）</text>
+
+  <!-- left vertical arrow: abstraction direction -->
+  <line x1="62" y1="622" x2="62" y2="120" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="40" y="380" font-size="13" fill="#33475f" transform="rotate(-90 40 380)" text-anchor="middle">逐层剥离物理差异 → 厂商中立</text>
+
+  <!-- external input box -->
+  <rect x="88" y="588" width="118" height="62" rx="8" fill="#fff4ec" stroke="#f3d5bd"/>
+  <text x="147" y="612" text-anchor="middle" font-size="13" font-weight="bold" fill="#b3541e">新 GPU 宣布</text>
+  <text x="147" y="632" text-anchor="middle" font-size="11" fill="#b3541e">情报流触发</text>
+  <line x1="206" y1="619" x2="248" y2="619" stroke="#b3541e" stroke-width="2" marker-end="url(#aro)"/>
+
+  <!-- L0 -->
+  <rect x="250" y="588" width="470" height="62" rx="8" fill="#e8f0fe" stroke="#0b5fff" stroke-width="1.5"/>
+  <text x="266" y="614" font-size="14" font-weight="bold" fill="#0b5fff">L0 GPU 情报层</text>
+  <text x="266" y="634" font-size="12" fill="#33475f">thegpu.guru GraphQL · TechPowerUp · MLPerf · 厂商手册 → 归一化 HCS（带置信度）</text>
+
+  <!-- L1 -->
+  <rect x="250" y="510" width="470" height="62" rx="8" fill="#e6f7f1" stroke="#0aa37f" stroke-width="1.5"/>
+  <text x="266" y="536" font-size="14" font-weight="bold" fill="#0aa37f">L1 硬件抽象层 — 统一计算模型 UCM</text>
+  <text x="266" y="556" font-size="12" fill="#33475f">SIMD 宽度 · 存储层级 · 张量原语族 · 后端 IR 目标（PTX / RDNA / SPIR-V）</text>
+
+  <!-- L2 -->
+  <rect x="250" y="432" width="470" height="62" rx="8" fill="#eef0ff" stroke="#5b5bd6" stroke-width="1.5"/>
+  <text x="266" y="458" font-size="14" font-weight="bold" fill="#5b5bd6">L2 数学内核表示 KML（MLIR Dialect）</text>
+  <text x="266" y="478" font-size="12" fill="#33475f">tile 为原子数学对象 · layout 代数（CUTLASS CuTe 式）· 内核 = 可组合原语树</text>
+
+  <!-- L3 -->
+  <rect x="250" y="354" width="470" height="62" rx="10" fill="#20304a" stroke="#0b5fff" stroke-width="2"/>
+  <text x="266" y="380" font-size="14" font-weight="bold" fill="#ffffff">L3 组合与最优解求解器（核心）</text>
+  <text x="266" y="400" font-size="12" fill="#c9d8f2">多面体可行域 F + 确定性解析代价模型 C（唯一仲裁）· Ansor 式枚举 + LLM 只探残差</text>
+
+  <!-- L4 -->
+  <rect x="250" y="276" width="470" height="62" rx="8" fill="#fffbe8" stroke="#c7a500" stroke-width="1.5"/>
+  <text x="266" y="302" font-size="14" font-weight="bold" fill="#8a7300">L4 自动开发·测试闭环</text>
+  <text x="266" y="322" font-size="12" fill="#6b5c00">差分正确性 · 性能基准 · 跨后端移植 → 写入 Kernel Solution Ledger</text>
+
+  <!-- L5 -->
+  <rect x="250" y="198" width="470" height="62" rx="8" fill="#fdeaf4" stroke="#c2418a" stroke-width="1.5"/>
+  <text x="266" y="224" font-size="14" font-weight="bold" fill="#c2418a">L5 AOT 提前开发</text>
+  <text x="266" y="244" font-size="12" fill="#8a2f60">HCS → KML→IR 预编译 + 预测最优配置预缓存 · 边界：ISA 级调优留待硅后</text>
+
+  <!-- L6 -->
+  <rect x="250" y="120" width="470" height="62" rx="8" fill="#eceff4" stroke="#33475f" stroke-width="1.5"/>
+  <text x="266" y="146" font-size="14" font-weight="bold" fill="#33475f">L6 异构运行时 + 多级存储</text>
+  <text x="266" y="166" font-size="12" fill="#33475f">任务图分区（CPU+GPU 并行）· 盘→内存→显存流式放置与预取 · 统一内存 = 零拷贝特例</text>
+
+  <!-- hardware base -->
+  <rect x="250" y="668" width="470" height="24" rx="6" fill="#b8c2d0"/>
+  <text x="485" y="685" text-anchor="middle" font-size="12" fill="#1a2332">物理硬件：NVIDIA · AMD · Intel · CPU · RAM · NVMe 盘 · CXL 内存池</text>
+
+  <!-- Ledger box right -->
+  <rect x="762" y="288" width="168" height="86" rx="8" fill="#ffffff" stroke="#0aa37f" stroke-width="1.5" stroke-dasharray="none"/>
+  <text x="846" y="314" text-anchor="middle" font-size="13" font-weight="bold" fill="#0aa37f">Kernel Solution</text>
+  <text x="846" y="332" text-anchor="middle" font-size="13" font-weight="bold" fill="#0aa37f">Ledger（解账本）</text>
+  <text x="846" y="352" text-anchor="middle" font-size="11" fill="#33475f">实测记录 · 命中即直接适配</text>
+  <line x1="720" y1="316" x2="762" y2="322" stroke="#0aa37f" stroke-width="2" marker-end="url(#arg)"/>
+  <line x1="762" y1="352" x2="485" y2="418" stroke="#0aa37f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arg)"/>
+  <text x="700" y="420" font-size="11" fill="#0aa37f">见过 → 跳过搜索</text>
+
+  <!-- intel feed to L5 -->
+  <line x1="228" y1="610" x2="228" y2="232" stroke="#b3541e" stroke-width="2" stroke-dasharray="6 4"/>
+  <line x1="228" y1="232" x2="248" y2="232" stroke="#b3541e" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aro)"/>
+  <text x="212" y="430" font-size="11" fill="#b3541e" transform="rotate(-90 212 430)" text-anchor="middle">HCS 驱动预开发（AOT）</text>
+
+  <!-- vertical connectors -->
+  <line x1="485" y1="588" x2="485" y2="576" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="485" y1="510" x2="485" y2="498" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="485" y1="432" x2="485" y2="420" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="485" y1="354" x2="485" y2="342" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="485" y1="276" x2="485" y2="264" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="485" y1="198" x2="485" y2="186" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="485" y1="120" x2="485" y2="112" stroke="#33475f" stroke-width="2" marker-end="url(#ar)"/>
+</svg>
+<div class="figcap">图 1 — UNIKERN 七层架构。实线：主数据流；虚线绿：Ledger 命中复用；虚线橙：情报驱动的 AOT 预开发。</div>
+</div>
+
+<h2 id="s5">5. L0–L2：情报、抽象与数学表示</h2>
+
+<h3>L0 — GPU 情报层</h3>
+<ul>
+<li><strong>源与优先级：</strong>thegpu.guru（结构化 GraphQL，首选）→ TechPowerUp（全量覆盖交叉验证）→ 厂商官方 ISA/SDK 文档（权威）→ MLPerf（实测上界参考）。</li>
+<li><strong>归一化产物 HCS（硬件能力规格）：</strong>计算单元数与频率域、SIMD/带宽逐层表、缓存/寄存器容量、张量原语族吞吐表（MMA / MFMA / XMX）、<strong>存储与互联层级表（显存 / PCIe / RAM / NVMe 盘 / CXL：带宽、容量、介质类型）</strong>、后端 IR 目标与工具链版本。每字段带<strong>置信度标记</strong>（官方文档 &gt; 实测数据库 &gt; 发布前预测）。</li>
+<li><strong>触发机制：</strong>新卡宣布事件 → 生成草稿 HCS → 驱动 L5 预开发；零售上市后用首轮实测回填修正置信度。</li>
+</ul>
+
+<h3>L1 — 硬件抽象层（统一计算模型 UCM）</h3>
+<ul>
+<li>物理 GPU 折叠为厂商中立的 UCM：<strong>SIMD/warp 形状、存储层级树、张量原语族、同步原语</strong>四类抽象面。</li>
+<li>原语族不对齐时（如 NVIDIA mma.sync 形状 vs AMD MFMA 形状 vs Intel XMX）采用<strong>分层退化</strong>：UCM 定义抽象原语能力区间，后端选择最接近实现；无法覆盖时该区间对 KML 标记为"后端不支持"，进入 L3 可行域约束——<strong>不支持即不可行，绝不静默降性能</strong>。</li>
+<li>后端目标：PTX（NVIDIA）、RDNA/CDNA ISA（AMD）、SPIR-V / Level Zero（Intel）。三者均由 KML 独立生成，无 CUDA 派生关系。</li>
+</ul>
+
+<h3>L2 — 数学内核表示 KML（MLIR Dialect）</h3>
+<ul>
+<li><strong>原子对象 = tile</strong>（借鉴 CUTLASS CuTe）：tile 尺寸、stride、layout、swizzle 均为一等数学对象，可参与代数运算与等价推理。</li>
+<li>内核 = <strong>可组合原语树</strong>：GEMM = [加载 → 布局变换 → 张量原语 → 归约 → 写回] 的结构化树；"从低到高自动组合"即在该树上做类型化重写。</li>
+<li><strong>合法性 = 多面体约束</strong>：依赖无冲突、tile 整除性、别名分析、容量约束统一表达为整数不等式组，交给 L3 的多面体引擎判定（isl / Farkas）。</li>
+<li>KML 编译为 MLIR Dialect，复用 MLIR 的 lowering 基础设施到达各后端 IR。</li>
+</ul>
+
+<h2 id="s6">6. L3：求解器与唯一最优解的形式化</h2>
+
+<h3>6.1 数学定义</h3>
+<div class="formula"><span class="cm">// 决策空间与可行域</span>
+P   = { x | x 为 KML 原语树在有限参数格（tile 尺寸、重排、swizzle…）上的实例 }   <span class="cm">// 有限集</span>
+F(x): 整数不等式组（多面体）— 缓存/寄存器容量 ≤ HCS 上限 · tile 整除 · 无依赖冲突 · 原语能力覆盖
+X   = { x ∈ P | F(x) 可行 }          <span class="cm">// 由 isl / Farkas 引理判定，非空才进入搜索</span>
+
+<span class="cm">// 确定性解析代价模型（唯一仲裁者）</span>
+C(x) = max( 算力项 Σ ops/primitives(x),  带宽项 Σ bytes/bw(盘·RAM·互联·显存),  延迟项 lat_tree(x) )
+       <span class="cm">// 分层 roofline 展开（含盘 → RAM → 互联 → 显存全层级）；所有常量来自 L0 的 HCS；无随机性、无学习参数</span>
+       <span class="cm">// 决策变量除内核参数外，还包括：数据放置层、数据通路、流式分片粒度与预取距离 d —— 放置即求解</span>
+
+<span class="cm">// 唯一最优（良定义版本）：字典序，代价为主键，结构规范化为次键</span>
+x*   = argmin over X of  ( C(x), canonical_form(x) )   <span class="kw">lexicographic</span></div>
+
+<h3>6.2 命题一（可复现唯一性）</h3>
+<div class="callout">
+若 (i) C 为确定性函数（对同一 x 恒返回同一值），(ii) X 有限且非空，(iii) 采用字典序 (C, canonical_form) 为严格全序——
+则 argmin 存在且<strong>唯一</strong>；求解器 <code>solve(F, C, X) → x*</code> 是纯函数：
+<strong>同输入必得同解，可审计、可复现、可增量改进（C 更新即得新确定解）</strong>。
+唯一性不依赖搜索器——搜索器只是 x* 的加速逼近器，任何搜索改动不影响解的定义，只影响收敛速度。
+</div>
+
+<h3>6.3 命题二（与真实最优的差距，诚实边界）</h3>
+<div class="formula"><span class="cm">// 设真实硬件时间为 T(x)，C 的保真度界为 ε：</span>
+<span class="kw">if</span>  | T(x) − C(x) | ≤ ε  <span class="kw">for all</span> x ∈ X,
+<span class="kw">then</span> | T(x*) − min<sub>x∈X</sub> T(x) | ≤ 2ε   <span class="cm">// x* 是高保真代理解，非真实唯一最优</span>
+ε 由 L4 实测闭环校准：每次实测回报 (x, T(x)) → 修正 C 的层级常量 → ε 单调收紧</div>
+
+<div class="warnbox">
+<strong>为什么必须这样改写：</strong>WaveTune（2026）已证明 T 的地形非凸且在容量边界离散跳变——
+"对 T 做全局优化并宣称唯一最优"既不可判定也不可复现。把唯一性建立在 (X, C, 字典序) 这个
+<strong>完全可控的良定义对象</strong>上，工程上得到：确定性、可审计、误差有界、随校准单调逼近真实最优。
+这是该命题在现实中站得住的唯一形态。
+</div>
+
+<h3>6.4 优化闭环</h3>
+<div class="figwrap">
+<svg viewBox="0 0 940 320" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#33475f"/>
+    </marker>
+    <marker id="ar3" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#b3541e"/>
+    </marker>
+    <marker id="ar4" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#0aa37f"/>
+    </marker>
+  </defs>
+  <text x="470" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a2332">优化闭环：搜索只提名，C 做仲裁，实测做校准，Ledger 做复用</text>
+
+  <g font-size="12.5">
+    <rect x="16"  y="70" width="128" height="66" rx="8" fill="#eef0ff" stroke="#5b5bd6" stroke-width="1.5"/>
+    <text x="80"  y="97" text-anchor="middle" font-weight="bold" fill="#5b5bd6">KML 任务定义</text>
+    <text x="80"  y="117" text-anchor="middle" fill="#33475f">原语树 + 语义约束</text>
+
+    <rect x="172" y="70" width="140" height="66" rx="8" fill="#e8f0fe" stroke="#0b5fff" stroke-width="1.5"/>
+    <text x="242" y="92" text-anchor="middle" font-weight="bold" fill="#0b5fff">F 可行域构建</text>
+    <text x="242" y="110" text-anchor="middle" fill="#33475f">多面体 / isl</text>
+    <text x="242" y="126" text-anchor="middle" fill="#33475f">不可行 → 直接淘汰</text>
+
+    <rect x="340" y="70" width="150" height="66" rx="8" fill="#f4f7fb" stroke="#33475f" stroke-width="1.5"/>
+    <text x="415" y="92" text-anchor="middle" font-weight="bold" fill="#33475f">候选枚举</text>
+    <text x="415" y="110" text-anchor="middle" fill="#33475f">Ansor 式 sketch</text>
+    <text x="415" y="126" text-anchor="middle" fill="#33475f">+ LLM 引导残差探索</text>
+
+    <rect x="518" y="70" width="140" height="66" rx="10" fill="#20304a" stroke="#0b5fff" stroke-width="2"/>
+    <text x="588" y="92" text-anchor="middle" font-weight="bold" fill="#ffffff">C 解析认证</text>
+    <text x="588" y="110" text-anchor="middle" fill="#c9d8f2">确定性排序</text>
+    <text x="588" y="126" text-anchor="middle" fill="#c9d8f2">唯一仲裁者</text>
+
+    <rect x="686" y="70" width="128" height="66" rx="8" fill="#fffbe8" stroke="#c7a500" stroke-width="1.5"/>
+    <text x="750" y="92" text-anchor="middle" font-weight="bold" fill="#8a7300">top-k 实测验证</text>
+    <text x="750" y="110" text-anchor="middle" fill="#6b5c00">差分正确性 +</text>
+    <text x="750" y="126" text-anchor="middle" fill="#6b5c00">性能基准（L4）</text>
+
+    <rect x="842" y="70" width="84" height="66" rx="8" fill="#e6f7f1" stroke="#0aa37f" stroke-width="1.5"/>
+    <text x="884" y="97" text-anchor="middle" font-weight="bold" fill="#0aa37f">Ledger</text>
+    <text x="884" y="117" text-anchor="middle" fill="#33475f">写入/命中</text>
+  </g>
+
+  <line x1="144" y1="103" x2="168" y2="103" stroke="#33475f" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="312" y1="103" x2="336" y2="103" stroke="#33475f" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="490" y1="103" x2="514" y2="103" stroke="#33475f" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="658" y1="103" x2="682" y2="103" stroke="#33475f" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="814" y1="103" x2="838" y2="103" stroke="#33475f" stroke-width="2" marker-end="url(#ar2)"/>
+
+  <path d="M 750 140 L 750 240 L 588 240 L 588 140" fill="none" stroke="#b3541e" stroke-width="2" marker-end="url(#ar3)"/>
+  <text x="668" y="232" text-anchor="middle" font-size="12" fill="#b3541e">实测 (x, T(x)) 回报 → 校准 C 的层级常量 → ε 单调收紧</text>
+
+  <path d="M 884 66 L 884 26 L 242 26 L 242 66" fill="none" stroke="#0aa37f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#ar4)"/>
+  <text x="563" y="20" text-anchor="middle" font-size="12" fill="#0aa37f">Ledger 命中：见过的组合直接返回，跳过搜索与枚举</text>
+
+  <line x1="242" y1="136" x2="242" y2="180" stroke="#33475f" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="242" y="198" text-anchor="middle" font-size="11.5" fill="#5a6b82">Farkas 反例 → 回 L2 修原语树</text>
+</svg>
+<div class="figcap">图 2 — 优化闭环。橙色：校准回路（C 保真度随实测单调收紧）；绿色虚线：Ledger 命中捷径；灰色虚线：不可行反例回路。</div>
+</div>
+
+<h2 id="s7">7. L4–L6：闭环、AOT 与多级存储运行时</h2>
+
+<h3>L4 — 自动开发·测试闭环 + Kernel Solution Ledger</h3>
+<ul>
+<li><strong>正确性：</strong>差分测试（KML 生成实现 vs 参考实现，多精度位级/容差比对）+ 数值等价边界用例（极角、非结合浮点路径标注）。</li>
+<li><strong>性能：</strong>固定基准协议（预热、多次采样取中位数、时钟锁定），结果写入 <strong>Kernel Solution Ledger（解账本）</strong>。</li>
+<li><strong>Ledger 键：</strong>(算子签名, 输入形状域, HCS 指纹, KML 原语树哈希) → 值：(解 x*, 实测 T, C 误差记录)。</li>
+<li><strong>命中语义：</strong>新请求若 Ledger 命中则直接返回解并按 HCS 指纹适配——"适配最快"路径，跳过 L3 全部搜索（图 2 绿色虚线）。</li>
+<li><strong>校准语义：</strong>未命中走完整闭环；实测结果回写 C 的层级常量，ε 随数据量单调收紧（图 2 橙色回路）。</li>
+</ul>
+
+<h3>L5 — AOT 提前开发</h3>
+<ul>
+<li><strong>流程：</strong>新卡宣布 → L0 草稿 HCS → KML→后端 IR 预编译 + 预测最优配置预缓存 → 上市即加载。</li>
+<li><strong>诚实边界：</strong>预开发只能到达"后端 IR 级 + 预测配置"；ISA 级微调（调度器形状、bank conflict、occupancy 精调）<strong>必须留待硅后</strong>，由 L3 在真机上以小预算重调完成。宣称"硅前全量调优"是不诚实的。</li>
+<li><strong>置信度传播：</strong>草稿 HCS 的置信度随预编译产物传递，上市后首轮实测校验；偏差超阈值则触发重新求解。</li>
+</ul>
+
+<h3>L6 — 异构运行时 + 多级存储（覆盖全谱系硬件）</h3>
+<p>统一内存只是内存问题的一个特例。UNIKERN 将 L6 建模为<strong>通用的多级存储放置与调度问题</strong>，
+同一套求解器覆盖三类硬件形态，差异只在 HCS 的层级常量：</p>
+<table>
+<tr><th style="width:230px">场景</th><th>特征与策略</th></tr>
+<tr><td><strong>场景 A · 物理统一内存</strong><br>Grace Hopper C2C · MI300A · CXL 一致域</td><td>统一地址空间 + 零迁移语义，最优特例：放置问题退化为全驻留，C 中互联层取 C2C / APU 带宽常量即可。</td></tr>
+<tr><td><strong>场景 B · 传统离散 GPU</strong><br>显存 + CPU RAM + NVMe 盘<br>含「小显存 + 大内存 + 大硬盘」</td><td>通用主场景，三个机制：<br>① <strong>显式拷贝调度</strong>：pinned memory + 双缓冲，copy engine 拷贝与 SM 计算流水重叠；<br>② <strong>显存不足的流式执行（out-of-core）</strong>：以 tile / layer / 权重分片为粒度分层驻留（显存 → RAM → 盘），驻留策略与预取距离由 C 求解——计算当前块时预取下一块；<strong>禁止隐式显存超订缺页</strong>（UVM oversubscription 经 PCIe 缺页迁移性能塌陷，宁可显式流式）；<br>③ <strong>盘层级</strong>：mmap 权重流与 GPUDirect Storage 直读显存作为候选数据通路（由 C 择优），盘带宽与队列深度进入 C。</td></tr>
+<tr><td><strong>场景 C · 扩展内存层</strong><br>CXL 远内存 · HMM/SVM</td><td>容量兜底与厂商中立路径：CXL 的额外延迟层级计入 C 参与放置决策；HMM/SVM 作为 Intel / 开源栈的页表一致性基座。</td></tr>
+</table>
+<div class="figwrap">
+<svg viewBox="0 0 940 372" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="m1" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#33475f"/></marker>
+    <marker id="m2" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#0b5fff"/></marker>
+    <marker id="m3" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#b3541e"/></marker>
+    <marker id="m4" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#0aa37f"/></marker>
+  </defs>
+  <text x="470" y="26" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a2332">多级存储层级与数据通路：小显存 + 大内存 + 大盘的流式求解（场景 B 通式）</text>
+  <line x1="44" y1="304" x2="44" y2="60" stroke="#33475f" stroke-width="2" marker-end="url(#m1)"/>
+  <text x="32" y="182" font-size="12" fill="#33475f" transform="rotate(-90 32 182)" text-anchor="middle">↑ 带宽递增 · 容量递减</text>
+
+  <rect x="70" y="56" width="250" height="54" rx="8" fill="#e8f0fe" stroke="#0b5fff" stroke-width="1.5"/>
+  <text x="86" y="80" font-size="13.5" font-weight="bold" fill="#0b5fff">GPU 显存 VRAM</text>
+  <text x="86" y="100" font-size="11.5" fill="#33475f">容量 8–32 GB · ~1 TB/s · 场景 B 中收紧</text>
+
+  <rect x="70" y="132" width="250" height="40" rx="8" fill="#f4f7fb" stroke="#33475f" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="86" y="157" font-size="12" fill="#33475f">PCIe 互联 — 32–64 GB/s · copy engine 可与 SM 重叠</text>
+
+  <rect x="70" y="194" width="250" height="54" rx="8" fill="#e6f7f1" stroke="#0aa37f" stroke-width="1.5"/>
+  <text x="86" y="218" font-size="13.5" font-weight="bold" fill="#0aa37f">CPU RAM</text>
+  <text x="86" y="238" font-size="11.5" fill="#33475f">容量 64–512 GB · 100–300 GB/s</text>
+
+  <rect x="70" y="270" width="250" height="54" rx="8" fill="#fff4ec" stroke="#b3541e" stroke-width="1.5"/>
+  <text x="86" y="294" font-size="13.5" font-weight="bold" fill="#b3541e">NVMe 盘</text>
+  <text x="86" y="314" font-size="11.5" fill="#33475f">TB 级容量 · ~7 GB/s · 权重与数据落盘层</text>
+
+  <rect x="640" y="56" width="220" height="54" rx="8" fill="#20304a"/>
+  <text x="750" y="80" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#ffffff">SM 计算</text>
+  <text x="750" y="100" text-anchor="middle" font-size="11.5" fill="#c9d8f2">消费驻留 tile / 分片</text>
+
+  <line x1="320" y1="83" x2="634" y2="83" stroke="#33475f" stroke-width="2" marker-end="url(#m1)"/>
+  <text x="477" y="99" text-anchor="middle" font-size="11.5" fill="#33475f">驻留分片直接消费</text>
+
+  <path d="M 320,212 C 470,212 470,100 326,100" fill="none" stroke="#0b5fff" stroke-width="2" marker-end="url(#m2)"/>
+  <text x="474" y="204" text-anchor="middle" font-size="11.5" fill="#0b5fff">拷贝当前块：pinned + 双缓冲 ∥ SM 计算</text>
+
+  <path d="M 320,228 C 510,228 510,146 215,146 L 215,116" fill="none" stroke="#b3541e" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#m3)"/>
+  <text x="500" y="160" text-anchor="middle" font-size="11.5" fill="#b3541e">预取下一块：距离 d 与分片粒度由 C 求解</text>
+
+  <line x1="195" y1="268" x2="195" y2="252" stroke="#33475f" stroke-width="2" marker-end="url(#m1)"/>
+  <text x="207" y="265" font-size="11" fill="#33475f">mmap 流 / 页缓存</text>
+
+  <path d="M 320,296 C 560,296 560,62 326,62" fill="none" stroke="#0aa37f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#m4)"/>
+  <text x="618" y="312" text-anchor="middle" font-size="11.5" fill="#0aa37f">GPUDirect Storage：盘 → 显存直读（候选通路，由 C 择优）</text>
+
+  <rect x="560" y="236" width="330" height="44" rx="8" fill="#fffbe8" stroke="#c7a500" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="725" y="254" text-anchor="middle" font-size="12" font-weight="bold" fill="#8a7300">场景 A 零拷贝特例：物理统一内存平台</text>
+  <text x="725" y="272" text-anchor="middle" font-size="11" fill="#6b5c00">Grace Hopper C2C · MI300A · CXL 一致域 — 消除 PCIe 拷贝层</text>
+</svg>
+<div class="figcap">图 3 — 多级存储层级与数据通路。左侧：层级带宽/容量谱；中部：传统离散 GPU 的流式通路（双缓冲 + 预取 + 盘直读）；右下：物理统一内存平台作为零拷贝特例。放置层、数据通路、流式分片粒度与预取距离 d 全部由 C 统一求解。</div>
+</div>
+<p><strong>统一原则——放置即求解：</strong>数据放置层（驻留在显存 / RAM / 盘）、数据通路（显式拷贝 / GDS 直读 / 零拷贝）、
+流式分片粒度与预取距离、CPU/GPU 任务图切分，全部编码为决策变量进入同一 (X, C, 字典序) 框架。
+统一内存不是独立特性，而是 C 在互联层带宽趋于极大时的自然解（零拷贝）；
+小显存不是异常，而是 C 在显存容量约束收紧时自动给出的流式调度解。三场景共用同一求解器，不引入第二套启发式。</p>
+
+<h2 id="s8">8. 技术选型</h2>
+<table>
+<tr><th style="width:170px">组件</th><th style="width:250px">选型</th><th>理由</th></tr>
+<tr><td>内核 IR / 编译</td><td>MLIR（自研 KML Dialect）</td><td>多级 lowering 到 NVPTX / AMDGPU / SPIR-V 基础设施成熟，社区活跃</td></tr>
+<tr><td>tile 数学对象</td><td>CuTe 式 layout 代数（自实现）</td><td>tile/stride/swizzle 一等对象 + 等价推理，跨厂商可移植</td></tr>
+<tr><td>可行域判定</td><td>isl（多面体库）+ Farkas 引理</td><td>整数不等式组可行性与反例证书均有成熟实现</td></tr>
+<tr><td>代价模型 C</td><td>自研确定性解析模型（分层 roofline + 原语吞吐表）</td><td>确定性是唯一性的前提；常量全部来自 HCS 与实测校准，无学习参数</td></tr>
+<tr><td>搜索器</td><td>Ansor 式 sketch/annotation 分层 + LLM 引导残差探索</td><td>结构合法性归 F，搜索只做参数提名；LLM 仅用于缩小残差子空间，无裁决权</td></tr>
+<tr><td>情报源</td><td>thegpu.guru GraphQL + TechPowerUp + MLPerf + 厂商 ISA/SDK 手册</td><td>结构化 API 起步，多源交叉验证，置信度分级</td></tr>
+<tr><td>解复用</td><td>Kernel Solution Ledger（内容寻址存储）</td><td>命中即适配，把冷启动求解成本摊销为一次</td></tr>
+<tr><td>异构执行</td><td>自研任务图执行器（对齐 CUDA Graph / Level Zero 图原语）</td><td>分区/重叠需与内存分层策略耦合，第三方运行时不可控</td></tr>
+<tr><td>多级存储策略</td><td>统一求解器产出放置/预取/通路决策；通路候选 = 显式拷贝（pinned + 双缓冲）/ GPUDirect Storage 直读 / 零拷贝（物理统一内存）/ CXL 与 HMM-SVM 扩展层</td><td>场景 B（显存 + RAM + 盘）为通解；场景 A（统一内存）为互联带宽极大时的零拷贝特例；禁隐式缺页，性能语义显式可控</td></tr>
+<tr><td>盘与流式集成</td><td>mmap 权重流 + GPUDirect Storage / DirectStorage 集成层</td><td>盘层级作为候选通路而非固定绑定；队列深度与分片粒度进入 C</td></tr>
+</table>
+
+<h2 id="s9">9. 风险清单与诚实边界</h2>
+<table>
+<tr><th style="width:70px">编号</th><th style="width:270px">风险 / 边界</th><th>应对</th></tr>
+<tr><td>R1</td><td><strong>法律红线：翻译 CUDA</strong> 违反 NVIDIA EULA（ZLUDA 先例）</td><td>架构级规避：KML 独立生成三后端，零 CUDA 派生；全员禁触翻译路线</td></tr>
+<tr><td>R2</td><td><strong>C 保真度不足</strong>：真实地形非凸 + 容量边界离散跳变（WaveTune 2026），C 排序与实测局部倒序</td><td>top-k 实测兜底 + 校准回路收紧 ε；对外话术永远是"误差有界的代理解"，绝不宣称真实唯一最优</td></tr>
+<tr><td>R3</td><td><strong>ISA 硅前未知</strong>：调度器微架构细节无法预知</td><td>AOT 边界限定在"后端 IR 级 + 预测配置"；ISA 级留给上市后 L3 小预算重调</td></tr>
+<tr><td>R4</td><td><strong>张量原语族不对齐</strong>（mma.sync / MFMA / XMX 形状差异）</td><td>UCM 能力区间 + 分层退化；不覆盖即不可行（进 F），绝不静默降级</td></tr>
+<tr><td>R5</td><td><strong>发布前情报噪声</strong>：规格泄露/预测置信度参差</td><td>HCS 置信度分级；预开发产物按置信度标记；上市首轮实测强制校验</td></tr>
+<tr><td>R6</td><td><strong>LLM 提名质量不稳定</strong>，可能引入无效候选浪费预算</td><td>LLM 输出必须过 F 可行性判定 + C 认证；无效提名只影响收敛速度，不影响解的正确性与唯一性</td></tr>
+<tr><td>R7</td><td><strong>三厂商工具链版本漂移</strong>（PTX / RDNA / SPIR-V 语义变化）</td><td>后端目标绑定工具链版本指纹，进入 Ledger 键；漂移触发重算</td></tr>
+<tr><td>R8</td><td><strong>隐式显存超订</strong>：UVM 缺页迁移经 PCIe 性能塌陷，掩盖真实放置错误</td><td>架构级禁用隐式超订；显存不足一律显式流式（分片 + 预取距离由 C 求解）；运行时监测缺页率，超阈值告警并触发重求解</td></tr>
+<tr><td>R9</td><td><strong>存储介质异构</strong>：HDD / SATA SSD / NVMe 带宽差一个数量级以上，预取参数不可移植</td><td>HCS 存储层档位化（介质类型、带宽、队列深度）；预取解按 HCS 指纹进入 Ledger，介质变化触发重算</td></tr>
+</table>
+
+<h2 id="s10">10. 路线图（范围制，不含时间承诺）</h2>
+<table>
+<tr><th style="width:110px">阶段</th><th>范围</th><th style="width:250px">出口判据</th></tr>
+<tr><td><strong>MVP</strong></td><td>CUDA 单后端 + KML 核心（GEMM / conv / reduction 原语树）+ 确定性解析代价模型 + 多面体可行域 + 解账本</td><td>单后端上，给定算子与形状域，求解输出确定且实测误差 ε 有记录</td></tr>
+<tr><td><strong>V1</strong></td><td>三厂商通用：PTX / RDNA / SPIR-V 全后端；UCM 分层退化；跨后端正确性差分</td><td>同一 KML 原语树在三后端生成、验证、性能可达手写基线的约定比例</td></tr>
+<tr><td><strong>V2</strong></td><td>AOT 零日：情报流自动化 + 草稿 HCS + 预编译与配置预缓存</td><td>新卡宣布到上市期间完成预开发；上市首轮实测校验通过</td></tr>
+<tr><td><strong>V3</strong></td><td>异构 + 多级存储全栈：任务图分区、双缓冲、盘→内存→显存放置与流式预取、物理统一内存与 CXL 远内存；重点验证「小显存 + 大内存 + 大盘」场景</td><td>显存不足以容纳完整工作负载时，端到端求解闭环产出可复现的流式调度解且实测误差有记录</td></tr>
+</table>
+
+<h2 id="s11">11. 参考资料</h2>
+<div class="reflist">
+<h3>可移植 IR / 抽象</h3>
+<ol>
+<li>MLIR：ML Language Reference 与 Dialect lowering 文档 — LLVM 项目</li>
+<li>CUTLASS / CuTe：CUTE Layout Algebra — NVIDIA 开源</li>
+<li>Composable Kernel：参数化内核组合 — AMD ROCm 项目</li>
+<li>Triton：基于 MLIR 的 tile 级 DSL — OpenAI 开源</li>
+<li>SYCL 2020 规范与 oneAPI Level Zero — Intel / Khronos</li>
+<li>NVIDIA CUDA EULA 逆向翻译限制条款及 ZLUDA 项目公开报道</li>
+</ol>
+<h3>自动调优与代价模型</h3>
+<ol start="7">
+<li>Zheng et al., <em>Ansor: Generating High-Performance Tensor Programs for Deep Learning</em> — OSDI 2020</li>
+<li>WaveTune（2026）：GPU 内核延迟地形非凸性与容量边界离散跳变的实测研究</li>
+<li>Ansel &amp; Kamil, <em>OpenTuner: An Extensible Framework for Program Autotuning</em> — PACT 2014</li>
+<li>Autotuning Framework (ATF) 与 [CPR] 搜索空间剪枝系列工作</li>
+<li>Williams et al., <em>Roofline: An Insightful Visual Performance Model</em> — CACM 2009 及分层扩展</li>
+</ol>
+<h3>异构统一内存</h3>
+<ol start="12">
+<li>CUDA Unified Virtual Addressing / Unified Memory 文档 — NVIDIA</li>
+<li>NVIDIA Grace Hopper Superchip：NVLink-C2C 白皮书</li>
+<li>AMD Instinct MI300A APU 架构资料</li>
+<li>Compute Express Link（CXL）规范，Type-3 内存设备 — CXL Consortium</li>
+<li>Linux 内核 Heterogeneous Memory Management（HMM）/ SVM 文档</li>
+</ol>
+<h3>GPU 情报</h3>
+<ol start="16">
+<li>thegpu.guru — GPU 规格结构化查询 GraphQL API</li>
+<li>TechPowerUp GPU Database — 全量 GPU 规格数据库</li>
+<li>MLPerf（Training / Inference / HPC）基准结果 — MLCommons</li>
+<li>PTX ISA 手册（NVIDIA）、RDNA/CDNA ISA 手册（AMD）、Xe ISA 文档（Intel）</li>
+</ol>
+<h3>形式化基础</h3>
+<ol start="20">
+<li>Farkas 引理与多面体可行性判定； isl（Integer Set Library）文档</li>
+</ol>
+</div>
+
+<footer>
+UNIKERN 设计白皮书 v1.0 · 2026-10-26 · 评审稿 — 本文档仅为设计方案，不含任何可执行实现。
+核心立场：不宣称真实硬件时间意义下的全局唯一最优；唯一性建立在良定义对象 (X, C, 字典序) 上，并以实测闭环给出误差上界。
+</footer>
+
+</div>
+</body>
+</html>
