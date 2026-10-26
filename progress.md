@@ -64,3 +64,22 @@
 ## MVP 状态
 Phase 0-8 全部完成。剩余真机项（Apple Metal / Intel OpenCL 的编译执行与对拍）
 需用户 Mac / Intel 机器，验收矩阵已逐项标注受阻边界。
+
+## Session 2026-10-27（Phase 8 独立复核修复，v2）
+- [x] 独立复核 5 项全数属实，逐条处理：
+  - [x] 「verify_fp32 由 smoke 覆盖」不实（grep tests/ 零命中）→ acceptance.cpp
+        补 R6 段：容差函数五路径（相等/容差内/超差点名 index/可配置/尺寸不匹配）
+  - [x] 「场景 A 放置标记单测断言」不存在 → 补 R8 段：A/B 两记录逐词断言 + 互异
+  - [x] 「跨厂商词汇隔离」测试没有且 uk_intel.cl:13 字面含 "Metal" → R10 改为
+        API 词汇级负向断言（hip/__global__ / metal_stdlib/#include<metal/[[buffer），
+        文档改「API 词汇隔离 + 诚实注释例外」
+  - [x] 证据产物未跟踪 → 重跑全部证据命令，原文转录入库 docs/evidence/phase8/
+        （README 列复现命令；emit/uk_amd.cpp 以 add -f 入库并注明原因）
+  - [x] build/ CMAKE_BUILD_TYPE 空（-O0 跑绿）→ 重配置 Release，实证
+        FLAGS=-O3 -DNDEBUG（build/build.ninja:278），ctest 2/2 绿；纠正
+        「Release -O2」口径（MinGW/GNU Release 默认 -O3）
+- [x] 复核后真机复测：1024³ PASS measured_ms=2.61237 + LEDGER HIT；
+      32768³ streamed PASS measured_ms=40517.8 kernel_ms=63700.3
+- [x] docs/acceptance-mvp.md v2：三处夸大表述改为与测试源码一致；引用转录路径；
+      头部标明构建类型与 NDEBUG 证据
+- [x] commit（tests + docs + evidence + findings + progress）

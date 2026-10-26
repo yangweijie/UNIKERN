@@ -21,14 +21,22 @@
 //   R5.1/3  all three backends emit non-empty vendor-language sources whose
 //         head carries the HCS fingerprint; generation is a pure function of
 //         (Solution, Hcs, KmlTree) — the P7 input boundary.
+//   R6.2  the CPU-side graded tolerance function verify_fp32: exact pass,
+//         within-default pass with worst-error reporting, beyond-default
+//         rejection naming the index, configurable bound, size mismatch.
+//         (The GPU half of R6 is the real-device run in the matrix, not here.)
 //   R7.1/2/3/4  SQLite ledger: round-trip, hit serves the recorded off-grid
 //         solution with from_ledger=true, measured_ms persisted (direct SQL),
 //         key isolation, and crash-mid-transaction leaves no half row.
+//   R8.1/6  scenario A placement record names unified memory + zero-copy,
+//         scenario B names vram+ram+nvme + pinned_copy + shard/prefetch;
+//         the two records are explicit and distinct. (Real-device streaming
+//         execution lives in the acceptance matrix, not here.)
 //   R9.2  HCS import rejects with the COMPLETE missing-field list (no false
 //         positives on a single-miss import).
 //   R10.1/2  backend availability is the honest toolchain probe; an
-//         unavailable backend still generates its vendor source (no silent
-//         fallback, capability gaps surface as availability + F constraints).
+//         unavailable backend still generates its vendor source, and no
+//         cross-vendor API token leaks between generated sources.
 // E5: assertions must survive Release (-O2/-O3) -> #undef NDEBUG first.
 #undef NDEBUG
 #include <cassert>
@@ -38,6 +46,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "sqlite3.h"
 #include "unikern/codegen.hpp"
@@ -319,6 +328,38 @@ int main(int argc, char** argv) {
               << "(KML,HCS)-only inputs OK\n";
   }
 
+  // ---------------- R6 (CPU half): graded tolerance function (R6.2) --------
+  {
+    // The GPU half of R6 (differential verify on the device) is the
+    // real-device run recorded in docs/acceptance-mvp.md; this section pins
+    // the CPU-side tolerance policy itself, which previously had NO test.
+    const std::vector<float> ref = {1.0f, 2.0f, 3.0f, 4.0f};
+    const Verdict exact = verify_fp32(ref, ref);
+    assert(exact.ok && exact.max_rel_err == 0.0);
+    // 1/1024 relative error is inside the 2^-5 default -> pass, worst
+    // relative error reported.
+    std::vector<float> near = ref;
+    near[1] += 2.0f / 1024.0f;
+    const Verdict within = verify_fp32(near, ref);
+    assert(within.ok);
+    assert(within.max_rel_err > 0.0 && within.max_rel_err <= 0.03125);
+    // Error beyond the default tolerance -> reject, naming the element.
+    std::vector<float> beyond_in = ref;
+    beyond_in[3] *= 1.1f;  // 10% relative error at index 3
+    const Verdict beyond = verify_fp32(beyond_in, ref);
+    assert(!beyond.ok);
+    assert(beyond.summary.find("index 3") != std::string::npos);
+    assert(beyond.max_rel_err > 0.03125);
+    // R6.2 "configurable": a tighter bound rejects what the default accepted.
+    const Verdict tight = verify_fp32(near, ref, Tolerance{1.0 / 4096.0, 0.0625});
+    assert(!tight.ok);
+    // Size mismatch is a loud rejection, never a false pass.
+    const Verdict sized = verify_fp32(std::vector<float>{1.0f}, ref);
+    assert(!sized.ok && sized.summary == "size mismatch");
+    std::cout << "[R6] fp32 graded tolerance exact/within/beyond/config/"
+              << "size-mismatch OK\n";
+  }
+
   // ---------------- R7: SQLite ledger round-trip / hit / transaction -------
   {
     const char* dbpath = "acceptance_ledger.sqlite3";
@@ -411,6 +452,31 @@ int main(int argc, char** argv) {
     std::cout << "[R7] crash mid-transaction leaves no half row OK\n";
   }
 
+  // ---------------- R8: explicit placement records (R8.1, R8.6) ------------
+  {
+    // R8.6: every solution carries an explicit data-placement decision, and
+    // scenario A vs scenario B produce different, self-describing records
+    // (P6: scenario A must be marked unified memory).
+    KmlTree t;
+    const Solution a = solve(unified_hcs(400), t);
+    assert(a.best.path == Instance::Path::Unified);
+    assert(a.placement_record.find("placement=unified_memory") !=
+           std::string::npos);
+    assert(a.placement_record.find("scenario A") != std::string::npos);
+    assert(a.placement_record.find("zero-copy") != std::string::npos);
+    assert(a.placement_record.find("bw=400") != std::string::npos);
+    const Solution b = solve(discrete_hcs(int64_t(8) << 30, 512), t);
+    assert(b.best.path == Instance::Path::PinnedCopy);
+    assert(b.placement_record.find("placement=vram+ram+nvme") !=
+           std::string::npos);
+    assert(b.placement_record.find("scenario B") != std::string::npos);
+    assert(b.placement_record.find("path=pinned_copy") != std::string::npos);
+    assert(b.placement_record.find("shard=64MiB") != std::string::npos);
+    assert(b.placement_record.find("prefetch_d=2") != std::string::npos);
+    assert(a.placement_record != b.placement_record);
+    std::cout << "[R8] scenario A/B placement records explicit + distinct OK\n";
+  }
+
   // ---------------- R9: HCS import, complete missing-field report ----------
   {
     std::string err;
@@ -482,8 +548,17 @@ int main(int argc, char** argv) {
            apple_src.find("R8.6") != std::string::npos);  // placement honesty
     assert(intel_src.find("R8.1") != std::string::npos &&
            intel_src.find("R8.6") != std::string::npos);
-    std::cout << "[R10] vendor mapping + availability semantics + no silent "
-              << "substitution OK\n";
+    // Negative direction (no cross-vendor API leakage): the Apple source
+    // carries no HIP device API and the Intel source carries no Metal API.
+    // The English word "Metal" may legitimately appear inside the honesty
+    // comments — the check targets API tokens, not prose.
+    assert(apple_src.find("hip") == std::string::npos);
+    assert(apple_src.find("__global__") == std::string::npos);
+    assert(intel_src.find("metal_stdlib") == std::string::npos);
+    assert(intel_src.find("#include <metal") == std::string::npos);
+    assert(intel_src.find("[[buffer") == std::string::npos);
+    std::cout << "[R10] vendor mapping + availability semantics + vendor-API "
+              << "isolation OK\n";
   }
 
   std::cout << "ACCEPTANCE PASS\n";

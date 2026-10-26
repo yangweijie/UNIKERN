@@ -1,0 +1,5 @@
+SOLVED  x* tile=128x128  c_ms=12.5387  |X|=25  hcs_fp=80394649
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+EMIT amd:hip -> uk_evidence/emit/uk_amd.cpp lines=390
+EMIT apple:metal -> uk_evidence/emit/uk_apple.metal lines=61 (toolchain absent)
+EMIT intel:ocl -> uk_evidence/emit/uk_intel.cl lines=53 (toolchain absent)

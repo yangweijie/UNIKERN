@@ -1,0 +1,12 @@
+[R1] canonical uniqueness + illegal type-name rejection OK
+[R2] filter 22/25, violation records + |X| OK
+[R3] C bitwise-stable over 10^4 repeats + HCS constants adopted OK
+[R4] argmin (128,128) via canonical key + infeasible termination OK
+[R5] 3 backends non-empty + HCS fingerprint in head + (KML,HCS)-only inputs OK
+[R6] fp32 graded tolerance exact/within/beyond/config/size-mismatch OK
+[R7] sqlite round-trip + hit(off-grid tiles) + measured_ms persisted + isolation OK
+[R7] crash mid-transaction leaves no half row OK
+[R8] scenario A/B placement records explicit + distinct OK
+[R9] complete missing-field rejection + fingerprint OK
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+ACCEPTANCE PASS

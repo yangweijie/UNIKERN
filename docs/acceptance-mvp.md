@@ -1,11 +1,13 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8
 
-- 日期：2026-10-27
+- 日期：2026-10-27（独立复核修订版 v2：修复三项测试覆盖缺口，证据产物入库）
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）
+- 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
 - 真机：**AMD Radeon RX 6600M（gfx1032，8 GB，14 CU）**，ROCm 7.1（`HIP_PATH=D:\Program Files\AMD\ROCm\7.1\`）
-- 代码基线：commit `1eb16d9` 工作树 + 本次 Phase 8 变更（`tests/acceptance.cpp`、CMake 接线、本报告）
+- 代码基线：commit `c7339d4`（Phase 8 首版）+ 独立复核修复（tests 三处补测 + 本报告修订 + 证据入库）
 - 验收测试：`tests/acceptance.cpp`（`#undef NDEBUG`，E5）→ ctest 目标 `acceptance`；R6/R8 真机项用真实 `unikern run` 命令收集，**不在单测中伪造**
+- 证据产物：**本目录引用的命令输出已作为文本转录入库** `docs/evidence/phase8/`（run/solve/ctest/acceptance/backends 转录 + 三份生成源 + 账本行转储），fresh checkout 可直接比对，也可按转录内命令原样复跑
 
 ## 状态图例
 
@@ -23,12 +25,12 @@
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 | `[R3] C bitwise-stable over 10^4 repeats` | ✅（版本号机制为 stub，见下） |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
-| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹 + 纯函数；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce` | 🟡（AMD 构件 ✅；MSL/OpenCL 构件 ⛔ 真机） |
-| R6 差分验证 | 真机：生成程序自带 CPU 对拍（2⁻⁵）+ CLI run | `verified=PASS max_rel=0`（1024³ 与 32768³ 两档） | 🟡（AMD ✅；Apple/Intel ⛔ 真机） |
+| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹 + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce` | 🟡（AMD 构件 ✅；MSL/OpenCL 构件 ⛔ 真机） |
+| R6 差分验证 | 单测：容差函数 verify_fp32 五路径；真机：生成程序自带 CPU 对拍（2⁻⁵）+ CLI run | `[R6] fp32 graded tolerance ... OK`；`verified=PASS max_rel=0`（1024³ 与 32768³ 两档） | 🟡（AMD ✅；Apple/Intel ⛔ 真机） |
 | R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复；CLI 二次 run | `LEDGER HIT ... (from ledger)`；`[R7] crash mid-transaction ... OK` | ✅ |
-| R8 多级存储与流式 | 单测：放置决策 + 生成契约；真机 streamed | `mode=streamed shards=64 prefetch_d=2`，e2e 30.8 s | 🟡（AMD ✅；Apple 真机 ⛔） |
+| R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s | 🟡（AMD ✅；Apple 真机 ⛔） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
-| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 无静默替换；CLI `backends` | `amd yes / apple no / intel no`（诚实探测） | 🟡（语义 ✅；Intel 真机 ⛔） |
+| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends` | `[R10] ... vendor-API isolation OK`；`amd yes / apple no / intel no`（诚实探测） | 🟡（语义 ✅；Intel 真机 ⛔） |
 
 ## 逐项验收
 
@@ -38,15 +40,15 @@
 
 **验收方式**：`tests/acceptance.cpp` R1 段 + ctest。唯一性用四组性质检验：同一树恒等；可交换子节点两种插入序同串；深层树递归归一（子树多重集相同、顺序不同 → 同串）；tile/dtype/dims 任一不同 → 异串。类型拒绝检验 `op_from_string("gemmm")`、`dtype_from_string("fp64")` 等返回 `std::nullopt`（`src/kml.cpp:26-38`）。
 
-**证据**（本 session 实际命令）：
+**证据**（本 session 实际命令；全量转录 `docs/evidence/phase8/ctest_release.txt`）：
 
 ```
 $ ctest --test-dir build --output-on-failure
 Test project D:/git/c/gpu-math/build
     Start 1: smoke
-1/2 Test #1: smoke ............................   Passed    0.05 sec
+1/2 Test #1: smoke ............................   Passed    0.11 sec
     Start 2: acceptance
-2/2 Test #2: acceptance .......................   Passed    0.16 sec
+2/2 Test #2: acceptance .......................   Passed    0.25 sec
 
 100% tests passed out of 2
 
@@ -106,9 +108,9 @@ CLI 同口径：`SOLVED  x* tile=128x128  c_ms=12.5387  |X|=25`（与 progress.m
 
 **要求**：R5.1 三后端独立生成、输入仅限 KML 与 HCS（P7）；R5.2 可加载执行的可执行构件；R5.3 产物记录 HCS 指纹与工具链版本指纹。
 
-**验收方式**：单测遍历 `make_backends()`：源非空、头部 5 行含 `fp=<hcs_fingerprint 前 12 hex>`、各厂商语言标记（`hip/hip_runtime.h` / `metal_stdlib` / `__kernel`）、同输入二次生成逐字节相同；再以树 dims（4096→1024）与 HCS vram（8→4 GiB）变化验证产物只随 (KML, HCS) 输入变化。CLI `solve --emit` 产出三文件并报行数。
+**验收方式**：单测遍历 `make_backends()`：源非空、头部 5 行含 `fp=<hcs_fingerprint 前 12 hex>`、各厂商语言标记（`hip/hip_runtime.h` / `metal_stdlib` / `__kernel`）、同输入二次生成逐字节相同、**跨厂商 API 词汇隔离**（Metal 源无 `hip`/`__global__`，OpenCL 源无 `metal_stdlib`/`#include <metal`/`[[buffer`，见 R10 段）；再以树 dims（4096→1024）与 HCS vram（8→4 GiB）变化验证产物只随 (KML, HCS) 输入变化。CLI `solve --emit` 产出三文件并报行数。
 
-**证据**（本 session 实际命令与输出）：
+**证据**（转录入库 `docs/evidence/phase8/solve_emit.txt` 与 `emit/` 三源）：
 
 ```
 $ ./build/unikern.exe solve --hcs samples/hcs_amd.json --emit uk_evidence/emit --ledger uk_evidence/solve.sqlite3
@@ -135,22 +137,26 @@ $ head -2 uk_evidence/emit/uk_amd.cpp
 
 **要求**：R6.1 与 CPU 参考比对；R6.2 分级容差（FP32 ≤ 2⁻⁵）；R6.3 比对失败拒绝入账本。
 
-**验收方式**：生成的 AMD 程序自带确定性初始化 + CPU 参考实现 + 2⁻⁵ 分级对拍（`UNIKERN_RESULT ... verify=` 契约行）；CLI `run` 只在 `verified=PASS` 时 LEDGER COMMIT（`src/main.cpp:274-282`，P4 不变量）。真机执行两个尺寸：1024³（resident）与 32768³（streamed）。
+**验收方式**：两个层面。**CPU 侧（单测）**：容差函数 `verify_fp32`（`src/runtime.cpp:95`，R6.2 策略本体）五条路径——逐元素相等 → ok 且 max_rel=0；1/1024 相对误差（< 2⁻⁵ 默认容差）→ ok 且报告 worst 误差；10% 相对误差 → 拒绝并点名 `index 3`；可配置更紧容差（1/4096）→ 拒绝默认通过者；尺寸不匹配 → 明确拒绝（"size mismatch"），绝不假通过。**真机侧**：生成的 AMD 程序自带确定性初始化 + CPU 参考实现 + 2⁻⁵ 分级对拍（`UNIKERN_RESULT ... verify=` 契约行）；CLI `run` 只在 `verified=PASS` 时 LEDGER COMMIT（`src/main.cpp:274-282`，P4 不变量）。真机执行两个尺寸：1024³（resident）与 32768³（streamed）。
 
-**证据**（本 session 真机实测，AMD RX 6600M）：
+**证据**（单测段 + 真机实测；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`run_1024_first.txt`）：
+
+```
+[R6] fp32 graded tolerance exact/within/beyond/config/size-mismatch OK
+```
 
 ```
 $ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 1024 1024 1024 --workdir uk_evidence/run1 --ledger uk_evidence/acceptance.sqlite3
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.69137
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.61237
 -- log tail --
 offload-arch: gfx1032
-UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.691370 kernel_ms=0.563673 mode=resident payload_mb=12.000000 perf=1024x1024x1024
-LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.69137 epsilon_abs=1e-06 epsilon_rel=0.03125
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.612370 kernel_ms=0.540214 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.61237 epsilon_abs=1e-06 epsilon_rel=0.03125
 ```
 
-32768³ streamed 档同样 `verify=PASS max_rel=0`（见 R8）。CPU 侧容差函数 `verify_fp32` 由 smoke 覆盖。
+32768³ streamed 档同样 `verify=PASS max_rel=0`（见 R8）。
 
-**状态：🟡 部分已验**。AMD 真机对拍两尺寸全 PASS、失败不入账本的路径由 CLI 代码保证（负测护栏见 E12：错误架构码对象 → `UNIKERN_ERROR` 退 4）。**Apple / Intel 后端的对拍 ⛔ 真机受阻**（无 Metal / Intel 工具链）。
+**状态：🟡 部分已验**。R6.2 容差策略本体（`verify_fp32`）已由单测覆盖（2026-10-27 复核补测——首版报告误称"由 smoke 覆盖"，实为零覆盖，已修复）；AMD 真机对拍两尺寸全 PASS、失败不入账本的路径由 CLI 代码保证（负测护栏见 E12：错误架构码对象 → `UNIKERN_ERROR` 退 4）。**Apple / Intel 后端的对拍 ⛔ 真机受阻**（无 Metal / Intel 工具链）。
 
 ### R7 — Kernel Solution Ledger（本地 SQLite）
 
@@ -158,7 +164,7 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.69137 epsilon_abs=1e-06 epsilo
 
 **验收方式**（`tests/acceptance.cpp` R7 段）：SQLite 账本往返（故意植入**离格** tile 48×80，命中返回恰为 (48,80) 即证明服务的是记录解而非重新求解，R7.2 `from_ledger=true`）；`measured_ms` 用原生 SQL 直查（`ILedger::lookup` 只回解不回实测，直查补证 R7.3 持久化）；异 HCS 指纹 → miss（键隔离）；子进程 `BEGIN IMMEDIATE + INSERT` 后 `_Exit(9)`（marker 文件证明确实执行到未提交事务），重开账本断言无半条 + 恢复可用（R7.4，hot-journal 回滚）。CLI 二次 run 命中。
 
-**证据**：
+**证据**（单测段 + CLI；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`run_1024_second_ledger_hit.txt`、`ledger_dump.txt`）：
 
 ```
 [R7] sqlite round-trip + hit(off-grid tiles) + measured_ms persisted + isolation OK
@@ -169,9 +175,11 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.69137 epsilon_abs=1e-06 epsilo
 $ ./build/unikern.exe run ... --dims 1024 1024 1024 ...   # 第二次同键运行
 LEDGER HIT  c_cached_ms=0.490829  tile=128x128  (from ledger)
 placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.62594
-LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.62594 epsilon_abs=1e-06 epsilon_rel=0.03125
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.9857
+LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.9857 epsilon_abs=1e-06 epsilon_rel=0.03125
 ```
+
+账本行转储（`ledger_dump.txt`，python sqlite3 直读）证实 R7.3 实测回写：`gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b | c_ms=0.4908288930909091 | measured_ms=2.9857 | tm=128 | tn=128 | placement=...`。
 
 **状态：✅ 本机已验**（SQLite amalgamation 3.47.2 静态库；`.jsonl` 文件账本为兼容保留）。
 
@@ -179,21 +187,25 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.62594 epsilon_abs=1e-06 epsilo
 
 **要求**：R8.1 场景 A 零拷贝全驻留 + 标记统一内存；R8.2 场景 B 超显存按分片粒度与预取距离显式流式；R8.3 双缓冲重叠；R8.6 显式放置决策记录。
 
-**验收方式**：单测断言统一内存解的 `placement_record` 含场景 A 标记、MSL/OpenCL 产物携带 R8.1/R8.6 注释、HIP 产物发射 `UK_VRAM_BYTES / UK_SHARD_ROWS / UK_PREFETCH_D` 常量与 resident|streamed 双路径（smoke 亦有同域断言）；真机跑 32768³（载荷 12 GiB > 0.85×8 GiB）强制走流式路径。
+**验收方式**：单测断言两条放置记录的**内容**（`[R8]` 段，`tests/acceptance.cpp`）：场景 A 统一内存解的 `placement_record` 含 `placement=unified_memory`、`scenario A`、`zero-copy`、`bw=400`，路径标记 `Path::Unified`；场景 B 离散解含 `placement=vram+ram+nvme`、`scenario B`、`path=pinned_copy`、`shard=64MiB`、`prefetch_d=2`，路径标记 `Path::PinnedCopy`；两记录互异。MSL/OpenCL 产物携带 R8.1/R8.6 注释（R10 段断言）、HIP 产物发射 `UK_VRAM_BYTES / UK_SHARD_ROWS / UK_PREFETCH_D` 常量与 resident|streamed 双路径（R5/smoke 断言）；真机跑 32768³（载荷 12 GiB > 0.85×8 GiB）强制走流式路径。
 
-**证据**（本 session 真机实测）：
+**证据**（单测段 + 真机实测；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`run_32768_streamed.txt`）：
+
+```
+[R8] scenario A/B placement records explicit + distinct OK
+```
 
 ```
 $ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 32768 32768 32768 --workdir uk_evidence/run_stream --ledger uk_evidence/stream.sqlite3
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=30806.4
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=40517.8
 -- log tail --
 offload-arch: gfx1032
 UNIKERN_INFO mode=streamed shards=64 shard_rows=512 prefetch_d=2
-UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=30806.406250 kernel_ms=48465.777344 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768
-LEDGER COMMIT predicted_ms=3601.23 measured_ms=30806.4 epsilon_abs=1e-06 epsilon_rel=0.03125
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=40517.839844 kernel_ms=63700.285156 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768
+LEDGER COMMIT predicted_ms=3601.23 measured_ms=40517.8 epsilon_abs=1e-06 epsilon_rel=0.03125
 ```
 
-端到端 30.8 s **低于**单流串行内核参考 48.5 s——搬运与计算重叠生效的直接观测（R8.3 双缓冲）。放置决策记录（R8.6）：`placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)`；场景 A 侧：`placement=unified_memory (scenario A, zero-copy, bw=400GB/s)`（单测断言非空且带统一内存标记）。
+端到端 40.5 s **低于**单流串行内核参考 63.7 s——搬运与计算重叠生效的直接观测（R8.3 双缓冲）。放置决策记录（R8.6）：`placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)`；场景 A 侧记录内容（`placement=unified_memory (scenario A, zero-copy, bw=400GB/s)`）由单测 `[R8]` 段逐词断言。
 
 **状态：🟡 部分已验**。AMD 场景 B 显式流式 + 双缓冲本机真机已验；R8.5 的"缺页迁移率超阈告警"在 MVP 中以显式路径为唯一处理方式落地（生成程序自选 resident|streamed），运行时页迁移监测器属真机长测项。**Apple 场景 A 真机执行 ⛔ 受阻**（需用户 Mac）。
 
@@ -217,12 +229,12 @@ CLI 同口径：`HCS rejected: missing required fields: ...`（`src/main.cpp:110
 
 **要求**：R10.1 每个抽象原语映射三厂商实现方式；R10.2 后端无法覆盖的区间纳入 F 约束，绝不静默降级。
 
-**验收方式**：单测断言 `make_backends()` 恰好覆盖 {Amd, Apple, Intel} 三厂商；`available()` 语义与环境事实一致（AMD=hipcc 探测、Apple=编译期 `__APPLE__`、Intel=`OCL_ICD_VENDORS`）；**工具链缺席的后端仍然生成自身厂商语言源码**（Metal 源不含 HIP 词汇、OpenCL 源不含 Metal 词汇），能力缺口以 availability 标注与 F 约束呈现，绝不静默替换为其他后端；放置/覆盖诚实注释随源输出。CLI `backends` 表格同理。
+**验收方式**：单测断言 `make_backends()` 恰好覆盖 {Amd, Apple, Intel} 三厂商；`available()` 语义与环境事实一致（AMD=hipcc 探测、Apple=编译期 `__APPLE__`、Intel=`OCL_ICD_VENDORS`）；**工具链缺席的后端仍然生成自身厂商语言源码**，且**跨厂商 API 词汇零泄漏**（Metal 源不含 `hip`、`__global__`；OpenCL 源不含 `metal_stdlib`、`#include <metal`、`[[buffer`——按 API 词汇检查，而非英文单词：诚实注释中的 "no Metal / Intel toolchain" 措辞合法保留），能力缺口以 availability 标注与 F 约束呈现，绝不静默替换为其他后端。CLI `backends` 表格同理。
 
-**证据**：
+**证据**（单测段 + CLI；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`backends.txt`）：
 
 ```
-[R10] vendor mapping + availability semantics + no silent substitution OK
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
 
 $ ./build/unikern.exe backends
 vendor    backend      available  note

@@ -79,7 +79,9 @@
 ## Phase 8 验收事实（2026-10-27）
 - 验收面：`tests/acceptance.cpp`（#undef NDEBUG，ctest 目标 `acceptance`）+
   `docs/acceptance-mvp.md` 矩阵；`ctest --test-dir build --output-on-failure`
-  **2/2 全绿**（smoke + acceptance，Release -O2，E5 修复有效）
+  **2/2 全绿**（smoke + acceptance；构建配置 Release：`FLAGS = -O3 -DNDEBUG
+  -std=c++20`，MinGW/GNU Release 默认 -O3 非 -O2，E5 修复有效——NDEBUG 在场
+  且 #undef NDEBUG 保断言存活）
 - R1 诚实边界：MVP 无 KML 文本解析器（树为程序化构造），R1.2 结构校验
   无用户入口，落地面 = 前端类型名拒绝（`op_from_string`/`dtype_from_string`
   nullopt）；canonical_form 唯一性四种性质全过
@@ -104,3 +106,30 @@
   缺陷，非产品缺陷），改 `{kid1,c1}` vs `{c2,kid1}`（c1≡c2）后通过
 - Apple / Intel 真机执行仍超出本机能力（无 macOS、无 Intel 工具链），
   验收矩阵逐项标注 ⛔ 受阻，不伪造
+
+## Phase 8 独立复核修复（2026-10-27，v2）
+- 复核 5 项全数属实并处理：3 项补测试（可修）、1 项证据入库、1 项构建配置纠正
+  - 首版报告「verify_fp32 由 smoke 覆盖」不实（grep tests/ 零命中）→
+    acceptance.cpp 新增 R6 段：容差函数五路径（相等/容差内/超差点名/
+    可配置收紧/尺寸不匹配）
+  - 「单测断言场景 A 放置标记」不存在 → 新增 R8 段：场景 A 记录逐词断言
+    （placement=unified_memory / scenario A / zero-copy / bw=400），
+    场景 B 断言（vram+ram+nvme / pinned_copy / shard=64MiB / prefetch_d=2），
+    两记录互异
+  - 「Metal 源不含 HIP 词汇、OpenCL 源不含 Metal 词汇」测试没有且字面不实
+    （uk_intel.cl:13 诚实注释含 "Metal"）→ R10 改为 API 词汇级负向断言
+    （hip/__global__ 对 MSL；metal_stdlib/#include <metal/[[buffer 对 OCL），
+    文档措辞同步改为「API 词汇隔离 + 诚实注释例外」
+  - 证据产物未跟踪 → 重跑全部证据命令，原文转录入库 docs/evidence/phase8/
+    （run×3 / solve_emit / ctest / acceptance / backends / ledger_dump /
+    emit 三源；uk_amd.cpp 撞 .gitignore 的 uk_*.cpp 构建产物模式，
+    以 git add -f 作为验收证据入库，README 说明）
+  - build/ 的 CMAKE_BUILD_TYPE 为空（实为 -O0 无 NDEBUG 跑绿）→ 重配置
+    `-DCMAKE_BUILD_TYPE=Release`，实测 `FLAGS = -O3 -DNDEBUG -std=c++20`
+    （build/build.ninja:278）后 ctest 2/2 绿；注意 MinGW/GNU 的 Release
+    默认是 -O3 -DNDEBUG 而非 -O2，此前的「Release -O2」口径一并纠正
+- 复核后真机复测（Release 构建）：1024³ verify=PASS measured_ms=2.61237 →
+  二次 run LEDGER HIT tile=128x128；32768³ streamed measured_ms=40517.8
+  kernel_ms=63700.3（e2e < 串行参考 → 重叠生效）；verify=PASS
+- 教训：验收报告的每一句「单测断言 X」必须能指到断言行；写作时逐条对照
+  测试源码，引用的输出摘录必须与入库转录逐字一致
