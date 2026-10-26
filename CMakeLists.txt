@@ -47,10 +47,19 @@ target_link_libraries(unikern_smoke PRIVATE unikern_core)
 target_include_directories(unikern_smoke PRIVATE third_party/sqlite)
 add_test(NAME smoke COMMAND unikern_smoke)
 
+# Phase 8 acceptance test: the R1-R10 CPU-testable matrix in one binary
+# (real-device items live in docs/acceptance-mvp.md, not here).
+add_executable(unikern_acceptance tests/acceptance.cpp)
+target_link_libraries(unikern_acceptance PRIVATE unikern_core)
+# Same as smoke: the crash-tx child opens SQLite directly.
+target_include_directories(unikern_acceptance PRIVATE third_party/sqlite)
+add_test(NAME acceptance COMMAND unikern_acceptance)
+
 # Root-cause fix: host has multiple MinGW runtimes (ProgramData g++ 13.2 vs
 # Git-bundled /mingw64 DLLs). Two libwinpthread copies in one process crashed
 # ifstream paths at -O2/-O3. Link the C++ runtime statically.
 if(MINGW)
   target_link_options(unikern PRIVATE -static -static-libgcc -static-libstdc++)
   target_link_options(unikern_smoke PRIVATE -static -static-libgcc -static-libstdc++)
+  target_link_options(unikern_acceptance PRIVATE -static -static-libgcc -static-libstdc++)
 endif()

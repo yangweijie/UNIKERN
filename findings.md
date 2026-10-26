@@ -75,3 +75,32 @@
   初始化全是 2^-4 倍数，FP32 部分和全部精确可表示，对拍位级一致）
 - 负测护栏：错误架构码对象 → `UNIKERN_ERROR what=launch verify` 退 4，
   不再产出貌似合理的 UNIKERN_RESULT
+
+## Phase 8 验收事实（2026-10-27）
+- 验收面：`tests/acceptance.cpp`（#undef NDEBUG，ctest 目标 `acceptance`）+
+  `docs/acceptance-mvp.md` 矩阵；`ctest --test-dir build --output-on-failure`
+  **2/2 全绿**（smoke + acceptance，Release -O2，E5 修复有效）
+- R1 诚实边界：MVP 无 KML 文本解析器（树为程序化构造），R1.2 结构校验
+  无用户入口，落地面 = 前端类型名拒绝（`op_from_string`/`dtype_from_string`
+  nullopt）；canonical_form 唯一性四种性质全过
+- R3 诚实注记：10⁴ 次逐位确定 ✓、HCS 常量采纳 ✓（统一内存带宽减半 →
+  归约 C 恰翻倍）；`constants_version` 恒 1（stub，`solver.cpp:99`），
+  递增机制待校准回写接入
+- R4 平局裁决可观测：面积 ≥ 128×128 的 tile 占用惩罚恒 1.0 → 等 C 平局组
+  6 个候选，枚举序先遇 (64,256)，规范键 "m=128,n=128" 字典序最小 →
+  solve 返回 (128,128) 证明选择由 (C, 键) 驱动而非枚举序（P2 实证）
+- R5 指纹注记：三源头部均带 `fp=<hcs_fingerprint 前 12 hex>` + constants_v；
+  HCS 的 `toolchain` 字段未进产物头（缺口 G3，低成本补齐项）
+- R6/R8 真机复测（本 session，RX 6600M）：1024³ resident verify=PASS
+  max_rel=0 measured_ms=2.691（kernel 0.564）；32768³ streamed
+  mode=streamed shards=64 prefetch_d=2，**e2e 30.8 s < 串行内核参考
+  48.5 s → 双缓冲重叠生效的直接观测**；verify=PASS
+- 账本命中口径：二次 run `LEDGER HIT c_cached_ms=0.490829 tile=128x128
+  (from ledger)`；单测用离格 tile (48,80) 证明命中返回记录解（R7.2），
+  measured_ms 直查 SQL 证明持久化（R7.3），crash-tx 子进程 + marker 文件
+  证明事务回滚（R7.4）
+- 测试编写教训（新增防重复）：canonical_form 深树等价断言必须构造**相同
+  子树多重集**——首版误用 kid1/kid2 两个不同子树致断言失败（测试代码
+  缺陷，非产品缺陷），改 `{kid1,c1}` vs `{c2,kid1}`（c1≡c2）后通过
+- Apple / Intel 真机执行仍超出本机能力（无 macOS、无 Intel 工具链），
+  验收矩阵逐项标注 ⛔ 受阻，不伪造

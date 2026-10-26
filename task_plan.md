@@ -5,7 +5,7 @@
 "KML→求解→生成→验证→Ledger"闭环，交付可构建的 C++20 CLI 与组件，并逐阶段替换 stub。
 
 ## Current Phase
-Phase 5（后端代码生成 + Runner）— **有 2 个构建阻塞待解**
+Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 
 ## Phases
 | # | Phase | Status |
@@ -15,21 +15,22 @@ Phase 5（后端代码生成 + Runner）— **有 2 个构建阻塞待解**
 | 2 | MVP 骨架：CMake + 目录 + 接口 + CLI + stub 后端 | complete |
 | 3 | 核心域：KML（形状/精度/规范化/工作负载模型）、HCS（层级+置信度+校验） | complete |
 | 4 | 求解核心：F 谓词 + 分层 roofline C + 字典序 argmin + 场景 A/B | complete |
-| 5 | 三后端代码生成（HIP 可运行程序 / MSL / OpenCL C）+ Runner 适配器（R5, R10） | in_progress |
-| 6 | 差分验证接入运行结果 + SQLite Ledger（R6, R7） | pending |
-| 7 | 多级存储：场景 A 零拷贝 / 场景 B 流式双缓冲执行（R8） | pending |
-| 8 | 硬件在环验收：R1-R10 测试矩阵（AMD 卡 / Apple Silicon / Intel Arc B） | pending |
+| 5 | 三后端代码生成（HIP 可运行程序 / MSL / OpenCL C）+ Runner 适配器（R5, R10） | complete |
+| 6 | 差分验证接入运行结果 + SQLite Ledger（R6, R7） | complete |
+| 7 | 多级存储：场景 A 零拷贝 / 场景 B 流式双缓冲执行（R8） | complete |
+| 8 | 硬件在环验收：R1-R10 测试矩阵（AMD 卡 / Apple Silicon / Intel Arc B） | complete（验收矩阵 docs/acceptance-mvp.md；Apple/Intel 真机项如实标注受阻） |
 
 ### Phase 5 子任务
 | 子项 | 状态 |
 |------|------|
 | HIP 可运行程序生成器（内核 + 确定性初始化 + CPU 参考 + 自对拍 + 事件计时） | done |
-| MSL / OpenCL C 内核源生成（与 HIP 同构的寄存器分块结构） | done（本机无法编译验证） |
+| MSL / OpenCL C 内核源生成（与 HIP 同构的寄存器分块结构） | done（本机无法编译验证，真机受阻已标注） |
 | 真机探测：hipcc / 设备 / Intel 工具链 | done |
-| `src/runner.cpp` 编译修复（反斜杠折叠破坏，E10） | **blocked** |
-| `src/main.cpp` 适配新签名 `generate(sol, hcs, tree)` | **blocked** |
-| HIP 真编译 + 真运行 + 与 CPU 参考对拍（RX 6600M） | done（1024³ 实测 0.554 ms，max_rel=0 PASS，E12 修复后） |
-| Ledger 写入实测 ms 并报告 ε = \|C − T\| | pending |
+| `src/runner.cpp` 编译修复（反斜杠折叠破坏，E10） | done（Write 工具重写 + 前斜杠 + --offload-arch，E12） |
+| `src/main.cpp` 适配新签名 `generate(sol, hcs, tree)` | done（solve --emit/--dims + run/verify 接入 Runner，94ec757） |
+| HIP 真编译 + 真运行 + 与 CPU 参考对拍（RX 6600M） | done（1024³ resident verify=PASS；32768³ streamed verify=PASS） |
+| Ledger 写入实测 ms 并报告 ε = \|C − T\| | done（SQLite 账本 + LEDGER COMMIT epsilon_rel=0.03125） |
+| Phase 8 验收：tests/acceptance.cpp（R1-R10 CPU 项）+ docs/acceptance-mvp.md | done（ctest 2/2 全绿） |
 
 ## Decisions
 | # | 决策 | 状态 |
