@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"D:/git/c/gpu-math/build-o2/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

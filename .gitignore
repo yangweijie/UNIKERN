@@ -1,3 +1,16 @@
 .DS_Store
 Thumbs.db
 *.tmp
+
+# build trees (generated)
+build/
+build-dbg/
+build-o2/
+
+# generated artifacts
+ledger.jsonl
+smoke_ledger.jsonl
+*.exe
+*.obj
+*.o
+uk_*.cpp

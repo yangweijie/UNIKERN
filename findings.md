@@ -36,3 +36,26 @@
 - CLI 已验证：solve（miss→solve→hit）/ hcs / backends / ledger
 - 实测数值：AMD 8GB 离散（场景 B）x*=128x128 c=12.54ms |X|=9；
   Apple 统一内存（场景 A）x*=128x128 c=5.29ms（无拷贝项，符合场景 A 零拷贝预期）
+
+## Phase 5 真机探测（2026-10-27）
+- **AMD 真机可用**：hipcc 在 `D:\Program Files\AMD\ROCm\7.1\bin\hipcc.exe`（HIP_PATH 已设），
+  设备 = **AMD Radeon RX 6600M, gfx1032, 8176 MB, 14 CU**；`hipGetDeviceCount` 返回 1
+- OpenCL：仅有 "AMD Accelerated Parallel Processing" 平台；**无 Intel OpenCL 平台**
+- Intel：**无 ocloc.exe**，无 `HKLM\SOFTWARE\Khronos\OpenCL\Vendors` 条目 → Intel Arc B390 应在另一台机器
+- 结论：本机只能真编译+真执行 AMD；Apple(MSL)/Intel(OpenCL) 走源生成 + 结构校验，
+  真机验证需在用户 Mac / Intel 机器上进行（诚实边界）
+- 教训复用：单行 shell 里 `\n` 会被折叠 → 一律 heredoc 写文件（E1）
+
+## Phase 5 产出与边界（2026-10-27）
+- AMD 代码生成 = **完整可运行程序**（不只内核）：确定性初始化 + CPU 参考实现 +
+  相对误差 2^-5 对拍 + hipEvent 计时 + `UNIKERN_RESULT` 单行结果契约
+  → 一个产物同时满足 R5（生成）、R6（对拍）、R7.3（实测回写）所需数据
+- 验证尺寸 256³（CPU 参考可承受）；计时尺寸 1024³（上限，按 tree.dims 收缩）
+- 块 tile 钳制：solved tile → [32,96] 且 16 倍数（RPT×RPN ≤ 36 累加器）；
+  钳制时源码注释 + 输出报告均标注，不静默改变解
+- MSL / OpenCL C：与 HIP 同构的寄存器分块结构，结构对齐但**本机无法编译验证**
+  → 真机验证需用户 Mac（Metal）与 Intel 机器（ocloc/Level Zero）
+- 传输层事实（影响一切后续编辑）：
+  - 单行 shell 中反斜杠会被折叠；heredoc 中 `\`→`\` 不可靠
+  - 超长 heredoc 会被截断（约 150 行处）
+  → 规则：源码零反斜杠；分块写入 ≤80 行；每块写完 `wc -l` 校验
