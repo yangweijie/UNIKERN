@@ -1,0 +1,11 @@
+# ninja log v6
+2	744	8147304398044691	CMakeFiles/unikern_core.dir/src/kml.cpp.obj	bfe66b177e41e3f3
+14	896	8147304398164888	CMakeFiles/unikern_smoke.dir/tests/smoke.cpp.obj	d4000ed37f5277ba
+8	1093	8147304398104722	CMakeFiles/unikern_core.dir/src/backends.cpp.obj	731cd83c535d3028
+12	1148	8147304398144889	CMakeFiles/unikern.dir/src/main.cpp.obj	8fbc7fe13b710f9a
+5	1176	8147304398069727	CMakeFiles/unikern_core.dir/src/hcs.cpp.obj	b75b2357b134a1d3
+6	1297	8147304398084733	CMakeFiles/unikern_core.dir/src/solver.cpp.obj	cadd0d762f696de0
+10	1419	8147304398114727	CMakeFiles/unikern_core.dir/src/runtime.cpp.obj	81ede6bab9c81d5a
+1429	1528	8147304412311277	libunikern_core.a	438e4b6f0a6eed9c
+1530	1628	8147304413319373	unikern_smoke.exe	28f0dde29879301b
+1528	1633	8147304413304396	unikern.exe	31017a4f0e8d8323

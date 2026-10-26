@@ -1,0 +1,6 @@
+D:/git/c/gpu-math/build-dbg/CMakeFiles/unikern_core.dir
+D:/git/c/gpu-math/build-dbg/CMakeFiles/unikern.dir
+D:/git/c/gpu-math/build-dbg/CMakeFiles/unikern_smoke.dir
+D:/git/c/gpu-math/build-dbg/CMakeFiles/test.dir
+D:/git/c/gpu-math/build-dbg/CMakeFiles/edit_cache.dir
+D:/git/c/gpu-math/build-dbg/CMakeFiles/rebuild_cache.dir

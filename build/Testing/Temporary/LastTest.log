@@ -1,0 +1,22 @@
+Start testing: Oct 26 23:19 中国标准时间
+----------------------------------------------------------
+1/1 Testing: smoke
+1/1 Test: smoke
+Command: "D:/git/c/gpu-math/build/unikern_smoke.exe"
+Directory: D:/git/c/gpu-math/build
+"smoke" start time: Oct 26 23:19 中国标准时间
+Output:
+----------------------------------------------------------
+[B discrete] x* tile=128x128 c_ms=13.1634 |X|=9 OK
+[A unified] x* tile=128x128 c_ms=6.87195 |X|=9 OK
+[ledger] round-trip OK, key isolation OK
+SMOKE PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"smoke" end time: Oct 26 23:19 中国标准时间
+"smoke" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 26 23:19 中国标准时间

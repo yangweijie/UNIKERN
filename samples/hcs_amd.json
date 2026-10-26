@@ -1,0 +1,10 @@
+{
+  "vendor": "amd",
+  "device": "amd-device",
+  "unified_memory": false,
+  "vram_bytes": 8589934592,
+  "mem_bw_gbps": 512,
+  "link_bw_gbps": 32,
+  "flops_gflops": 22000,
+  "compute_units": 36
+}

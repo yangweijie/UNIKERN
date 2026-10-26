@@ -1,0 +1,10 @@
+{
+  "vendor": "intel",
+  "device": "intel-device",
+  "unified_memory": false,
+  "vram_bytes": 17179869184,
+  "mem_bw_gbps": 560,
+  "link_bw_gbps": 32,
+  "flops_gflops": 22000,
+  "compute_units": 36
+}

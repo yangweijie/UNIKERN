@@ -1,0 +1,10 @@
+{
+  "vendor": "apple",
+  "device": "Apple M-series",
+  "unified_memory": true,
+  "unified_bytes": 34359738368,
+  "mem_bw_gbps": 400,
+  "link_bw_gbps": 32,
+  "flops_gflops": 26000,
+  "compute_units": 40
+}
