@@ -463,3 +463,20 @@
 - 工作区卫生：三件已入库的 Phase 9 ocloc AOT 证据产物（`build/phase9-emit/` 的
   uk_intel.cl + aot/*.bin/*.spv，R5.2 Intel 真编译证据本体）被工作区误删且删除未提交，
   已 `git restore` 恢复（HEAD 84b2438 校验和一致）
+
+## E17 + 本机画像 + v12.2 清尾事实（2026-10-28）
+- **E17（跨平台可选语言）**：无条件 `project(... OBJCXX)` 让任何无 Objective-C++ 编译器
+  的机器配置失败（MinGW 的 OBJCXX 探测直接 broken）。教训：可选语言一律放平台分支内
+  `enable_language()`，源文件按平台进编译列表；非 Apple 用 stub 翻译单元兑现同一符号面
+  （`metal_available()=false` / `run_metal` 诚实拒绝），链接错误变诚实报告（commit 4224d42）
+- **本机画像（Phase 15 工作流启动前探测，与 backends 诚实探测一致）**：hipcc/ROCm 7.1 在位
+  （AMD 可做）；**无 Intel 设备**（无 `HKLM\SOFTWARE\Khronos\OpenCL\Vendors` 键、无
+  ze_loader.dll、无 ocloc——Phase 9 的 Intel 真机验证在另一台机器完成，与本机 Phase 8 前的
+  探测一致）；无 Metal。多机仓库协作时，"本机能做的"必须以当前机器实测为准，不照抄计划册
+  其他机器的"本机"记录
+- **v12.2 复核残留教训**：验收文档引用的命令必须**可逐字复现**——R1 行 intel 读数的命令
+  形式缺 `--hcs`，按字面复现得 usage rc=2；已补全并转录实测输出
+  （`docs/evidence/phase15/intel-r1-command.txt`，根因逐字可见：本机构建期无 OpenCL 导入
+  库 → runner stub 且无 Intel 设备）。md5 锚是**时点快照**：v12.1 改 main.cpp 后当前锚
+  `9759d55a…`，全演进记录 `binary-md5.txt`，文档引用历史锚必须标注时点
+- 收尾状态：ctest 2/2 绿、工作区净（仅 .serena/ 会话前即存在）、HEAD df44dd8

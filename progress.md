@@ -340,3 +340,22 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 - [x] 实测辨析"不建账本"语义：.jsonl 失败 run 不建文件；.sqlite3 建空库（零 solution 行）
   ——文档改写为"solution 零落库"（R6.3 承重事实）
 - [x] ctest 全绿后 git add 具体文件提交
+
+## Session 2026-10-28 续2（E17 修复 + 本机盘点 + v12.2 复核残留清尾）
+- [x] 本机重新盘点（并行会话 Phase 9-14 落地后）：本机 hipcc/ROCm 7.1 在位；**无 Intel 设备**
+  （无 Khronos Vendors 注册表键、无 ze_loader.dll、无 ocloc——Phase 9 的 Intel 真机验证在
+  另一台机器完成）；无 Metal（Apple 侧已在 macOS 机器闭合）→ "本机能做的" = Phase 15
+  （AMD conv/reduce）+ G5 驻留守卫
+- [x] E17 修复：并行会话 Phase 10 的无条件 `project(... OBJCXX)` 使 Windows 配置直接失败
+  → OBJCXX 仅 APPLE `enable_language`、runner_metal.mm 仅 Apple 编译、非 Apple 链接诚实
+  stub `runner_metal_stub.cpp`（4224d42）；基线恢复：配置成功（OpenCL 诚实 stub）、构建
+  零告警、ctest 2/2 绿、backends 诚实（amd=yes/apple=no/intel=no）
+- [x] 动态工作流（dwfrun-af8f4aec）执行 Phase 15+16 收官：conv/reduce HIP 程序 + RX 6600M
+  三算子真机闭环（46e117b）；G5/R8.5 驻留守卫 migrations=0 + 超订退 5（ea76c2f）；
+  验收矩阵 v12 落账（84b2438）；v12.1 独立复核修订（b9cd4e8）
+- [x] v12.2 复核残留清尾（df44dd8）：① R1 行 intel 读数补全 `--hcs` 可复现命令形式 +
+  实测转录 `docs/evidence/phase15/intel-r1-command.txt`（COVER covered + RUN FAILED rc=1
+  + 零落库，根因逐字可见：本机构建期无 OpenCL 导入库 → runner stub 且无 Intel 设备）；
+  ② v12 补遗 md5 锚标注为历史时点 + 当前锚注记，`binary-md5.txt` 记录全演进
+  （当前 unikern.exe `9759d55a…` / acceptance `1c0f8620…` 不变）
+- [x] ctest 2/2 绿；工作区净（仅 .serena/ 未跟踪，会话前即存在）；HEAD = df44dd8
