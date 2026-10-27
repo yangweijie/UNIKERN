@@ -279,7 +279,7 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   `[R10.2]/[R10.3]` 为异构期望；`probe/phase13_arm_probes.py` 五腿逐一摘除即红
   （:1044 / :1080 / :1080 / 设备 no_function / 设备 verify=FAIL），残留 0 + ctest 2/2 绿
 
-## Phase 13 闭合记录（2026-10-27）
+## Phase 13 闭合记录（2026-10-27，提交 6ac32a5）
 - G6 closed（Metal 工作集上限并入第二道门，实测值入证据）；G1 的 **Apple 执行半边** closed
   （conv/reduce 真机对拍 + 账本闭环）；R10 覆盖报告出现异构行并被臂约束
 - 仍开放：G1 的 **AMD/Intel 执行半边**（conv/reduce 的 HIP/OCL 内核）、这两家的 `--kml`
