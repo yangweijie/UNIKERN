@@ -1,0 +1,33 @@
+
+=== ARM-PROBE predicate: layer disabled — the test below must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+Assertion failed: (op_support_gap(red).find("op=reduce") != std::string::npos), function main, file acceptance.cpp, line 895.
+--- predicate restored ---
+
+=== ARM-PROBE cli_gate: layer disabled — the test below must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+Assertion failed: (rc == 2), function main, file acceptance.cpp, line 927.
+--- cli_gate restored ---
+
+=== ARM-PROBE runner_gate: layer disabled — the test below must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=5.316821 kernel_ms=5.036750 mode=resident payload_mb=256.003906 perf=1048576x32x32
+ran=1 verified=1 measured_ms=5.31682
+--- runner log ---
+UK_DEVICE name=Apple M4
+UK_DEVICE_UNIFIED host_unified=1
+UK_DEVICE_MAXTHREADS max_threads=1024
+UK_RUNNER plan perf=1048576x32x32 tile=96x96 unified_bytes=34359738368 payload_mb=256.003906 warm=2 iters=10
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=5.316821 kernel_ms=5.036750 mode=resident payload_mb=256.003906 perf=1048576x32x32
+runner refusal site is NOT covered by ctest: acceptance stays green here, which is why the probe exists
+ACCEPTANCE PASS
+--- runner_gate restored ---
+
+residual ARM-PROBE markers: none
+[5/5] Linking CXX executable unikern_acceptance
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.77 sec

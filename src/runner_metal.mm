@@ -98,26 +98,23 @@ TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
   const EmittedTile t = emit_tile_for(tree, sol);
   p.TM = t.tm;
   p.TN = t.tn;
-  int PM = 4096, PN = 4096, PK = 4096;
-  if (tree.op == OpKind::Gemm) {
-    PM = (tree.dims[0] / 16) * 16;
-    PN = (tree.dims[1] / 16) * 16;
-    PK = (tree.dims[2] / 16) * 16;
-    if (PM < 32) PM = 32;
-    if (PN < 32) PN = 32;
-    if (PK < 32) PK = 32;
-  }
-  p.PM = PM;
-  p.PN = PN;
-  p.PK = PK;
+  // gemm-only: run_metal refuses a non-gemm tree at its entry, so the timing
+  // dims always come from the declared tree (no silent 4096^3 fallback).
+  const auto floor16 = [](int64_t v) {
+    const int a = int((v / 16) * 16);
+    return a < 32 ? 32 : a;
+  };
+  p.PM = floor16(tree.dims[0]);
+  p.PN = floor16(tree.dims[1]);
+  p.PK = floor16(tree.dims[2]);
   p.unified_bytes = hcs.tier_bytes("unified");
   if (p.unified_bytes <= 0) {
     // HCS carries no unified tier: Apple Silicon always has unified memory,
     // but if the HCS doesn't specify it, we can't decide residency.
     p.vram_unknown = true;
   }
-  const int64_t payload =
-      int64_t(PM) * PK * 4 + int64_t(PK) * PN * 4 + int64_t(PM) * PN * 4;
+  const int64_t payload = int64_t(p.PM) * p.PK * 4 + int64_t(p.PK) * p.PN * 4 +
+                          int64_t(p.PM) * p.PN * 4;
   p.payload_mb = double(payload) / (1024.0 * 1024.0);
   if (p.unified_bytes > 0)
     p.stream_refuse = payload > int64_t(0.85 * double(p.unified_bytes));
@@ -169,6 +166,20 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
   uk_mt_fail = false;
   uk_mt_log.clear();
   auto finish = [&r]() { r.log = uk_mt_log; return r; };
+
+  // R10.2 first, before anything is written or compiled: a non-gemm tree has no
+  // kernel here, so running it would measure another workload than declared.
+  // Checking at the entry also keeps the refusal source from landing in the
+  // workdir over the previous run's artifact.
+  const std::string op_gap = op_support_gap(tree);
+  if (!op_gap.empty()) {
+    std::cout << "UNIKERN_ERROR what=op_unsupported reason=" << op_gap << "\n"
+              << "apple:metal executes the generated gemm kernel only; running "
+              << "this tree would measure a different workload than declared "
+              << "(R10.2: unsupported interval, never a silent swap).\n";
+    uk_mt_log += "UK_RUNNER refused: " + op_gap + "\n";
+    return finish();
+  }
 
   // Persist the exact source that is executed (evidence).
   {

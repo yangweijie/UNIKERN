@@ -182,7 +182,7 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   3. **.gitignore 声称≠事实**：README 写"build-apple/ 已忽略"而实际未忽略 → 补
      `build-apple/`、`uk_run/`、`probe/uk_metal_probe`（源码入库、产物不入库）
 - [x] 新边界如实入册（不在本轮顺手实现）：**G6** — Metal runner 的 resident 预算取 HCS
-  声明的 32 GiB（`src/runner_metal.mm:113`），未与 `recommendedMaxWorkingSetSize` 交叉校验；
+  声明的 32 GiB（`src/runner_metal.mm:110`），未与 `recommendedMaxWorkingSetSize` 交叉校验；
   本机 payload 3 MB 远低于两者，读数与结论不受影响，但"0.85×容量"目前只对声明容量成立
 - [x] ctest 2/2 全绿（acceptance 0.55s，含新增四臂）；findings/task_plan 落定
 
@@ -197,3 +197,28 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   ε 残留的 roofline 常数标定（模型精度范围）
 - 平台边界如实标注：R7.3 四臂在 macOS 实跑；Windows 分支沿用同文件既有 cmd.exe 引号写法，
   本轮未在 Windows 主机复跑
+
+## Session 2026-10-27（Phase 11 — G7 非 GEMM 静默错执行闭合）
+- [x] 缺陷定位到读数级：库级直调证明 reduce 树拿到的是 gemm 内核 + 混着默认维的账本键
+  （`PM = 1048576, PN = 4096, PK = 4096`、零拒绝）；真机侧错配调用 `perf=1048576x32x32
+  verify=PASS measured_ms≈5.3` 回写 `reduce:...` 键 → 会污染 R7.3 校准输入
+- [x] 三层拒绝：`op_support_gap()` 单一判据 → 生成物自拒（HIP 退 4；MSL/OpenCL 无内核）→
+  runner 入口自拒（排在写 workdir/编译之前）→ CLI 门（排在 ledger 读写之前）
+- [x] `--op gemm|reduce` 声明面第一片；conv 按 arity 在 parse 拒绝（六维 vs 三维，
+  接受即在隐式默认上求解）；`solve --op reduce` 可解但打印 model-only 且拒绝 `--emit`
+- [x] acceptance 新增 R10.2 臂（库/产物/CLI + gemm 对照 `PM = 64` 三源齐发）；
+  `probe/phase11_arm_probes.py` 逐层摘除验红：谓词 → `:895`，CLI 门 → `:927`，
+  runner 门 → 真机探针转红而 **ctest 仍绿**（该层无单测回归位，如实分级并记录）
+- [x] 自捉两处坑并修正：`-x objective-c++` 吞掉后续静态库输入（须 `-x none`）；
+  第一次录 runner 拒绝对照时用了"摘门控"态编译的旧探针 → 量到过期产物，
+  改为转录内同录库 md5 并重编译（B 臂 `17b4384e...` vs A 臂 `7993adce...`）
+- [x] 证据入库 docs/evidence/phase11/（A/B 缺陷重放、CLI 四臂、runner 拒绝、
+  三层带弹性探针、ctest）+ 探针本体五份 + README；.gitignore 增两条探针二进制；
+  引用行号漂移修正（runner_metal.mm:113 → :110，Phase 10 的 G6 陈述与 progress 同步）
+
+## Phase 11 闭合记录（2026-10-27）
+- G7 closed：非 GEMM 的"声明即执行"不再可能——不支持即点名拒绝，且被拒的树落不下账本行
+- 新增开放项 G8（R10.3 每后端原语覆盖输出无人认领，`grep R10.3` 在验收文档/代码/测试零命中）；
+  G1（conv/reduce 真正可用的内核生成与 KML 文本前端）保持开放，本轮刻意不做
+- ctest 2/2 绿（Apple 主机）；残留探针标记校验为 0；平台边界：OpenCL 仅语法检查、
+  AMD hipcc 真编译路径未复跑，Windows/ROCm 复跑待做

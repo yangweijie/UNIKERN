@@ -223,7 +223,7 @@
   `maxThreadsPerThreadgroup.width=1024`（`src/runner_metal.mm:65-66`）；**本 SDK 无 CU 数量 API**，
   HCS 的 `compute_units=40` 是声明值，不冒充实测
 - **边界（本轮如实标注，未扩范围去实现）**：runner 的 resident 预算取
-  `hcs.tier_bytes("unified")`（`src/runner_metal.mm:113`，即 34359738368 B = 32 GiB 的 HCS 声明值），
+  `hcs.tier_bytes("unified")`（`src/runner_metal.mm:110`，即 34359738368 B = 32 GiB 的 HCS 声明值），
   **没有**与 Metal 的 `recommendedMaxWorkingSetSize`（Metal 对单设备可驻留工作集的实际上限，
   通常低于物理容量）交叉校验。因此"payload ≤ 0.85×unified"是相对声明容量成立，
   不是相对 Metal 驻留上限成立——本机负载远小于该阈值，本次读数不受影响，但这是一条
@@ -265,3 +265,40 @@
 - 真机证据：docs/evidence/phase10/（environment/emit/verify/run/hit-run/calibrate/
   calibrate-forced/ctest/gate-arm-probe 转录 + emit/uk_apple.metal 构件本体 + README）；
   acceptance-mvp.md v6.1
+
+## Phase 11 G7 闭合：非 GEMM 算子的能力面必须显式（2026-10-27）
+- **缺陷本体的读数**（不是推测）：把 reduce 树（L=2²⁰，workload 1 048 576 ops / 8 388 608 B）
+  直调 `hip_runnable_program()` → 产物是 `const int PM = 1048576, PN = 4096, PK = 4096;` 的
+  `uk_gemm`，**零条拒绝诊断**，账本键 `reduce:fp32:1048576x4096x4096`（PN/PK 是结构体默认维
+  被顺带补进去的）。真机侧同理：`run_metal` 拿到 gemm 内核 + reduce 树时
+  `perf=1048576x32x32 verify=PASS measured_ms≈5.3` ——即"声明一个负载、测另一个"，
+  还把结果按前者的键回写，直接污染 R7.3 校准的输入源
+- 三个静默默认位点同根：`src/codegen_hip.cpp` 的计时尺寸、`src/runner_metal.mm` 与
+  `src/runner_ocl.cpp` 的 `TimingPlan`（都是 `if (op == Gemm) {...}` 无 else，落回 4096³ 默认）
+- **拒绝层次（每层各自被证明是承重墙）**：① 单一判据 `op_support_gap()`（谓词摘掉 →
+  acceptance 红于 `tests/acceptance.cpp:895`）；② 生成物自拒（HIP 程序打
+  `UNIKERN_ERROR what=op_unsupported` 退 4；MSL/OpenCL 文件不含内核，编译期即失败）；
+  ③ runner **入口**自拒——必须排在写 workdir 与编译之前，否则拒绝用的空源文件会盖掉
+  上一次的真产物（Apple 侧 uk_run/uk_apple.metal 是证据本体）；④ CLI 门排在 ledger
+  任何读写之前（被拒的树留不下账本行，红于 `:927` 的是 rc 契约）
+- **回归位分级（诚实口径）**：谓词与 CLI 门有 ctest 覆盖；**runner 入口门没有**——
+  `run_metal`/`run_ocl` 要真设备，acceptance 在 CPU 侧调不到，摘掉它时 ctest 仍全绿。
+  它的回归位是 `probe/uk_op_refuse_probe.mm`（错配调用应被拒，`probe_rc=0`）。
+  不要把这条误读成"全链路都有测试"
+- **`--op` 只是声明面第一片**：`gemm|reduce` 可选，reduce 单长度并把其余维清零（否则
+  默认维会混进账本键）；conv 在 parse 阶段按 arity 拒绝——声明需要六维而 CLI 只暴露三维，
+  接受它等于在隐式默认上求解（R1.2）。`solve --op reduce` 允许解（roofline 模型本已覆盖），
+  但打印 model-only 提示且拒绝 `--emit`
+- **R10.3 无人认领（G8）**：`grep R10.3` 在验收文档/代码/测试里零命中——requirements R10
+  第 3 条"输出每个解在各后端的原语覆盖情况"没有任何实现或断言。现状由拒绝消息部分代偿，
+  但没有 op × backend 的覆盖表。与 G1 同批做最省
+- 两处自捉的工具/量测坑：`-x objective-c++` 会作用到其后所有输入，静态库前须 `-x none`
+  复位，否则 clang 把 `.a` 当源码编译；以及第一次录 runner 拒绝转录时用了"摘门控"状态下
+  编译的探针二进制 → **量到过期产物**（那次显示的正是错配执行）。教训：转录必须与
+  被测二进制的 md5 同录，重编译后才作数。另需记一刀口径：**静态库 `.a` 的 md5 不能当同源性证明**——
+  归档头含成员时间戳，同一源码重建两次 md5 也不同（实测 `b6e0a56b…` → `f4ee8f49…`，源码未改）；
+  它只标识"读数出自哪一次构建"，同源性由每臂自带的行为判据（谓词返回空串 vs 点名 reason）承担。
+  可执行文件 `build-apple/unikern` 的 md5 经两次重建实测不变（`22afe479…`），CLI 类转录以它作锚
+- 平台边界：`src/runner_ocl.cpp` 本轮只经 `-fsyntax-only -DUK_HAS_OCL` 编译检查，
+  未在 Intel 真机链接/运行；AMD 的 hipcc 真编译路径本轮未执行（其拒绝由生成物文本承担，
+  acceptance 文本级断言）。Windows/ROCm 复跑仍待做

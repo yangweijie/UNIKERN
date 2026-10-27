@@ -1,0 +1,50 @@
+# Phase 11 A/B 重放：同一探针、同一源码，只改 op_support_gap 的谓词
+# 复跑方法（A 臂）：把 src/codegen_hip.cpp 里
+#   std::string op_support_gap(const KmlTree& tree) {
+#     if (tree.op == OpKind::Gemm) return "";
+#   临时改成 `if (true) return "";`，然后
+#   ninja -C build-apple && g++ -std=c++20 -Iinclude probe/uk_op_probe_prerefusal.cpp \
+#     build-apple/libunikern_core.a build-apple/libsqlite3.a -o /tmp/uk_replay && /tmp/uk_replay
+#   跑完立刻改回（B 臂即当前提交态）。
+# B 臂里 op_signature 仍带 4096 是**探针故意**保留结构体默认维（dims[1..2]）以显示缺陷面；
+# CLI 侧的 reduce 会把它们清零（见 phase11-cli-refusals.txt 与 acceptance R10.2 臂）。
+
+# ---- A) 谓词摘掉（修复前的等效状态）====
+$ md5 -q build-apple/libunikern_core.a
+7993adcebb5e0e074b2b7b97c96773ef
+$ /tmp/uk_replay
+workload_of(reduce L=1<<20): ops=1048576 bytes=8388608
+op_support_gap(reduce) = ''
+solve: c_ms=0.278528 tile=128x128
+generated timing decl: const int PM = 1048576, PN = 4096, PK = 4096;
+op_signature filed in the ledger key: reduce:fp32:1048576x4096x4096
+emits a gemm kernel: 1
+emits a refusal diagnostic: 0
+msl emits kernel: 1  ocl emits kernel: 1
+
+# ---- B) 谓词接回（当前树，提交态）====
+$ md5 -q build-apple/libunikern_core.a
+17b4384e7fa2e06eb6acc7e4b97bc285
+$ /tmp/uk_replay
+workload_of(reduce L=1<<20): ops=1048576 bytes=8388608
+op_support_gap(reduce) = 'kernel generation covers gemm only; op=reduce'
+solve: c_ms=0.278528 tile=128x128
+generated timing decl: (none)
+op_signature filed in the ledger key: reduce:fp32:1048576x4096x4096
+emits a gemm kernel: 0
+emits a refusal diagnostic: 1
+msl emits kernel: 0  ocl emits kernel: 0
+
+# ---- md5 口径（实测纠正，别把它当同源性证明）----
+# 静态库归档头含成员时间戳：同一源码第二次构建 libunikern_core.a 的 md5 也会变
+#   （实测 b6e0a56b05782dd14c5327d717e41bda → f4ee8f49acce1b2efb37cb94e9bdafba，源码未改）。
+# 因此上面两臂的 .a md5 只用于识别"这份读数出自哪一次构建"，同源性由臂内自带的行为判据证明
+#   （A 臂 op_support_gap(reduce) 为空串、B 臂为 "kernel generation covers gemm only; op=reduce"）。
+# 可执行文件 build-apple/unikern 的 md5 经两次重建实测不变（22afe4796943da3d3d5f05753a36b6fa），
+#   CLI 类转录以它作锚。
+
+# ---- 收尾：源码里不得残留 ARM-PROBE 标记，且 ctest 全绿 ----
+ARM-PROBE occurrences in src/: 0
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.71 sec

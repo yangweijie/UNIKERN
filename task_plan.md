@@ -5,8 +5,8 @@
 "KML→求解→生成→验证→Ledger"闭环，交付可构建的 C++20 CLI 与组件，并逐阶段替换 stub。
 
 ## Current Phase
-Phase 10 收尾复核（Apple 真机验证 G4 全闭合后的证据重采 + 门控补测，2026-10-27）
-—— 规格 Phase 0-10 全部 complete；剩余为如实标注的开放缺口 G1/G5/G6（见"缺口闭合"表）
+Phase 11 闭合（G7 非 GEMM 静默错执行 → 三层显式拒绝；2026-10-27）
+—— 规格 Phase 0-11 全部 complete；剩余为如实标注的开放缺口 G1/G5/G6/G8（见"缺口闭合"表）
 
 ## Phases
 | # | Phase | Status |
@@ -22,6 +22,7 @@ Phase 10 收尾复核（Apple 真机验证 G4 全闭合后的证据重采 + 门�
 | 8 | 硬件在环验收：R1-R10 测试矩阵（AMD 卡 / Apple Silicon / Intel Arc B） | complete（验收矩阵 docs/acceptance-mvp.md；Apple 真机项如实标注受阻） |
 | 9 | Intel 真机验证（G4 Intel 半闭合）：OpenCL 执行 runner + 差分验证 + 账本闭环 + ocloc AOT 证据 | **complete（2026-10-27；本机 Arc B390 + oneAPI/OpenCL 3.0 在位，ocloc AOT + 进程内 runner 全验，ε 如实报告；Apple 半侧维持受阻）** |
 | 10 | Apple 真机验证（G4 Apple 半闭合）：Metal 执行 runner + 差分验证 + 账本闭环 + 运行时 JIT 编译证据 | **complete（2026-10-27；本机 Apple M4 + Metal 4 运行时 JIT（newLibraryWithSource，无需 Xcode）；256³ 对拍 max_rel=0、512³ LEDGER COMMIT（ε 实算）、HIT、calibrate 场景 A 诚实门控；G4 全闭合）** |
+| 11 | G7 闭合：非 GEMM 算子的能力面显式化（谓词 + 生成物自拒 + runner 入口自拒 + CLI 门），拒绝不得静默替换负载 | **complete（2026-10-27；三层各自"摘掉即红"已录，A/B 缺陷重放入库；--op gemm/reduce 声明面第一片，conv 按 arity 在 parse 拒绝；证据 docs/evidence/phase11/）** |
 
 ### Phase 10 子任务（Apple 真机验证，2026-10-27）
 | 子项 | 状态 |
@@ -33,6 +34,15 @@ Phase 10 收尾复核（Apple 真机验证 G4 全闭合后的证据重采 + 门�
 | e. 真机闭环：run → LEDGER COMMIT → HIT → calibrate（场景 A 零拷贝语义 + ε 如实报告） | complete（COMMIT predicted 0.0103244ms vs measured 1.27091ms → ε_abs=1.26059 / ε_rel=122.097（比值口径）；HIT 轮 measured 0.838425 → ε_rel=80.2078；残留为 HCS 声明峰值 26000 GFLOPS vs 内核有效约 0.54 TFLOPS 的计算率缺口，如实报告；calibrate 默认 SKIP——场景 A 下 measured−kernel 为主机调度开销非链路拷贝时间，新增 --allow-unified-calibrate 显式强制门控，且强制后 PREDICTED c_ms 逐位不变证明该常数在场景 A 路径上惰性） |
 | f. 证据转录入库 + acceptance-mvp.md v6 + 规划文件 + ctest 全绿 + commit | complete（docs/evidence/phase10/ 转录 + README + emit/uk_apple.metal 构件；acceptance v6/v6.1 Apple 行 ⛔→✅；codegen 横幅修正；G4 全闭合） |
 | g. 收尾复核（本轮）：证据全量重采 + 文档数字对齐 + 门控补测 + .gitignore 补齐 | complete（① 三处文档数字与转录不符（acceptance 的 ε_rel=99.6471、README 的 5.18 GB/s、task_plan 的 1.029/99.6）→ 按 20:28 重采读数全部替换并声明 ε_rel 为比值 \|C−T\|/T 口径；② 新门控 `--allow-unified-calibrate` 原仅有真机转录、零单测约束 → acceptance 补 R7.3 四臂经真实 CLI（拒绝消息/旗标过门/旗标真校准 6.291456 GB/s/场景 B 不受害），摘门控转红见 phase10-gate-arm-probe.txt；③ .gitignore 补 build-apple/、uk_run/、probe 二进制——此前 README 声称"build-apple/ 已忽略"实际未忽略；④ POSIX system() wait 状态坑修正） |
+
+### Phase 11 子任务（G7 非 GEMM 静默错执行闭合，2026-10-27）
+| 子项 | 状态 |
+|------|------|
+| a. 缺陷定位与可复现读数 | complete（库级探针直调 `hip_runnable_program(reduce 树)`：发出 `const int PM = 1048576, PN = 4096, PK = 4096;` 的 uk_gemm、零拒绝诊断、账本键 `reduce:fp32:1048576x4096x4096`；三处同模式静默默认位点 codegen_hip / runner_metal / runner_ocl 全部定位） |
+| b. 三层拒绝 | complete（① 单一判据 `op_support_gap()`；② 生成物自拒：HIP 程序打 `UNIKERN_ERROR what=op_unsupported` 退 4，MSL/OpenCL 文件不含内核（编译期即响亮失败）；③ runner 入口自拒：置于写 workdir 与编译**之前**，避免拒绝用源文件盖掉上一次真产物；④ CLI 门置于 ledger 任何读写**之前**，被拒的树留不下账本行） |
+| c. 声明面第一片 `--op` | complete（gemm/reduce 可选；reduce 单长度 `--dims L 0 0` 且其余维清零免进账本键；conv 在 parse 阶段按 arity 拒绝——声明需六维而 CLI 只暴露三维，接受它等于在隐式默认上求解（R1.2）；`solve --op reduce` 允许解并打印 model-only 提示） |
+| d. acceptance R10.2 臂 + 带弹性探针 | complete（库/产物/CLI 三层断言 + gemm 对照 `PM = 64` 三源齐发；`probe/phase11_arm_probes.py` 逐层摘除：谓词红于 acceptance.cpp:895、CLI 门红于 :927、runner 门红在真机探针（错配跑出 `perf=1048576x32x32 verify=PASS`）而 ctest 仍绿 → **runner 层无 ctest 回归位，如实分级**；残留标记校验 0，ctest 2/2 绿） |
+| e. 证据入库 + 文档 + commit | complete（docs/evidence/phase11/ 五份转录 + 五份探针本体 + README；acceptance-mvp.md v7 R10 行与 Phase 11 补遗；findings/progress 落定；.gitignore 增两条探针二进制） |
 
 ### Constraints
 - 无 NVIDIA 硬件与 SDK：验收全链路不依赖 NVIDIA；GPUDirect Storage 属 V1
@@ -62,14 +72,16 @@ Phase 10 收尾复核（Apple 真机验证 G4 全闭合后的证据重采 + 门�
 | Ledger 写入实测 ms 并报告 ε = \|C − T\| | done（SQLite 账本；收尾审计修正 ε 为实算——首版误打容差常量，见 E13；1024³ ε_rel=4.79，32768³ ε_rel=14.37） |
 | Phase 8 验收：tests/acceptance.cpp（R1-R10 CPU 项）+ docs/acceptance-mvp.md | done（ctest 2/2 全绿） |
 
-### 缺口闭合（v4，2026-10-27）
+### 缺口闭合（v7 累计，2026-10-27）
 | 缺口 | 状态 |
 |------|------|
 | G2 constants_version stub | **closed**：版本随 HCS 透传 + `calibrate` 递增（真机 1→2）；R7.3 校准闭环（账本实测行→中位数有效互联带宽 32→5.429 GB/s→校准 HCS），ε_rel 4.83→0.12 |
 | G3 产物头无 toolchain | **closed**：三后端产物头 `toolchain=<hcs.toolchain>` |
 | G1 KML 文本解析 / G5 R8.5 迁移监测 | 保留（V1 / 真机长测） |
 | G4 真机验证 | **已全闭合**：Intel 半侧（Phase 9，2026-10-27，ocloc AOT + 进程内 OpenCL runner 真机验证，证据 docs/evidence/phase9/）+ Apple 半侧（Phase 10，2026-10-27，Metal 运行时 JIT + 进程内 ObjC++ runner，证据 docs/evidence/phase10/） |
-| G6 Apple resident 预算口径（Phase 10 收尾新发现，如实入册） | **保留（记录，未实现）**：`src/runner_metal.mm:113` 的 resident 拒绝阈值取 `hcs.tier_bytes("unified")`（HCS 声明的 32 GiB），未与 Metal `recommendedMaxWorkingSetSize`（实际可驻留工作集上限，通常更小）交叉校验。本机 payload 3 MB 远低于两者，本次读数与结论不受影响；但"payload ≤ 0.85×容量"目前只对**声明容量**成立。属"HCS 声明值 vs API 实测"同类缺口，闭合它需要新增一次真机上限探测臂（不在 Phase 10 范围内，故不顺手实现） |
+| G6 Apple resident 预算口径（Phase 10 收尾新发现，如实入册） | **保留（记录，未实现）**：`src/runner_metal.mm:110` 的 resident 拒绝阈值取 `hcs.tier_bytes("unified")`（HCS 声明的 32 GiB），未与 Metal `recommendedMaxWorkingSetSize`（实际可驻留工作集上限，通常更小）交叉校验。本机 payload 3 MB 远低于两者，本次读数与结论不受影响；但"payload ≤ 0.85×容量"目前只对**声明容量**成立。属"HCS 声明值 vs API 实测"同类缺口，闭合它需要新增一次真机上限探测臂（不在 Phase 10 范围内，故不顺手实现） |
+| G7 非 GEMM 算子被静默当作 GEMM 执行/回写（Phase 10 收尾排查发现） | **closed（Phase 11，2026-10-27）**：单一判据 `op_support_gap()` + 生成物自拒 + runner 入口自拒 + CLI 门（置于 ledger 读写之前）；acceptance R10.2 臂与真机探针逐层"摘掉即红"，A/B 缺陷重放见 `docs/evidence/phase11/phase11-defect-replay.txt`。仍未做（属 G1 范围）：conv/reduce 的**可用**内核生成——本轮只把"不支持"变成显式的 |
+| G8 R10.3 每后端原语覆盖输出无人认领（Phase 11 排查发现） | **保留（记录，未实现）**：requirements R10 第 3 条"求解报告输出每个解在各后端的原语覆盖情况"在规格外的验收文档、代码与测试中零命中（`grep R10.3` 无果；acceptance R10 段只写 R10.1/R10.2）。现状由"拒绝消息"部分代偿（被拒时点名单一判据），但**没有**一张按 op × backend 的覆盖表，也没有把"不支持"纳入 F 约束的可查产物。与 G1 同一批做最省（覆盖表正是 conv/reduce 边界的载体） |
 
 ### Phase 9 子任务（Intel 真机验证，2026-10-27 起）
 | 子项 | 状态 |

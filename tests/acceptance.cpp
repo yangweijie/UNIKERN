@@ -204,6 +204,35 @@ int main(int argc, char** argv) {
   // that pinpoint the failure point.
   std::cout.setf(std::ios::unitbuf);
 
+  // CLI arms (R7.3 calibrate gate, R10.2 op refusal) drive the real `unikern`
+  // binary from the same directory as this test, so the shipped parse/gate path
+  // is under test rather than a copy of its condition. Quoting matches the
+  // crash-tx child (cmd.exe strips one quote level past two quotes), and POSIX
+  // system() yields a wait status, so the exit code is normalised there.
+  std::filesystem::path cli = std::filesystem::path(argv[0]);
+  if (!cli.is_absolute()) cli = std::filesystem::absolute(cli);
+  cli = cli.parent_path() / "unikern";
+#ifdef _WIN32
+  cli += ".exe";
+#endif
+  assert(std::filesystem::exists(cli));
+  const std::string cli_s = cli.generic_string();
+  auto spawn_cli = [&](const std::string& args, const std::string& cap) {
+    const std::string inner = "\"" + cli_s + "\" " + args + " > \"" + cap + "\" 2>&1";
+#ifdef _WIN32
+    const int raw = std::system(("\"" + inner + "\"").c_str());
+    return raw;
+#else
+    const int raw = std::system(inner.c_str());
+    return WIFEXITED(raw) ? WEXITSTATUS(raw) : raw;
+#endif
+  };
+  auto slurp = [](const std::string& p) {
+    std::ifstream f(p, std::ios::binary);
+    return std::string{std::istreambuf_iterator<char>(f),
+                       std::istreambuf_iterator<char>()};
+  };
+
   // ---------------- R1: KML front end + canonical form (R1.2, R1.3) --------
   {
     KmlTree t;  // demo GEMM fp32 4096^3
@@ -647,20 +676,9 @@ int main(int argc, char** argv) {
   // -------- R7.3 scenario-A honesty gate: unified HCS refuses calibration ---
   {
     // The gate is CLI behaviour (rc + message), so every arm drives the real
-    // `unikern` binary — a copy of the condition in this file would test the
-    // copy, not the shipped path. Paths are resolved from argv[0] so the arms
-    // run from any cwd; the quoting matches the crash-tx child above (cmd.exe
-    // strips one quote level once it sees more than two quotes).
+    // binary through spawn_cli — a copy of the condition in this file would
+    // test the copy, not the shipped path.
     namespace fs = std::filesystem;
-    fs::path self = argv[0];
-    if (!self.is_absolute()) self = fs::absolute(self);
-    fs::path cli = self.parent_path() / "unikern";
-#ifdef _WIN32
-    cli += ".exe";
-#endif
-    assert(fs::exists(cli));
-    const std::string cli_s = cli.generic_string();
-
     const fs::path dir = fs::temp_directory_path() / "unikern_calgate";
     fs::remove_all(dir);
     fs::create_directories(dir);
@@ -678,23 +696,6 @@ int main(int argc, char** argv) {
           << "|thA\t0.5\t1.0\t0.5\t128\t128\tp\n"; }
       return std::make_pair(hcs_path, led_path);
     };
-    auto spawn = [&](const std::string& args, const std::string& cap) {
-      const std::string inner = "\"" + cli_s + "\" " + args +
-                                " > \"" + cap + "\" 2>&1";
-#ifdef _WIN32
-      return std::system(("\"" + inner + "\"").c_str());
-#else
-      // POSIX system() yields the wait status, not the exit code: an exit(3)
-      // reads back as 768. The CLI documents rc per exit code, so normalise.
-      const int raw = std::system(inner.c_str());
-      return WIFEXITED(raw) ? WEXITSTATUS(raw) : raw;
-#endif
-    };
-    auto slurp = [](const std::string& p) {
-      std::ifstream f(p, std::ios::binary);
-      return std::string{std::istreambuf_iterator<char>(f),
-                         std::istreambuf_iterator<char>()};
-    };
 
     const Hcs uni = unified_hcs(400);                        // scenario A
     const Hcs dis = discrete_hcs(int64_t(8) << 30, 512);     // scenario B
@@ -707,7 +708,7 @@ int main(int argc, char** argv) {
     // output HCS is written.
     const std::string out1 = (dir / "arm1.json").string();
     {
-      const int rc = spawn("calibrate --hcs \"" + ua.first + "\" --ledger \""
+      const int rc = spawn_cli("calibrate --hcs \"" + ua.first + "\" --ledger \""
                            + empty_led + "\" --out \"" + out1 + "\"",
                            (dir / "arm1.txt").string());
       const std::string cap = slurp((dir / "arm1.txt").string());
@@ -719,7 +720,7 @@ int main(int argc, char** argv) {
     // still rc=3, but now the message is the empty-ledger one. This is what
     // proves arm 1's rc=3 came from the gate and not from missing rows.
     {
-      const int rc = spawn("calibrate --hcs \"" + ua.first + "\" --ledger \""
+      const int rc = spawn_cli("calibrate --hcs \"" + ua.first + "\" --ledger \""
                            + empty_led + "\" --allow-unified-calibrate",
                            (dir / "arm2.txt").string());
       const std::string cap = slurp((dir / "arm2.txt").string());
@@ -731,7 +732,7 @@ int main(int argc, char** argv) {
     // runs and adopts the derived constant (the flag is not a no-op).
     const std::string out3 = (dir / "arm3.json").string();
     {
-      const int rc = spawn("calibrate --hcs \"" + ua.first + "\" --ledger \""
+      const int rc = spawn_cli("calibrate --hcs \"" + ua.first + "\" --ledger \""
                            + ua.second + "\" --out \"" + out3
                            + "\" --allow-unified-calibrate",
                            (dir / "arm3.txt").string());
@@ -750,7 +751,7 @@ int main(int argc, char** argv) {
     // depends on. Same expected constant as arm 3, different declared one.
     const std::string out4 = (dir / "arm4.json").string();
     {
-      const int rc = spawn("calibrate --hcs \"" + db.first + "\" --ledger \""
+      const int rc = spawn_cli("calibrate --hcs \"" + db.first + "\" --ledger \""
                            + db.second + "\" --out \"" + out4 + "\"",
                            (dir / "arm4.txt").string());
       const std::string cap = slurp((dir / "arm4.txt").string());
@@ -879,6 +880,104 @@ int main(int argc, char** argv) {
     assert(intel_src.find("[[buffer") == std::string::npos);
     std::cout << "[R10] vendor mapping + availability semantics + vendor-API "
               << "isolation OK\n";
+  }
+
+  // ---- R10.2: op kinds outside kernel generation are refused, never swapped --
+  {
+    namespace fs = std::filesystem;
+    const Hcs h = discrete_hcs(int64_t(8) << 30, 512);
+    KmlTree gemm, red, conv;
+    red.op = OpKind::Reduction;
+    red.dims[0] = 1 << 20;
+    for (int i = 1; i < 6; ++i) red.dims[i] = 0;  // a reduce carries one length
+    conv.op = OpKind::Conv;
+    assert(op_support_gap(gemm).empty());
+    assert(op_support_gap(red).find("op=reduce") != std::string::npos);
+    assert(op_support_gap(conv).find("op=conv") != std::string::npos);
+
+    // The artifacts refuse on their own, so a caller that bypasses the CLI gate
+    // still cannot receive a gemm program filed under another workload.
+    const Solution rsol = solve(h, red);
+    const std::string hip_red = hip_runnable_program(rsol, h, red);
+    assert(hip_red.find("op_unsupported") != std::string::npos);
+    assert(hip_red.find("uk_gemm") == std::string::npos);
+    const std::string msl_red = msl_kernel_source(rsol, h, red);
+    const std::string ocl_red = ocl_kernel_source(rsol, h, red);
+    assert(msl_red.find("kernel void") == std::string::npos &&
+           msl_red.find("gemm only") != std::string::npos);
+    assert(ocl_red.find("__kernel") == std::string::npos &&
+           ocl_red.find("gemm only") != std::string::npos);
+
+    // CLI arms: the refusal happens before any ledger work, so the poisoned-row
+    // path (a gemm measurement filed as reduce) is unreachable rather than
+    // merely discouraged. rc=2 is the CLI's UNSUPPORTED/INVALID class.
+    const fs::path dir = fs::temp_directory_path() / "unikern_opgate";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const std::string hcs_path = (dir / "hcs.json").string();
+    { std::ofstream f(hcs_path, std::ios::binary); f << hcs_export(h); }
+    const std::string led = (dir / "led.jsonl").string();
+
+    {
+      const std::string cap_path = (dir / "arm_run.txt").string();
+      const int rc = spawn_cli("run --hcs \"" + hcs_path + "\" --op reduce"
+                               " --dims 1048576 0 0 --ledger \"" + led + "\"",
+                               cap_path);
+      const std::string cap = slurp(cap_path);
+      assert(rc == 2);
+      assert(cap.find("UNSUPPORTED") != std::string::npos &&
+             cap.find("op=reduce") != std::string::npos);
+      assert(cap.find("UNIKERN_RESULT") == std::string::npos);  // nothing ran
+      assert(!fs::exists(led));                                 // nothing committed
+    }
+    {
+      const std::string emit_dir = (dir / "emit_refused").string();
+      const std::string cap_path = (dir / "arm_emit.txt").string();
+      const int rc = spawn_cli("solve --hcs \"" + hcs_path + "\" --op reduce"
+                               " --dims 1048576 0 0 --ledger \"" + led +
+                               "\" --emit \"" + emit_dir + "\"", cap_path);
+      const std::string cap = slurp(cap_path);
+      assert(rc == 2);
+      assert(cap.find("--emit refuses") != std::string::npos);
+      assert(!fs::exists(emit_dir));  // no gemm sources written
+    }
+    {
+      // conv has no CLI arity (six dims vs three flags), so it must be rejected
+      // at parse rather than solved on implicit kernel-shape defaults (R1.2).
+      const std::string cap_path = (dir / "arm_conv.txt").string();
+      const int rc = spawn_cli("run --hcs \"" + hcs_path + "\" --op conv"
+                               " --dims 64 64 64", cap_path);
+      const std::string cap = slurp(cap_path);
+      assert(rc == 2);
+      assert(cap.find("INVALID op=conv") != std::string::npos);
+    }
+    {
+      // Control: --op gemm is not a decoration — the declared path still solves
+      // and emits all three vendor sources with real kernels in them.
+      const std::string emit_dir = (dir / "emit_gemm").string();
+      const std::string cap_path = (dir / "arm_gemm.txt").string();
+      const int rc = spawn_cli("solve --hcs \"" + hcs_path + "\" --op gemm"
+                               " --dims 64 64 64 --ledger \"" + led +
+                               "\" --emit \"" + emit_dir + "\"", cap_path);
+      const std::string cap = slurp(cap_path);
+      assert(rc == 0);
+      assert(cap.find("EMIT amd:hip") != std::string::npos &&
+             cap.find("EMIT apple:metal") != std::string::npos &&
+             cap.find("EMIT intel:ocl") != std::string::npos);
+      const std::string hip_g = slurp(emit_dir + "/uk_amd.cpp");
+      const std::string msl_g = slurp(emit_dir + "/uk_apple.metal");
+      const std::string ocl_g = slurp(emit_dir + "/uk_intel.cl");
+      assert(hip_g.find("uk_gemm") != std::string::npos);
+      assert(msl_g.find("kernel void") != std::string::npos);
+      assert(ocl_g.find("__kernel") != std::string::npos);
+      // 64 is already 16-aligned and above the floor of 32, so the timing size
+      // is the declared one — the silent 4096 default is gone from the path.
+      assert(hip_g.find("const int PM = 64, PN = 64, PK = 64;") !=
+             std::string::npos);
+    }
+    fs::remove_all(dir);
+    std::cout << "[R10.2] non-gemm ops refused at library, artifact and CLI level "
+                 "(no ledger row, no source emitted); gemm path unaffected OK\n";
   }
 
   std::cout << "ACCEPTANCE PASS\n";

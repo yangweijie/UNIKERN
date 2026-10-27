@@ -36,22 +36,42 @@ EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol) {
   return t;
 }
 
+std::string op_support_gap(const KmlTree& tree) {
+  if (tree.op == OpKind::Gemm) return "";
+  return std::string("kernel generation covers gemm only; op=") + to_string(tree.op);
+}
+
 std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  const std::string gap = op_support_gap(tree);
+  if (!gap.empty()) {
+    // The artifact refuses on its own: even a caller that bypasses the CLI
+    // gate cannot obtain a gemm measurement for a workload it declared as
+    // something else (R10.2 — unsupported interval, never a silent swap).
+    std::ostringstream o;
+    o << "// unikern generated — REFUSAL: no kernel emitted\n"
+      << "// hcs=" << hcs.vendor << "/" << hcs.device
+      << " fp=" << hcs_fingerprint(hcs).substr(0, 12)
+      << " toolchain=" << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain)
+      << " constants_v=" << sol.constants_version << "\n"
+      << "// " << gap << " — the capability interval is marked unsupported"
+      << " instead of executing a gemm in its place (R10.2)\n"
+      << "#include <iostream>\n"
+      << "int main() {\n"
+      << "  std::cerr << \"UNIKERN_ERROR what=op_unsupported reason=" << gap
+      << "\" << std::endl;\n"
+      << "  return 4;\n"
+      << "}\n";
+    return o.str();
+  }
   const EmittedTile tile = emit_tile_for(tree, sol);
   const int RPT = tile.tm / 16;
   const int RPN = tile.tn / 16;
   const int TK = 16;
   const int VM = 256, VN = 256, VK = 256;          // differential verification size
   // R8: timing size = tree dims, 16-aligned with a floor of 32, uncapped.
-  int PM = 4096, PN = 4096, PK = 4096;
-  if (tree.op == OpKind::Gemm) {
-    PM = (tree.dims[0] / 16) * 16;
-    PN = (tree.dims[1] / 16) * 16;
-    PK = (tree.dims[2] / 16) * 16;
-    if (PM < 32) PM = 32;
-    if (PN < 32) PN = 32;
-    if (PK < 32) PK = 32;
-  }
+  // gemm-only beyond this point: op_support_gap() above refuses every other kind.
+  auto floor16 = [](int64_t v) { const int a = int((v / 16) * 16); return a < 32 ? 32 : a; };
+  const int PM = floor16(tree.dims[0]), PN = floor16(tree.dims[1]), PK = floor16(tree.dims[2]);
   // R8.2 streaming parameters emitted into the program: vram capacity from
   // the HCS, shard granularity + prefetch distance from the solved instance.
   const int64_t vram_bytes = hcs.tier_bytes("vram");

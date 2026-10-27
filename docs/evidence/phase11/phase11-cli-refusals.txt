@@ -1,0 +1,47 @@
+$ md5 -q ./build-apple/unikern
+22afe4796943da3d3d5f05753a36b6fa
+
+$ ./build-apple/unikern backends
+vendor    backend      available  note
+amd       amd:hip     no        source-gen ready (Phase 5 full)
+apple     apple:metal     yes        source-gen ready (Phase 5 full)
+intel     intel:ocl     no        source-gen ready (Phase 5 full)
+
+$ ./build-apple/unikern run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --ledger /tmp/uk_p11.ioFE2Z/led.jsonl
+UNSUPPORTED: kernel generation covers gemm only; op=reduce — run/verify execute nothing and write no ledger row for this tree (R10.2: unsupported interval, never a silent workload swap).
+rc=2
+ledger created? no   # must be no
+
+$ ./build-apple/unikern run --hcs samples/hcs_amd.json --op conv --dims 64 64 64
+INVALID op=conv: the conv declaration needs six dims (H,W,C,Kh,Kw,outC) and the CLI exposes three — accepting it would solve on implicit kernel-shape defaults (R1.2 structural check, front end is open work).
+usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] [--op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple]
+  --op reduce/conv: run/verify refuse any op kernel generation cannot cover (R10.2) — nothing is executed or committed.
+rc=2
+
+$ ./build-apple/unikern solve --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --ledger /tmp/uk_p11.ioFE2Z/led.jsonl --emit /tmp/uk_p11.ioFE2Z/emit_refused
+UNSUPPORTED: kernel generation covers gemm only; op=reduce — --emit refuses rather than writing a gemm program in place of the declared workload (R10.2).
+rc=2
+emit dir created? no   # must be no
+
+$ ./build-apple/unikern solve --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --ledger /tmp/uk_p11.ioFE2Z/led.jsonl   # model-only, no --emit
+SOLVED  x* tile=128x128  c_ms=0.278528  |X|=25  hcs_fp=80394649
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+NOTE op=reduce: kernel generation covers gemm only; op=reduce — no sources emitted, the solution above is model-only (R10.2)
+rc=0
+
+$ ./build-apple/unikern solve --hcs samples/hcs_amd.json --op gemm --dims 64 64 64 --ledger /tmp/uk_p11.ioFE2Z/led.jsonl --emit /tmp/uk_p11.ioFE2Z/emit_gemm   # control
+SOLVED  x* tile=128x128  c_ms=0.001632  |X|=25  hcs_fp=80394649
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+EMIT amd:hip -> /tmp/uk_p11.ioFE2Z/emit_gemm/uk_amd.cpp lines=390 (toolchain absent)
+EMIT apple:metal -> /tmp/uk_p11.ioFE2Z/emit_gemm/uk_apple.metal lines=61
+EMIT intel:ocl -> /tmp/uk_p11.ioFE2Z/emit_gemm/uk_intel.cl lines=53 (toolchain absent)
+rc=0
+emitted: uk_amd.cpp uk_apple.metal uk_intel.cl 
+  182:  const int PM = 64, PN = 64, PK = 64;
+  uk_gemm occurrences: 7
+
+$ CLI run --hcs samples/hcs_apple.json --vendor apple --op gemm --dims 512 512 512 --ledger /tmp/uk_p11.ioFE2Z/g.sqlite3   # real device
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.944650 kernel_ms=0.589083 mode=resident payload_mb=3.000000 perf=512x512x512
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.944650 kernel_ms=0.589083 mode=resident payload_mb=3.000000 perf=512x512x512
+LEDGER COMMIT predicted_ms=0.0103244 measured_ms=0.94465 epsilon_abs=0.934326 epsilon_rel=90.4965
+rc(grep pipeline ignored; the run arm is covered by docs/evidence/phase10)

@@ -1,6 +1,6 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8/9/10
 
-- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数）
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）；**Phase 9（Intel 段）另用 MSVC 2022 Community（cl.exe 14.44 + vcvarsall 环境）构建，OpenCL 经 oneAPI 2026.1/lib/OpenCL.lib 导入库链接 + third_party/CL 厂商头（18 头，Apache-2.0），构建标志含 -DUK_HAS_OCL**（MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；GCC 风格 -Wall/-Wextra 按编译器翻译）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
@@ -21,7 +21,7 @@
 
 | 需求 | 验收方式 | 关键证据 | 状态 |
 |------|----------|----------|------|
-| R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝 | `ctest` acceptance `[R1]`；结构等价树同串、异树异串 | 🟡（R1.2 结构校验缺口，见下） |
+| R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝；**v7 增：`--op gemm\|reduce` 声明位与 conv 的 arity 拒绝（R1.2）** | `ctest` acceptance `[R1]`；结构等价树同串、异树异串；`--op conv` → `INVALID op=conv`（六维声明 vs 三维 CLI，拒绝而非用隐式默认求解） | 🟡（R1.2 结构校验缺口仍在：KML 文本前端与 conv/reduce 可用的内核生成属 G1，v7 只把"不支持"变成显式） |
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
@@ -30,7 +30,7 @@
 | R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环；**R7.3 场景 A 校准门控四臂（经真实 `unikern` 二进制：拒绝消息 / 旗标过门 / 旗标真校准 / 场景 B 不受累）** | `LEDGER HIT ...`；`[R7] crash ...`；`[CAL] ...`；`CALIBRATED link_bw 32 -> 5.429`；`[R7.3] scenario-A calibrate gate: ... OK`（摘掉门控即转红，见 `docs/evidence/phase10/phase10-gate-arm-probe.txt`） | ✅ |
 | R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s（AMD）；**Apple M4 场景 A 真机 resident 执行 PASS（零拷贝语义，placement=unified_memory 单测已验）** | 🟡（AMD 流式 ✅；Apple 场景 A resident ✅；**Intel/Apple resident-only，流式不实现**——生成程序横幅声明此边界，payload > 0.85×上限时 runner 如实 `UNIKERN_ERROR what=stream_refused` 拒绝（R10 无静默降级），如实标注） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
-| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends` | `[R10] ... vendor-API isolation OK`；`amd no / apple yes / intel yes`（Intel 为真实 ICD 运行时探测 pick_intel_gpu，acceptance R10 镜像用独立 Win32 LoadLibrary+GetProcAddress 枚举对照；Apple 为 Metal 运行时 JIT 真实探测） | ✅（语义 ✅；Intel 真机 ✅ Phase 9；Apple 真机 ✅ Phase 10） |
+| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends`；**v7 增：op 能力面三层拒绝臂（谓词 / 生成物 / CLI）+ 逐层"摘掉即红"探针** | `[R10] ... vendor-API isolation OK`；`[R10.2] non-gemm ops refused ... OK`；`amd no / apple yes / intel yes`（Intel 为真实 ICD 运行时探测 pick_intel_gpu，acceptance R10 镜像用独立 Win32 LoadLibrary+GetProcAddress 枚举对照；Apple 为 Metal 运行时 JIT 真实探测）；被拒的树不执行、不回写账本（`phase11-cli-refusals.txt`） | 🟡（R10.1/R10.2 ✅，含 v7 op 能力面；**R10.3"输出每个解在各后端的原语覆盖情况"零实现 = 新记录 G8**；runner 入口层的回归位是真机探针而非 ctest，分级见 Phase 11 补遗） |
 
 ## 逐项验收
 
@@ -56,7 +56,7 @@ $ ./build/unikern_acceptance.exe
 [R1] canonical uniqueness + illegal type-name rejection OK
 ```
 
-**状态：🟡 部分已验**。R1.3 唯一性本机已验。R1.2 的缺口如实记录：MVP 的 KML 树为程序化构造（CLI demo tree，`src/main.cpp:89`），**没有 KML 文本解析器**，因此"结构不完整拒绝"没有用户可提交的入口；MVP 落地的是前端类型名拒绝（非法 op/dtype 名 → nullopt），结构化校验器随 KML 文本前端（V1）引入。design.md「Error Handling: KML 非法 → 前端解析」在该范围内成立。
+**状态：🟡 部分已验**。R1.3 唯一性本机已验。R1.2 的缺口如实记录：MVP 的 KML 树为程序化构造（CLI demo tree，`src/main.cpp:113`），**没有 KML 文本解析器**，因此"结构不完整拒绝"没有用户可提交的入口；MVP 落地的是前端类型名拒绝（非法 op/dtype 名 → nullopt），结构化校验器随 KML 文本前端（V1）引入。design.md「Error Handling: KML 非法 → 前端解析」在该范围内成立。v7 增量的边界也说清楚：`--op gemm|reduce` 只是**声明位**（reduce 单长度并把其余维清零，免得默认维混进账本键），conv 因 arity 不符在 parse 阶段直接拒绝——`solve` 的 roofline 模型对 conv/reduce 本已成立，但**可用的内核生成仍缺**（属 G1），本轮只把"不支持"从静默替换改成点名拒绝。
 
 ### R2 — 多面体可行域判定（F）
 
@@ -298,6 +298,9 @@ runner 对拍/计时/账本闭环（LEDGER COMMIT/HIT），见 `docs/evidence/ph
 | G3 | ~~生成产物头未含 HCS `toolchain` 字段~~ **已闭合（v4）** | — | 产物头 `toolchain=rocm-7.13`（三后端一致） |
 | G4 | ~~Apple 真机执行与对拍；Intel 真机执行与对拍~~ **已闭合（v6）** | ~~R5.2/R6/R8 的对应后端项~~ — | **Intel 半侧 2026-10-27 Phase 9 闭合**（ocloc AOT + 进程内 OpenCL runner 真机验证，见 `docs/evidence/phase9/`）；**Apple 半侧 2026-10-27 Phase 10 闭合**（Metal 运行时 JIT + 进程内 ObjC++ runner 真机验证，见 `docs/evidence/phase10/`）。G4 全闭合。 |
 | G5 | R8.5 运行时缺页迁移率监测器 | 仅显式路径 + 模式自选落地 | 真机长测（AMD 可做，未列入 MVP 单测） |
+| G6 | Apple resident 预算取 HCS 声明容量，未与 Metal `recommendedMaxWorkingSetSize` 交叉校验（`src/runner_metal.mm:110`） | "payload ≤ 0.85×容量"只对声明容量成立；本机 payload 3 MB 远低于两者，读数不受影响 | 需一次真机上限探测臂（Phase 10 收尾如实入册，未顺手实现） |
+| G7 | ~~非 GEMM 树被静默当作 GEMM 执行并按 `reduce:...` 键回写账本~~ **已闭合（v7 / Phase 11）** | 修复前会污染 R7.3 校准输入；R10.2"绝不静默降级"被破 | `op_support_gap()` + 生成物自拒 + runner 入口自拒 + CLI 门，三层各有"摘掉即红"证明（`docs/evidence/phase11/`）；conv/reduce **可用的**内核生成仍属 G1 |
+| G8 | R10.3"输出每个解在各后端的原语覆盖情况"零实现（`grep R10.3` 在验收文档/代码/测试零命中） | 现状由拒绝消息部分代偿，但没有 op × backend 覆盖表，"不支持"也未成为可查产物 | 与 G1 同批做最省（覆盖表即 conv/reduce 边界的载体）；Phase 11 排查发现并记录 |
 
 ## 独立审计补遗（2026-10-27，收尾审计）
 
@@ -428,3 +431,40 @@ Apple 半侧 G4 闭合的完整事实（命令输出转录在 `docs/evidence/pha
   `apple yes`，与 findings.md Phase 10 探测一致。
 - **G4 全闭合**：Intel（Phase 9）+ Apple（Phase 10）真机执行与对拍均完成。
 
+
+## Phase 11 G7 闭合补遗（2026-10-27，v7）
+
+非 GEMM 算子的能力面闭合（转录在 `docs/evidence/phase11/`，本段引用其要点）：
+
+- **缺陷读数（A 臂，谓词摘掉的等效状态）**：`hip_runnable_program(reduce 树)` 产出
+  `const int PM = 1048576, PN = 4096, PK = 4096;` 的 `uk_gemm`，零条拒绝诊断，账本键写成
+  `reduce:fp32:1048576x4096x4096`（PN/PK 是结构体默认维被顺带补进去的）。真机侧同根：
+  `run_metal(gemm 内核 + reduce 树)` 报 `perf=1048576x32x32 verify=PASS measured_ms≈5.3`——
+  声明一个负载、测另一个，再按前者的键回写，直接污染 R7.3 校准的输入源。
+- **修复层次（B 臂，当前提交态）**：① 单一判据 `op_support_gap()`；② 生成物自拒——HIP 程序打
+  `UNIKERN_ERROR what=op_unsupported` 退 4，MSL/OpenCL 文件不含内核（编译期即响亮失败）；
+  ③ runner **入口**自拒，位置排在写 workdir 与编译**之前**（否则拒绝用的空源文件会盖掉
+  上一次的真产物，而那个产物是证据本体）；④ CLI 门排在 ledger 任何读写**之前**，
+  被拒的树留不下账本行（`--emit` 同样不落目录）。
+- **每层都被证明是承重墙**：`probe/phase11_arm_probes.py` 逐层摘除 →
+  谓词：acceptance 红于 `tests/acceptance.cpp:895`；CLI 门：红于 `:927`；
+  runner 入口门：真机探针转红（错配跑出 `verify=PASS` 的测量），**同态下 ctest 仍全绿**。
+  最后一条决定了一个诚实分级：**runner 层的回归位是探针，不是单测**——
+  `run_metal`/`run_ocl` 需真设备，CPU 侧 acceptance 调不到，勿据此以为"全链路都有测试"。
+  收尾校验：源码残留 `ARM-PROBE` 标记 0 处，ctest 2/2 绿。
+- **CLI 四臂读数**（`phase11-cli-refusals.txt`）：`run --op reduce` → rc=2 且账本文件
+  未创建；`solve --op reduce --emit` → rc=2 且目录未创建；`--op conv` → rc=2
+  `INVALID op=conv`（六维声明 vs 三维 CLI，接受即在隐式默认上求解，属 R1.2）；
+  对照 `solve --op gemm --dims 64 64 64 --emit` → rc=0、三源齐发、产物内
+  `const int PM = 64, PN = 64, PK = 64;`（静默 4096 默认位从此不存在）。
+- **`solve --op reduce` 仍然可解**：roofline 模型对 conv/reduce 本已成立，
+  故允许求解但打印 model-only 提示并拒绝产出源——把"模型支持"与"后端可执行"分开，
+  正是 R10.2 要的形态。conv/reduce 真正可用的内核生成属 **G1**，本轮刻意不做。
+- **平台边界**：`src/runner_ocl.cpp` 本轮经 `-fsyntax-only -DUK_HAS_OCL` 编译检查，
+  未在 Intel 真机链接/运行；AMD 的 hipcc 真编译路径本轮未执行（其拒绝由生成物文本承担，
+  acceptance 做文本级断言）。Windows/ROCm 复跑与 R7.3 四臂的 Windows 侧复跑同批待做。
+- **量测自捉**：第一次录 runner 拒绝对照时误用"摘门控"态编译的旧探针二进制，量到的正是
+  错配执行本身；此后转录内同录当次构建的库 md5（A 臂 `7993adce…` / B 臂 `17b4384e…`）并要求重编译。
+  再实测发现静态库 `.a` 的 md5 在同源码重建下也会变（ar 头含成员时间戳，`b6e0a56b…` → `f4ee8f49…`），
+  所以 md5 只用于标识"读数出自哪一次构建"，同源性由臂内自带的行为判据（`op_support_gap` 返回空串 vs
+  点名 reason）证明；CLI 转录改用实测稳定的可执行文件 md5（`22afe479…`）作锚。

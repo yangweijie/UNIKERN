@@ -1,0 +1,19 @@
+$ md5 -q build-apple/libunikern_core.a
+b6e0a56b05782dd14c5327d717e41bda   # 当前提交态（门控接回后由 ninja 重建）
+
+# 探针形态：内核来自 gemm 树，tree 参数是 reduce 树（错配调用——修复前 runner 会静默执行的那一类）
+$ clang++ -std=c++20 -fobjc-arc -Iinclude -x objective-c++ probe/uk_op_refuse_probe.mm -x none build-apple/libunikern_core.a build-apple/libsqlite3.a -framework Metal -framework Foundation -o /tmp/uk_refuse_probe
+$ /tmp/uk_refuse_probe
+UNIKERN_ERROR what=op_unsupported reason=kernel generation covers gemm only; op=reduce
+apple:metal executes the generated gemm kernel only; running this tree would measure a different workload than declared (R10.2: unsupported interval, never a silent swap).
+ran=0 verified=0 measured_ms=0
+--- runner log ---
+UK_RUNNER refused: kernel generation covers gemm only; op=reduce
+probe_rc=0  (0 = runner 拒绝；非 0 = 错配运行真的执行了)
+
+# 编译坑（如实）：-x objective-c++ 作用到其后所有输入，静态库前需 `-x none` 复位，否则 clang 把 .a 当源码编译。
+# md5 口径：这里的 libunikern_core.a md5 只标识"这一份读数出自哪一次构建"——静态库归档头含
+#   成员时间戳，同源码重建也会变（实测 b6e0a56b→f4ee8f49，源码未改），故不作同源性证明；
+#   同源性由本节自带的行为判据（UNIKERN_ERROR what=op_unsupported 与 probe_rc=0）证明。
+# 量测坑（本轮自捉）：第一次录这节时用的是 phase11-arm-probes.txt 里"摘门控"状态编译的 /tmp/uk_refuse_probe，
+# 量到的是过期产物（显示 verify=PASS perf=1048576x32x32 的错配执行）。因此本节的探针与库 md5 一起记录，重编译后才作数。

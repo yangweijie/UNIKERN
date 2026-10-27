@@ -1,7 +1,8 @@
 // Apple MSL and Intel OpenCL C kernel sources (library form).
 // Same register-blocked structure as the HIP backend so all three stay
-// comparable. NOTE: not compiled/verified on this host (no Metal, no Intel
-// OpenCL) — see findings.md Phase 5.
+// comparable. Both are compiled and executed in-process on real devices:
+// Intel via ocloc AOT + runner_ocl (docs/evidence/phase9/), Apple via the
+// Metal runtime JIT + runner_metal (docs/evidence/phase10/).
 #include <sstream>
 
 #include "unikern/codegen.hpp"
@@ -40,9 +41,24 @@ std::string banner(const char* lang, const char* r8_note, const Solution& sol,
     << "//   docs/evidence/phase10/). Streaming execution remains milestone 1.\n";
   return o.str();
 }
+
+std::string refusal_source(const char* lang, const Hcs& hcs, const std::string& gap) {
+  std::ostringstream o;
+  o << "// unikern generated — REFUSAL: no kernel emitted\n"
+    << "// target=" << lang << "\n"
+    << "// hcs=" << hcs.vendor << "/" << hcs.device
+    << " fp=" << hcs_fingerprint(hcs).substr(0, 12)
+    << " toolchain=" << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain) << "\n"
+    << "// " << gap << " — the capability interval is marked unsupported rather"
+    << " than emitting a gemm kernel in its place (R10.2). A file with no kernel"
+    << " fails loudly at function lookup, which is the intended outcome.\n";
+  return o.str();
+}
 }  // namespace
 
 std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  const std::string gap = op_support_gap(tree);
+  if (!gap.empty()) return refusal_source("Metal Shading Language", hcs, gap);
   const TileInfo ti = info_for(tree, sol);
   std::ostringstream o;
   o << banner("Metal Shading Language (scenario A: unified memory)",
@@ -98,6 +114,8 @@ std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
 }
 
 std::string ocl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  const std::string gap = op_support_gap(tree);
+  if (!gap.empty()) return refusal_source("OpenCL C", hcs, gap);
   const TileInfo ti = info_for(tree, sol);
   std::ostringstream o;
   o << banner("OpenCL C (Intel Xe -> SPIR-V via ocloc)",

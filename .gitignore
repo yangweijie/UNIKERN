@@ -19,8 +19,12 @@ ledger.sqlite3
 *.obj
 *.o
 uk_*.cpp
+# ... but probe sources under probe/ are tracked (the pattern above is for generated programs)
+!probe/uk_*.cpp
 uk_evidence/
 uk_run/
 
 # probes: source tracked, compiled Mach-O/ELF binaries not
 probe/uk_metal_probe
+probe/uk_op_gap_probe
+probe/uk_op_refuse_probe

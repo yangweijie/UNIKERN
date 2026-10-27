@@ -40,6 +40,10 @@ struct Options {
   std::string emit_dir;
   std::string workdir = "uk_run";
   std::string vendor = "amd";  // run/verify execution target (Phase 9)
+  // Declared primitive kind (R1.1 front-end slice). conv is rejected at parse:
+  // its 6-dim declaration (H,W,C,Kh,Kw,outC) has no CLI surface yet, so accepting
+  // it would silently solve on implicit kernel-shape defaults.
+  OpKind op = OpKind::Gemm;
   int dims[3] = {0, 0, 0};  // dims[0] > 0 => override the demo tree dims
   bool selfcheck = false;
   // calibrate only: force the R7.3 link-bandwidth derivation on a scenario-A
@@ -81,10 +85,26 @@ bool parse_options(int argc, char** argv, Options* o) {
     } else if (a == "--vendor" && i + 1 < argc) {
       o->vendor = argv[++i];
       if (o->vendor != "amd" && o->vendor != "intel" && o->vendor != "apple") return false;
+    } else if (a == "--op" && i + 1 < argc) {
+      const std::string name = argv[++i];
+      if (name == "conv") {
+        std::cerr << "INVALID op=conv: the conv declaration needs six dims "
+                     "(H,W,C,Kh,Kw,outC) and the CLI exposes three — accepting it "
+                     "would solve on implicit kernel-shape defaults (R1.2 structural "
+                     "check, front end is open work).\n";
+        return false;
+      }
+      const auto kind = op_from_string(name);
+      if (!kind) return false;
+      o->op = *kind;
     }
   }
   if (o->dims[0] || o->dims[1] || o->dims[2]) {
-    if (o->dims[0] <= 0 || o->dims[1] <= 0 || o->dims[2] <= 0) return false;
+    if (o->dims[0] <= 0) return false;
+    if (o->op == OpKind::Gemm && (o->dims[1] <= 0 || o->dims[2] <= 0)) return false;
+    // reduce is a single-length workload: extra dims would be stale defaults
+    // that the ledger key would carry as if they were declared (R1.2).
+    if (o->op == OpKind::Reduction && (o->dims[1] || o->dims[2])) return false;
   }
   return true;
 }
@@ -92,10 +112,16 @@ bool parse_options(int argc, char** argv, Options* o) {
 // Demo KML tree: GEMM fp32, dims default 4096^3 unless overridden.
 KmlTree demo_tree(const Options& o) {
   KmlTree t;
+  t.op = o.op;
   if (o.dims[0] > 0) {
     t.dims[0] = o.dims[0];
     t.dims[1] = o.dims[1];
     t.dims[2] = o.dims[2];
+  }
+  if (o.op == OpKind::Reduction) {
+    // single-length workload: the trailing dims must be unset, not stale gemm
+    // defaults that the ledger key would carry as if they were declared (R1.2).
+    for (int i = 1; i < 6; ++i) t.dims[i] = 0;
   }
   return t;
 }
@@ -178,7 +204,9 @@ static int cmd_solve(int argc, char** argv) {
   Options o;
   const char* usage =
       "usage: unikern solve --hcs <file.json> [--ledger f] [--emit dir] "
-      "[--dims M N K] [--selfcheck]\n";
+      "[--op gemm|reduce] [--dims M N K] [--selfcheck]\n"
+      "  op=reduce takes a single length (--dims L 0 0); conv needs six dims and "
+      "has no CLI surface yet (R1.2).\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
     std::cerr << usage;
     return 2;
@@ -186,6 +214,12 @@ static int cmd_solve(int argc, char** argv) {
   auto hcs = load_hcs(o.hcs_path);
   if (!hcs) return 2;
   KmlTree tree = demo_tree(o);
+  const std::string gap = op_support_gap(tree);
+  if (!gap.empty() && !o.emit_dir.empty()) {
+    std::cerr << "UNSUPPORTED: " << gap << " — --emit refuses rather than writing a "
+                 "gemm program in place of the declared workload (R10.2).\n";
+    return 2;
+  }
   const Key key = ledger_key(*hcs, tree);
   auto ledger = make_ledger(o.ledger);
   if (auto hit = ledger->lookup(key)) {  // R7.2: ledger hit skips search
@@ -209,7 +243,12 @@ static int cmd_solve(int argc, char** argv) {
             << "  hcs_fp=" << key.hcs_fp.substr(0, 8) << "\n"
             << sol.placement_record << "\n";
   if (o.emit_dir.empty()) {
-    print_sources(sol, *hcs, tree);
+    if (gap.empty()) {
+      print_sources(sol, *hcs, tree);
+    } else {
+      std::cout << "NOTE op=" << to_string(tree.op) << ": " << gap
+                << " — no sources emitted, the solution above is model-only (R10.2)\n";
+    }
   } else {
     const int rc = emit_sources(sol, *hcs, tree, o.emit_dir);
     if (rc != 0) return rc;
@@ -234,7 +273,9 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   Options o;
   const char* usage =
       "usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] "
-      "[--dims M N K] [--vendor amd|intel|apple]\n";
+      "[--op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple]\n"
+      "  --op reduce/conv: run/verify refuse any op kernel generation cannot "
+      "cover (R10.2) — nothing is executed or committed.\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
     std::cerr << usage;
     return 2;
@@ -242,6 +283,16 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   auto hcs = load_hcs(o.hcs_path);
   if (!hcs) return 2;
   KmlTree tree = demo_tree(o);
+  // R10.2: nothing is executed, measured or committed for a workload kernel
+  // generation cannot cover — checking before the ledger keeps a poisoned row
+  // (a gemm measurement filed under another op) out of reach entirely.
+  const std::string gap = op_support_gap(tree);
+  if (!gap.empty()) {
+    std::cerr << "UNSUPPORTED: " << gap << " — run/verify execute nothing and write "
+                 "no ledger row for this tree (R10.2: unsupported interval, never a "
+                 "silent workload swap).\n";
+    return 2;
+  }
   const Key key = ledger_key(*hcs, tree);
   auto ledger = make_ledger(o.ledger);
   Solution sol;
@@ -429,11 +480,12 @@ static int cmd_backends() {
 int main(int argc, char** argv) {
   if (argc < 2) {
     std::cerr << "unikern (MVP skeleton)\n"
-              << "  solve --hcs f.json [--ledger f] [--emit dir] [--dims M N K] [--selfcheck]\n"
-              << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]"
-                 " [--vendor amd|intel|apple]\n"
-              << "  verify --hcs f.json [--workdir dir] [--dims M N K] [--vendor amd|intel|apple]"
-                 "  (= run, no ledger write)\n"
+              << "  solve --hcs f.json [--ledger f] [--emit dir] [--op gemm|reduce]"
+                 " [--dims M N K] [--selfcheck]\n"
+              << "  run --hcs f.json [--ledger f] [--workdir dir] [--op gemm|reduce]"
+                 " [--dims M N K] [--vendor amd|intel|apple]\n"
+              << "  verify --hcs f.json [--workdir dir] [--op gemm|reduce] [--dims M N K]"
+                 " [--vendor amd|intel|apple]  (= run, no ledger write)\n"
               << "  calibrate --hcs f.json --ledger l [--out f.json]  (R7.3: measured -> link bw)\n"
               << "  hcs <f.json> | backends | ledger\n"
               << "  ledger paths: *.jsonl = file ledger, else SQLite (default "

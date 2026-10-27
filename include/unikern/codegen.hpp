@@ -10,6 +10,14 @@ namespace unikern {
 struct EmittedTile { int tm = 0; int tn = 0; bool clamped = false; };
 EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol);
 
+// R10.2 capability interval for kernel generation: the MVP emits tiled GEMM
+// only. A conv/reduction tree reaching a GEMM code path would be executed as
+// some other workload than the one declared — the silent degradation R10
+// forbids, and one that poisons the ledger with a measurement of the wrong
+// work. Returns an empty string when the tree can be generated, otherwise a
+// reason naming the op kind; every generate/execute entry point consults it.
+std::string op_support_gap(const KmlTree& tree);
+
 // AMD HIP: complete runnable program (kernel + deterministic init + CPU
 // reference + differential verify + event timing). Self-verifying by design.
 std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
