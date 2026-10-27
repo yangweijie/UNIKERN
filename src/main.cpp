@@ -404,7 +404,13 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   std::cout << "RUN " << backend_name << " built=" << (r.built ? "yes" : "no")
             << " ran=" << (r.ran ? "yes" : "no")
             << " verified=" << (r.verified ? "PASS" : "FAIL")
-            << " max_rel=" << r.max_rel << " measured_ms=" << r.measured_ms << "\n";
+            << " max_rel=" << r.max_rel << " measured_ms=" << r.measured_ms;
+  // R8.5: migrations=<n> only when the backend reported it (generated HIP
+  // programs end their UNIKERN_RESULT line with the token). The in-process
+  // Metal/OpenCL runners leave the -1 sentinel — omitting the field beats
+  // printing an unmeasured 0.
+  if (r.migrations >= 0) std::cout << " migrations=" << r.migrations;
+  std::cout << "\n";
   if (!r.log.empty()) {  // tail of the compile/run log
     constexpr size_t kTail = 600;
     std::cout << "-- log tail --\n"

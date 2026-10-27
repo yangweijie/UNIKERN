@@ -203,6 +203,11 @@ RunOutcome run_hip(const std::string& program, const std::string& workdir) {
   r.max_rel = std::atof(field(line, "max_rel").c_str());
   r.measured_ms = std::atof(field(line, "measured_ms").c_str());
   r.kernel_ms = std::atof(field(line, "kernel_ms").c_str());
+  // R8.5: migrations=<n> (non-device-resident allocation count). Absent token
+  // leaves the -1 sentinel — the RUN line then omits the field instead of
+  // printing an unmeasured 0.
+  const std::string mig = field(line, "migrations");
+  if (!mig.empty()) r.migrations = std::atoi(mig.c_str());
   return r;
 }
 

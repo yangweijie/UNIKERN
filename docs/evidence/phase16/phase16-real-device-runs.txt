@@ -1,0 +1,72 @@
+# Phase 16 (G5 / R8.5) — HIP 程序运行时驻留守卫 · 真机证据
+
+- 日期：2026-10-28；设备：AMD Radeon RX 6600M（gfx1032），ROCm 7.1（HIP_PATH=D:\Program Files\AMD\ROCm\7.1\）
+- 锚定二进制：build/unikern.exe md5 = e554574a9c618f2676fd460651fedc8a；build/unikern_acceptance.exe md5 = 1c0f86208e61deeff0404fca551847a4
+- 命令与 Phase 15 真机转录相同（docs/evidence/phase15/phase15-real-device-runs.txt）；账本键已存在故为 LEDGER HIT 轮——HIT 复用记录解，生成程序仍在设备上完整执行。
+$ md5sum build/unikern.exe
+e554574a9c618f2676fd460651fedc8a *build/unikern.exe
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --kml samples/conv.kml
+LEDGER HIT  c_cached_ms=0.0583194  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=4.24068 migrations=0
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=4.240680 kernel_ms=3.357787 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64 migrations=0
+LEDGER COMMIT predicted_ms=0.0583194 measured_ms=4.24068 epsilon_abs=4.18236 epsilon_rel=71.7147
+(rc=0)
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0
+LEDGER HIT  c_cached_ms=0.278528  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.41513 migrations=0
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.415130 kernel_ms=0.161870 mode=resident payload_mb=4.015629 perf=1048576 migrations=0
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.41513 epsilon_abs=0.136602 epsilon_rel=0.490443
+(rc=0)
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger uk_run/p15_gemm.sqlite3
+LEDGER HIT  c_cached_ms=12.5387  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=55.9181 migrations=0
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=55.918150 kernel_ms=35.077957 mode=resident payload_mb=192.000000 perf=4096x4096x4096 migrations=0
+LEDGER COMMIT predicted_ms=12.5387 measured_ms=55.9181 epsilon_abs=43.3795 epsilon_rel=3.45965
+(rc=0)
+
+## R8.5 拒绝分支的设备级证据（probe/phase16_residency_refuse.cpp）
+
+生成程序自身的 hipMalloc 路径在本机硬件上不可能产生非设备驻留（这正是 migrations=0 的happy path），故用 hipHostMalloc 的 host 指针直接代位非设备驻留条件，验证守卫的探测+拒绝分支在真实 runtime 上触发。守卫函数体与生成程序发射的 uk_resident 逐字一致。
+
+$ "/d/Program Files/AMD/ROCm/7.1/bin/hipcc.exe" probe/phase16_residency_refuse.cpp -O3 --offload-arch=gfx1032 -o uk_run/p85_refuse.exe
+(compile rc=0)
+$ ./uk_run/p85_refuse.exe; echo exit=$?
+PROBE hipMalloc residency rc=0 (expect 0 = hipMemoryTypeDevice)
+UNIKERN_ERROR what=oversubscription ptr=hipHostMalloc h type=1 (managed/host residency is oversubscription; explicit streaming is the only path; R8.5)
+PROBE hipHostMalloc residency rc=5 (expect 5 = oversubscription refusal)
+exit=5
+
+## ctest（守卫落盘后的全量回归）
+
+$ ctest --test-dir build --output-on-failure
+
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.14 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    0.58 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   0.72 sec
+
+二进制 md5 锚：
+e554574a9c618f2676fd460651fedc8a *build/unikern.exe
+1c0f86208e61deeff0404fca551847a4 *build/unikern_acceptance.exe
+uk_run/uk_amd.cpp:92:37: error: no member named 'memoryType' in 'hipPointerAttribute_t'
+（ROCm 7.1 hip_runtime_api.h:276-284 实测：字段名为 type；hipMemoryTypeDevice=2 / hipMemoryTypeHost=1 / hipMemoryTypeManaged=3）
+→ 守卫改按真实头文件字段名 a.type 断言（语义不变：== hipMemoryTypeDevice），这正是"设备事实经 API 实测，不照抄标签"的同类修正。

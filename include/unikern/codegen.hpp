@@ -45,6 +45,7 @@ std::string ocl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
 
 // Result contract shared by runnable programs: they print one line
 //   UNIKERN_RESULT backend=<name> verify=<PASS|FAIL> max_rel=<f> measured_ms=<f>
+// and the generated HIP programs end it with migrations=<n> (R8.5).
 struct RunOutcome {
   bool built = false;
   bool ran = false;
@@ -52,6 +53,12 @@ struct RunOutcome {
   double max_rel = 0;
   double measured_ms = 0;
   double kernel_ms = 0;  // kernel-only reference from the result line
+  // R8.5: non-device-resident (managed/host) allocation count reported by the
+  // generated HIP program on its UNIKERN_RESULT line — 0 on the explicit-copy
+  // path (the script gate's criterion). -1 = this backend does not report the
+  // token (the in-process Metal/OpenCL runners) or the run never reached a
+  // result line, so the RUN line omits it instead of printing an unmeasured 0.
+  int migrations = -1;
   std::string log;
 };
 // Compile + execute a HIP program with hipcc; parse the result line.

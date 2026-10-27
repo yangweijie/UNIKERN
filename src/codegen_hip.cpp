@@ -27,6 +27,15 @@
 // program carries only its own op's kernels (R10.2 no-silent-swap at source
 // level) and the same R5/R8 provenance head. The gemm program is unchanged
 // byte for byte.
+//
+// G5 / R8.5 residency guard: every generated program (gemm/conv/reduce, same
+// pattern) folds hipMalloc and a hipPointerGetAttributes residency assertion
+// (attributes.type == hipMemoryTypeDevice — named `type` in the real device
+// toolchain, ROCm 7.1) into one uk_mmalloc call; managed/host residency prints
+// UNIKERN_ERROR what=oversubscription and exits 5 — the upper layer's
+// re-solve signal. The UNIKERN_RESULT line ends with migrations=<n>, the
+// non-device-resident allocation count (0 on the explicit-copy path); this
+// supersedes the Phase 15 gemm byte-identity note.
 #include <sstream>
 
 #include "unikern/codegen.hpp"
@@ -158,6 +167,56 @@ void emit_residency_guard(std::ostringstream& o) {
     << "  }" << '\n';
 }
 
+// R8.5 residency guard (G5): explicit streaming is the ONLY path, so every
+// device allocation must actually be device-resident. Emitted into every
+// generated HIP program (gemm/conv/reduce, same pattern): after a successful
+// hipMalloc, hipPointerGetAttributes asserts attributes.type ==
+// hipMemoryTypeDevice (the field is named `type` in the actual device
+// toolchain, ROCm 7.1 — the older HIP/CUDA name `memoryType` does not exist
+// there and was caught by the real hipcc build); managed/host residency is
+// implicit oversubscription — the program reports UNIKERN_ERROR
+// what=oversubscription and exits 5 (the upper layer's re-solve signal)
+// instead of timing a silently paged run.
+// UK_MIGRATIONS counts non-device-resident allocations; the UNIKERN_RESULT
+// line carries it as migrations=<n> (0 on the explicit-copy path) — the token
+// the script gate parses, byte for byte. Allocation and assertion are folded
+// into one uk_mmalloc call so a hipMalloc cannot exist unchecked.
+void emit_residency_guard85(std::ostringstream& o) {
+  o << "// R8.5 residency guard: explicit streaming is the only path, so every" << '\n'
+    << "// device allocation must actually be device-resident. hipPointerGetAttributes" << '\n'
+    << "// asserts type == hipMemoryTypeDevice after every successful hipMalloc;" << '\n'
+    << "// managed/host residency is implicit oversubscription — loud refusal," << '\n'
+    << "// never silent paging. exit 5 = the upper layer's re-solve signal (R8.5)." << '\n'
+    << "static int UK_MIGRATIONS = 0;  // non-device-resident allocations seen" << '\n'
+    << "static int uk_resident(const void* p, const char* name) {" << '\n'
+    << "  hipPointerAttribute_t a{};" << '\n'
+    << "  const hipError_t e = hipPointerGetAttributes(&a, p);" << '\n'
+    << "  if (e != hipSuccess) {" << '\n'
+    << "    std::cerr << \"UNIKERN_ERROR what=residency_probe ptr=\" << name" << '\n'
+    << "              << \" msg=\" << hipGetErrorString(e) << std::endl;" << '\n'
+    << "    return 4;" << '\n'
+    << "  }" << '\n'
+    << "  if (a.type != hipMemoryTypeDevice) {" << '\n'
+    << "    ++UK_MIGRATIONS;" << '\n'
+    << "    std::cerr << \"UNIKERN_ERROR what=oversubscription ptr=\" << name" << '\n'
+    << "              << \" type=\" << (int)a.type" << '\n'
+    << "              << \" (managed/host residency is oversubscription;\"" << '\n'
+    << "              << \" explicit streaming is the only path; R8.5)\" << std::endl;" << '\n'
+    << "    return 5;" << '\n'
+    << "  }" << '\n'
+    << "  return 0;" << '\n'
+    << "}" << '\n'
+    << "// hipMalloc + the R8.5 residency assertion folded together, so an" << '\n'
+    << "// allocation cannot exist unchecked. Returns 0, or the abort code" << '\n'
+    << "// (4 = HIP/probe failure, 5 = oversubscription) after printing" << '\n'
+    << "// UNIKERN_ERROR." << '\n'
+    << "template <typename T>" << '\n'
+    << "static int uk_mmalloc(T** p, size_t bytes, const char* what, const char* ptr) {" << '\n'
+    << "  if (!uk_ok(hipMalloc((void**)p, bytes), what)) return 4;" << '\n'
+    << "  return uk_resident(*p, ptr);" << '\n'
+    << "}" << '\n' << '\n';
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -230,6 +289,7 @@ std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "      }" << '\n'
     << "}" << '\n' << '\n';
   emit_uk_ok(o);
+  emit_residency_guard85(o);
   o << "int main() {" << '\n'
     << "  int rc = 0;" << '\n'
     << "  float max_rel = 0.f;" << '\n'
@@ -248,9 +308,9 @@ std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "    for (size_t i = 0; i < Wt.size(); ++i) Wt[i] = initB((int)i);" << '\n'
     << "    cpu_conv_ref(X, Wt, R, VH, VW, VC, VKh, VKw, VOc);" << '\n'
     << "    float *dX, *dWt, *dY;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc vX\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dWt, Wt.size() * sizeof(float)), \"hipMalloc vWt\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dY, Y.size() * sizeof(float)), \"hipMalloc vY\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dX, X.size() * sizeof(float), \"hipMalloc vX\", \"vX\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dWt, Wt.size() * sizeof(float), \"hipMalloc vWt\", \"vWt\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dY, Y.size() * sizeof(float), \"hipMalloc vY\", \"vY\")) return mrc;" << '\n'
     << "    if (!uk_ok(hipMemcpy(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy vX\")) return 4;" << '\n'
     << "    if (!uk_ok(hipMemcpy(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy vWt\")) return 4;" << '\n'
     << "    const dim3 blk(8, 8, 1);" << '\n'
@@ -297,9 +357,9 @@ std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "    std::vector<float> Wt((size_t)Oc * Kh * Kw * C, 0.25f);" << '\n'
     << "    std::vector<float> Y((size_t)Oc * Ho * Wo, 0.f);" << '\n'
     << "    float *dX, *dWt, *dY;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc tX\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dWt, Wt.size() * sizeof(float)), \"hipMalloc tWt\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dY, Y.size() * sizeof(float)), \"hipMalloc tY\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dX, X.size() * sizeof(float), \"hipMalloc tX\", \"tX\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dWt, Wt.size() * sizeof(float), \"hipMalloc tWt\", \"tWt\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dY, Y.size() * sizeof(float), \"hipMalloc tY\", \"tY\")) return mrc;" << '\n'
     << "    hipStream_t st;" << '\n'
     << "    if (!uk_ok(hipStreamCreate(&st), \"hipStreamCreate t\")) return 4;" << '\n'
     << "    hipEvent_t t0, t1, k0, k1;" << '\n'
@@ -357,7 +417,7 @@ std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "            << \" mode=resident\"" << '\n'
     << "            << \" payload_mb=\" << payload_mb" << '\n'
     << "            << \" perf=\" << H << \"x\" << W << \"x\" << C << \"x\" << Kh << \"x\" << Kw" << '\n'
-    << "            << \"x\" << Oc << std::endl;" << '\n'
+    << "            << \"x\" << Oc << \" migrations=\" << UK_MIGRATIONS << std::endl;" << '\n'
     << "  return rc;" << '\n'
     << "}" << '\n';
   return o.str();
@@ -419,6 +479,7 @@ std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTre
     << "  *y = acc;" << '\n'
     << "}" << '\n' << '\n';
   emit_uk_ok(o);
+  emit_residency_guard85(o);
   o << "// One reduce = both passes enqueued in order on the same stream." << '\n'
     << "static int launch_reduce(const float* dX, float* dP, float* dY, int n," << '\n'
     << "                         int nP, hipStream_t st) {" << '\n'
@@ -443,9 +504,9 @@ std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTre
     << "    float ref = 0.f;" << '\n'
     << "    cpu_reduce_ref(X, &ref);" << '\n'
     << "    float *dX, *dP, *dY;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc vX\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dP, P.size() * sizeof(float)), \"hipMalloc vP\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dY, sizeof(float)), \"hipMalloc vY\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dX, X.size() * sizeof(float), \"hipMalloc vX\", \"vX\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dP, P.size() * sizeof(float), \"hipMalloc vP\", \"vP\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dY, sizeof(float), \"hipMalloc vY\", \"vY\")) return mrc;" << '\n'
     << "    if (!uk_ok(hipMemcpy(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy vX\")) return 4;" << '\n'
     << "    if (launch_reduce(dX, dP, dY, VL, VP, nullptr) != 0) return 4;" << '\n'
     << "    if (!uk_ok(hipDeviceSynchronize(), \"sync verify\")) return 4;" << '\n'
@@ -473,9 +534,9 @@ std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTre
     << "    std::vector<float> X((size_t)L, 0.5f);" << '\n'
     << "    std::vector<float> P((size_t)UK_REDUCE_WIDTH, 0.f), Y(1, 0.f);" << '\n'
     << "    float *dX, *dP, *dY;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc tX\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dP, P.size() * sizeof(float)), \"hipMalloc tP\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dY, sizeof(float)), \"hipMalloc tY\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dX, X.size() * sizeof(float), \"hipMalloc tX\", \"tX\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dP, P.size() * sizeof(float), \"hipMalloc tP\", \"tP\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dY, sizeof(float), \"hipMalloc tY\", \"tY\")) return mrc;" << '\n'
     << "    hipStream_t st;" << '\n'
     << "    if (!uk_ok(hipStreamCreate(&st), \"hipStreamCreate t\")) return 4;" << '\n'
     << "    hipEvent_t t0, t1, k0, k1;" << '\n'
@@ -525,7 +586,7 @@ std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTre
     << "            << \" kernel_ms=\" << kms" << '\n'
     << "            << \" mode=resident\"" << '\n'
     << "            << \" payload_mb=\" << payload_mb" << '\n'
-    << "            << \" perf=\" << L << std::endl;" << '\n'
+    << "            << \" perf=\" << L << \" migrations=\" << UK_MIGRATIONS << std::endl;" << '\n'
     << "  return rc;" << '\n'
     << "}" << '\n';
   return o.str();
@@ -650,8 +711,9 @@ std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "  std::cerr << \"UNIKERN_ERROR what=\" << what" << '\n'
     << "            << \" msg=\" << hipGetErrorString(e) << std::endl;" << '\n'
     << "  return false;" << '\n'
-    << "}" << '\n' << '\n'
-    << "// R8.3 streaming plan: everything one double-buffered pass needs." << '\n'
+    << "}" << '\n' << '\n';
+  emit_residency_guard85(o);
+  o << "// R8.3 streaming plan: everything one double-buffered pass needs." << '\n'
     << "struct UkStream {" << '\n'
     << "  int M, N, K;          // timing problem" << '\n'
     << "  int SR;               // shard rows (from shard_mb)" << '\n'
@@ -767,9 +829,9 @@ std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "    for (size_t i = 0; i < B.size(); ++i) B[i] = initB((int)i);" << '\n'
     << "    cpu_ref(A, B, R, VM, VN, VK);" << '\n'
     << "    float *dA, *dB, *dC;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dA, A.size() * sizeof(float)), \"hipMalloc dA\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dB, B.size() * sizeof(float)), \"hipMalloc dB\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dC, C.size() * sizeof(float)), \"hipMalloc dC\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dA, A.size() * sizeof(float), \"hipMalloc dA\", \"dA\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dB, B.size() * sizeof(float), \"hipMalloc dB\", \"dB\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dC, C.size() * sizeof(float), \"hipMalloc dC\", \"dC\")) return mrc;" << '\n'
     << "    if (!uk_ok(hipMemcpy(dA, A.data(), A.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy A\")) return 4;" << '\n'
     << "    if (!uk_ok(hipMemcpy(dB, B.data(), B.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy B\")) return 4;" << '\n'
     << "    dim3 blk(16, 16);" << '\n'
@@ -802,9 +864,9 @@ std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "    std::vector<float> A((size_t)PM * PK, 0.5f), B((size_t)PK * PN, 0.25f);" << '\n'
     << "    std::vector<float> C((size_t)PM * PN, 0.f);" << '\n'
     << "    float *dA, *dB, *dC;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dA, A.size() * sizeof(float)), \"hipMalloc tA\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dB, B.size() * sizeof(float)), \"hipMalloc tB\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dC, C.size() * sizeof(float)), \"hipMalloc tC\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dA, A.size() * sizeof(float), \"hipMalloc tA\", \"tA\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dB, B.size() * sizeof(float), \"hipMalloc tB\", \"tB\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dC, C.size() * sizeof(float), \"hipMalloc tC\", \"tC\")) return mrc;" << '\n'
     << "    hipStream_t st;" << '\n'
     << "    if (!uk_ok(hipStreamCreate(&st), \"hipStreamCreate t\")) return 4;" << '\n'
     << "    hipEvent_t t0, t1, k0, k1;" << '\n'
@@ -874,9 +936,9 @@ std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "    std::vector<float> A((size_t)PM * PK, 0.5f), B((size_t)PK * PN, 0.25f);" << '\n'
     << "    float *dB, *dA2, *dC2;" << '\n'
     << "    char *pinA, *pinC;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dB, b_bytes), \"hipMalloc sB\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dA2, 2 * a_bytes), \"hipMalloc sA2\")) return 4;" << '\n'
-    << "    if (!uk_ok(hipMalloc(&dC2, 2 * c_bytes), \"hipMalloc sC2\")) return 4;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dB, b_bytes, \"hipMalloc sB\", \"sB\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dA2, 2 * a_bytes, \"hipMalloc sA2\", \"sA2\")) return mrc;" << '\n'
+    << "    if (const int mrc = uk_mmalloc(&dC2, 2 * c_bytes, \"hipMalloc sC2\", \"sC2\")) return mrc;" << '\n'
     << "    if (!uk_ok(hipHostMalloc(&pinA, 2 * a_bytes, hipHostMallocDefault), \"hipHostMalloc pinA\")) return 4;" << '\n'
     << "    if (!uk_ok(hipHostMalloc(&pinC, 2 * c_bytes, hipHostMallocDefault), \"hipHostMalloc pinC\")) return 4;" << '\n'
     << "    hipStream_t st0, st1;" << '\n'
@@ -955,7 +1017,8 @@ std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "            << \" kernel_ms=\" << kms" << '\n'
     << "            << \" mode=\" << mode" << '\n'
     << "            << \" payload_mb=\" << payload_mb" << '\n'
-    << "            << \" perf=\" << PM << \"x\" << PN << \"x\" << PK << std::endl;" << '\n'
+    << "            << \" perf=\" << PM << \"x\" << PN << \"x\" << PK" << '\n'
+    << "            << \" migrations=\" << UK_MIGRATIONS << std::endl;" << '\n'
     << "  return rc;" << '\n'
     << "}" << '\n';
   return o.str();

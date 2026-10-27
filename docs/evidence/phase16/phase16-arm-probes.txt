@@ -1,0 +1,24 @@
+# Phase 16 (G5 / R8.5) — [R8.5] 验收臂摘除即红（probe/phase16_arm_probes.py）
+
+- 每腿摘除 → 重编译 → acceptance 必须红 → 还原；fail-closed（锚点数≠1 即中止不写）。
+- 收尾：残留 ARM-PROBE 标记 0、ctest 2/2 绿（转录末尾）。
+
+=== ARM-PROBE residency_guard_emission (src/codegen_hip.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance.exe
+[R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel, provenance banner intact (compiles out-of-band; runtime needs the Intel host) OK
+[R15] HIP sources per op: conv/reduce programs carry only their own kernels, provenance head intact, capability covers three ops with layout the only refusal OK
+Assertion failed: src->find("hipPointerGetAttributes") != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1394
+--- residency_guard_emission restored ---
+
+=== ARM-PROBE reduce_migrations_token (src/codegen_hip.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance.exe
+[R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel, provenance banner intact (compiles out-of-band; runtime needs the Intel host) OK
+[R15] HIP sources per op: conv/reduce programs carry only their own kernels, provenance head intact, capability covers three ops with layout the only refusal OK
+Assertion failed: src->find("\" migrations=\"") != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1403
+--- reduce_migrations_token restored ---
+
+residual ARM-PROBE legs: none
+[5/5] Linking CXX executable unikern_acceptance.exe
+100% tests passed out of 2
+
+Total Test time (real) =   0.56 sec

@@ -1358,6 +1358,60 @@ int main(int argc, char** argv) {
                  "ops with layout the only refusal OK\n";
   }
 
+  // -------- R8.5: runtime residency guard in every generated HIP program ----
+  {
+    // G5 / R8.5 positive behavior: explicit streaming is the ONLY path, and
+    // oversubscription must fail loudly instead of paging silently. Every
+    // generated HIP program (gemm/conv/reduce, same pattern) must carry the
+    // guard: after every successful hipMalloc, hipPointerGetAttributes asserts
+    // attributes.memoryType == hipMemoryTypeDevice; managed/host residency
+    // prints UNIKERN_ERROR what=oversubscription and exits 5 (the upper
+    // layer's re-solve signal). The UNIKERN_RESULT line ends with
+    // migrations=<n> — the non-device-resident allocation count (0 on the
+    // explicit-copy path), the token the script gate parses, byte for byte.
+    // Removing the guard emission from codegen_hip.cpp turns any assert here
+    // red (probe/phase16_arm_probes.py).
+    Hcs h = discrete_hcs(int64_t(8) << 30, 512);
+    KmlTree g;  // gemm 4096^3
+    KmlTree c;  // conv
+    c.op = OpKind::Conv;
+    const int cd[6] = {8, 8, 4, 3, 3, 8};
+    for (int i = 0; i < 6; ++i) c.dims[i] = cd[i];
+    KmlTree r;  // reduce
+    r.op = OpKind::Reduction;
+    r.dims[0] = 1 << 16;
+    for (int i = 1; i < 6; ++i) r.dims[i] = 0;
+
+    const std::string hg = hip_runnable_program(solve(h, g), h, g);
+    const std::string hc = hip_runnable_program(solve(h, c), h, c);
+    const std::string hr = hip_runnable_program(solve(h, r), h, r);
+    for (const auto* src : {&hg, &hc, &hr}) {
+      // The guard itself: the residency probe and the device-only comparison.
+      // The attribute field is named `type` in the actual device toolchain
+      // (ROCm 7.1 — hipcc rejected the older HIP/CUDA name `memoryType`, the
+      // real build caught it; honest naming per the header, not the ask's
+      // paraphrase).
+      assert(src->find("hipPointerGetAttributes") != std::string::npos);
+      assert(src->find("a.type != hipMemoryTypeDevice") != std::string::npos);
+      // The loud refusal + its exit code (5 = re-solve signal, not the 4 of
+      // an ordinary HIP failure).
+      assert(src->find("UNIKERN_ERROR what=oversubscription ptr=") !=
+             std::string::npos);
+      assert(src->find("return 5;") != std::string::npos);
+      // The result-line token the script gate parses — exact byte shape with
+      // the leading space, appended after perf=.
+      assert(src->find("\" migrations=\"") != std::string::npos);
+      // Allocation and assertion are folded together: the program carries NO
+      // direct hipMalloc(&...) call site left outside uk_mmalloc (an unchecked
+      // allocation site added back into the generator turns this red).
+      assert(src->find("hipMalloc(&") == std::string::npos);
+      assert(src->find("uk_mmalloc(") != std::string::npos);
+    }
+    std::cout << "[R8.5] HIP residency guard: hipPointerGetAttributes after every "
+                 "hipMalloc, oversubscription refusal (exit 5), migrations= token "
+                 "in all three generated programs OK\n";
+  }
+
   // -------- R10.3: per-backend primitive coverage, three axes kept apart -----
   {
     KmlTree gemm, red;
