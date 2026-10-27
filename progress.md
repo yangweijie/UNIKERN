@@ -186,7 +186,7 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   本机 payload 3 MB 远低于两者，读数与结论不受影响，但"0.85×容量"目前只对声明容量成立
 - [x] ctest 2/2 全绿（acceptance 0.55s，含新增四臂）；findings/task_plan 落定
 
-## Phase 10 闭合记录（2026-10-27）
+## Phase 10 闭合记录（2026-10-27，提交 308e56e）
 - G4 全闭合：AMD（Phase 8）+ Intel（Phase 9）+ Apple（Phase 10）三厂商真机执行与对拍均完成；
   证据 docs/evidence/phase10/（10 份命令转录 + 生成构件 + README + 带弹性探针）
 - acceptance-mvp.md v6.1；task_plan/progress/findings 全部落定；.gitignore 补齐
