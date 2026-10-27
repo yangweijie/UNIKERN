@@ -1,11 +1,11 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8
 
-- 日期：2026-10-27（独立复核修订版 v2：修复三项测试覆盖缺口，证据产物入库）
+- 日期：2026-10-27（独立复核修订版 v2：修复三项测试覆盖缺口，证据产物入库；**v3 收尾审计：修复 ε 实算缺陷并重采真机证据，见文末补遗**）
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
 - 真机：**AMD Radeon RX 6600M（gfx1032，8 GB，14 CU）**，ROCm 7.1（`HIP_PATH=D:\Program Files\AMD\ROCm\7.1\`）
-- 代码基线：commit `c7339d4`（Phase 8 首版）+ 独立复核修复（tests 三处补测 + 本报告修订 + 证据入库）
+- 代码基线：commit `c7339d4`（Phase 8 首版）+ 独立复核修复（tests 三处补测 + 本报告修订 + 证据入库）+ 收尾审计修复（`src/main.cpp` LEDGER COMMIT 的 ε 改为 |C − T| 实算）
 - 验收测试：`tests/acceptance.cpp`（`#undef NDEBUG`，E5）→ ctest 目标 `acceptance`；R6/R8 真机项用真实 `unikern run` 命令收集，**不在单测中伪造**
 - 证据产物：**本目录引用的命令输出已作为文本转录入库** `docs/evidence/phase8/`（run/solve/ctest/acceptance/backends 转录 + 三份生成源 + 账本行转储），fresh checkout 可直接比对，也可按转录内命令原样复跑
 
@@ -146,12 +146,12 @@ $ head -2 uk_evidence/emit/uk_amd.cpp
 ```
 
 ```
-$ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 1024 1024 1024 --workdir uk_evidence/run1 --ledger uk_evidence/acceptance.sqlite3
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.61237
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 1024 1024 1024 --workdir uk_evidence/run1 --ledger uk_evidence/audit.sqlite3
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.84178
 -- log tail --
 offload-arch: gfx1032
-UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.612370 kernel_ms=0.540214 mode=resident payload_mb=12.000000 perf=1024x1024x1024
-LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.61237 epsilon_abs=1e-06 epsilon_rel=0.03125
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.841780 kernel_ms=0.553284 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.84178 epsilon_abs=2.35095 epsilon_rel=4.78976
 ```
 
 32768³ streamed 档同样 `verify=PASS max_rel=0`（见 R8）。
@@ -175,11 +175,14 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.61237 epsilon_abs=1e-06 epsilo
 $ ./build/unikern.exe run ... --dims 1024 1024 1024 ...   # 第二次同键运行
 LEDGER HIT  c_cached_ms=0.490829  tile=128x128  (from ledger)
 placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.9857
-LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.9857 epsilon_abs=1e-06 epsilon_rel=0.03125
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.5866
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.586600 kernel_ms=0.545620 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.5866 epsilon_abs=2.09577 epsilon_rel=4.26986
 ```
 
-账本行转储（`ledger_dump.txt`，python sqlite3 直读）证实 R7.3 实测回写：`gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b | c_ms=0.4908288930909091 | measured_ms=2.9857 | tm=128 | tn=128 | placement=...`。
+账本行转储（`ledger_dump.txt`，python sqlite3 直读）证实 R7.3 实测回写：`gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b | c_ms=0.4908288930909091 | measured_ms=2.5866 | tm=128 | tn=128 | placement=...`。
 
 **状态：✅ 本机已验**（SQLite amalgamation 3.47.2 静态库；`.jsonl` 文件账本为兼容保留）。
 
@@ -197,15 +200,16 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.9857 epsilon_abs=1e-06 epsilon
 
 ```
 $ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 32768 32768 32768 --workdir uk_evidence/run_stream --ledger uk_evidence/stream.sqlite3
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=40517.8
+LEDGER HIT  c_cached_ms=3601.23  tile=128x128  (from ledger)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=55354.1
 -- log tail --
 offload-arch: gfx1032
 UNIKERN_INFO mode=streamed shards=64 shard_rows=512 prefetch_d=2
-UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=40517.839844 kernel_ms=63700.285156 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768
-LEDGER COMMIT predicted_ms=3601.23 measured_ms=40517.8 epsilon_abs=1e-06 epsilon_rel=0.03125
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=55354.097656 kernel_ms=71354.828125 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768
+LEDGER COMMIT predicted_ms=3601.23 measured_ms=55354.1 epsilon_abs=51752.9 epsilon_rel=14.3709
 ```
 
-端到端 40.5 s **低于**单流串行内核参考 63.7 s——搬运与计算重叠生效的直接观测（R8.3 双缓冲）。放置决策记录（R8.6）：`placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)`；场景 A 侧记录内容（`placement=unified_memory (scenario A, zero-copy, bw=400GB/s)`）由单测 `[R8]` 段逐词断言。
+端到端 55.4 s **低于**单流串行内核参考 71.4 s——搬运与计算重叠生效的直接观测（R8.3 双缓冲；两组数字各次运行有波动，但 e2e < 串行内核的不变式每次复跑都成立）。放置决策记录（R8.6）：`placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)`；场景 A 侧记录内容（`placement=unified_memory (scenario A, zero-copy, bw=400GB/s)`）由单测 `[R8]` 段逐词断言。
 
 **状态：🟡 部分已验**。AMD 场景 B 显式流式 + 双缓冲本机真机已验；R8.5 的"缺页迁移率超阈告警"在 MVP 中以显式路径为唯一处理方式落地（生成程序自选 resident|streamed），运行时页迁移监测器属真机长测项。**Apple 场景 A 真机执行 ⛔ 受阻**（需用户 Mac）。
 
@@ -257,8 +261,25 @@ intel     intel:ocl     no        source-gen ready (Phase 5 full)
 | G4 | Apple / Intel 真机执行与对拍 | R5.2/R6/R8 的对应后端项 | 用户 Mac / Intel 机器执行本报告同款命令 |
 | G5 | R8.5 运行时缺页迁移率监测器 | 仅显式路径 + 模式自选落地 | 真机长测（AMD 可做，未列入 MVP 单测） |
 
+## 独立审计补遗（2026-10-27，收尾审计）
+
+收尾审计（工作流完成后）发现并修复一项独立复核漏网缺陷：`LEDGER COMMIT` 行的
+`epsilon_abs / epsilon_rel` 打印的是**硬编码常量**（对拍容差 2⁻⁵ 与其分母下限 1e-6），
+并非任务计划要求的 ε = |C − T| 实算值——首版证据中三组不同实测（2.61ms / 2.99ms /
+40518ms）对应同一组 ε 常量即其暴露点，工作流独立复核未发现，收尾审计人工审读发现。
+已改为实算（`src/main.cpp`）并重采全部真机证据（本版 R6/R7/R8 三个证据块与
+`docs/evidence/phase8/` 三份转录均已刷新）：
+
+- 1024³ resident：predicted 0.4908ms vs measured 2.8418ms → **ε_abs=2.35ms（ε_rel=4.79）**
+- 32768³ streamed：predicted 3.601s vs measured 55.354s → **ε_abs=51.75s（ε_rel=14.37）**
+
+大 ε 的解读（口径如实）：C(x) 的拷贝项按 HCS 互联带宽常量 32 GB/s 计，而端到端实测
+看到的是真实 PCIe 有效带宽（低于标称）加上启动/同步开销——**ε 正是 R7.3"实测校准
+层级常量"要吃的校准信号本身**，按实测报告、不做修饰。双缓冲重叠结论不受影响：
+streamed 端到端（55.4s）仍显著低于串行内核参考（71.4s）。
+
 ## 真机执行边界（诚实声明）
 
 - 本 session 真机证据全部来自 **AMD RX 6600M（gfx1032）**：1024³ resident、32768³ streamed、账本命中回写，命令与输出均为实际执行结果。
 - **Apple Silicon（Metal）与 Intel Arc B（ocloc / Level Zero）的真机执行超出本机能力**：本机无 macOS、无 Intel 工具链（findings.md Phase 5 探测），对应项只能做到源生成与结构校验，状态一律标 ⛔，不伪造。
-- 上游 session 证据（Phase 6/7 记录）：真机闭环 PASS、账本命中 true、流式演示 mode=streamed、ε_rel=0.03125 —— 与本 session 复测一致。
+- 上游 session 证据（Phase 6/7 记录）：真机闭环 PASS、账本命中 true、流式演示 mode=streamed；其 ε 数值当时打印的是容差常量（见审计补遗），本 session 已按实算口径重采。

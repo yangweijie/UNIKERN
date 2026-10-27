@@ -9,6 +9,7 @@
 // verify: identical to run, but never writes the ledger.
 #include "unikern/components.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -22,16 +23,12 @@ using namespace unikern;
 
 namespace {
 
-// R6.2 graded tolerance as wired into the generated AMD program: relative
-// 2^-5 for fp32, with the relative denominator floored at 1e-6 (its
-// effective absolute term). Printed in LEDGER COMMIT for auditability.
-// Phase 7 unified the timing basis: the generated program now measures
-// end-to-end per pass (H2D + kernel + D2H) — the same byte movement the C(x)
-// copy term charges — so predicted vs measured compares like with like. The
-// numbers are still reported as measured; no fudging to make epsilon look
-// better.
-constexpr double kEpsilonAbs = 1e-6;
-constexpr double kEpsilonRel = 0.03125;
+// LEDGER COMMIT audit line: epsilon = |C − T|, computed from this run's real
+// numbers (predicted sol.c_ms vs end-to-end measured_ms). The predicted C(x)
+// charges the copy term at the HCS link-bandwidth constant (32 GB/s in the
+// sample HCS) while the measurement sees the real PCIe link, so a large
+// epsilon is exactly the calibration signal R7.3 exists for — it is reported
+// as measured, never fudged or replaced by the verify tolerance.
 
 // R7 (Phase 6): the default ledger is SQLite; a --ledger path ending in
 // .jsonl opts back into the append-only file ledger.
@@ -280,10 +277,12 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
     return 0;
   }
   ledger->commit(key, sol, r.measured_ms);  // R7.3: measured time into ledger
+  const double epsilon_abs = std::fabs(r.measured_ms - sol.c_ms);
+  const double epsilon_rel = epsilon_abs / std::max(sol.c_ms, 1e-9);
   std::cout << "LEDGER COMMIT predicted_ms=" << sol.c_ms
             << " measured_ms=" << r.measured_ms
-            << " epsilon_abs=" << kEpsilonAbs
-            << " epsilon_rel=" << kEpsilonRel << "\n";
+            << " epsilon_abs=" << epsilon_abs
+            << " epsilon_rel=" << epsilon_rel << "\n";
   return 0;
 }
 

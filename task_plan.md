@@ -29,7 +29,7 @@ Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 | `src/runner.cpp` 编译修复（反斜杠折叠破坏，E10） | done（Write 工具重写 + 前斜杠 + --offload-arch，E12） |
 | `src/main.cpp` 适配新签名 `generate(sol, hcs, tree)` | done（solve --emit/--dims + run/verify 接入 Runner，94ec757） |
 | HIP 真编译 + 真运行 + 与 CPU 参考对拍（RX 6600M） | done（1024³ resident verify=PASS；32768³ streamed verify=PASS） |
-| Ledger 写入实测 ms 并报告 ε = \|C − T\| | done（SQLite 账本 + LEDGER COMMIT epsilon_rel=0.03125） |
+| Ledger 写入实测 ms 并报告 ε = \|C − T\| | done（SQLite 账本；收尾审计修正 ε 为实算——首版误打容差常量，见 E13；1024³ ε_rel=4.79，32768³ ε_rel=14.37） |
 | Phase 8 验收：tests/acceptance.cpp（R1-R10 CPU 项）+ docs/acceptance-mvp.md | done（ctest 2/2 全绿） |
 
 ## Decisions
@@ -64,3 +64,4 @@ Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 | E10 | 反斜杠折叠再现（`\` → `\`），破坏 runner.cpp 与 codegen_hip.cpp 的字符串字面量 | 2 | **生成器改用 `<iostream>` 输出、路径一律前斜杠、源码中零反斜杠**；仍需修 runner.cpp |
 | E11 | `build/` `build-dbg/` `build-o2/` 被 git 跟踪（已提交进 d4b0f8f） | 1 | `.gitignore` 加三项 + `git rm -r --cached` |
 | E12 | HIP 真机闭环 verify=FAIL max_rel=1、measured_ms=0.00038：hipcc 无 `--offload-arch` 时默认 gfx906，gfx1032 上所有 launch 静默失败（error 200 device kernel image is invalid），dC 保持驱动清零 → 对拍全错；且生成程序不检查 launch 返回值（launch 表达式在本平台返回 void，须用 hipGetLastError） | 1 | runner 编译 host-only 探针（无 kernel，默认 target 无关）取 gcnArchName，构建加 `--offload-arch=<arch>`；生成程序全部 HIP 调用过 uk_ok 检查，失败打 UNIKERN_ERROR 退 4（负测：gfx906 码对象 → 大声失败） |
+| E13 | LEDGER COMMIT 的 epsilon_abs/epsilon_rel 打印硬编码常量（容差 2⁻⁵ 与 1e-6），非 ε=\|C−T\| 实算——工作流独立复核未发现，收尾审计人工审读发现（三组不同实测对应同一常量即暴露点） | 1 | main.cpp 改实算 ε，真机证据三份转录 + 验收文档 R6/R7/R8 全部重采（ε_rel 4.79 / 4.27 / 14.37） |

@@ -1,6 +1,8 @@
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=40517.8
+LEDGER HIT  c_cached_ms=3601.23  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=55354.1
 -- log tail --
 offload-arch: gfx1032
 UNIKERN_INFO mode=streamed shards=64 shard_rows=512 prefetch_d=2
-UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=40517.839844 kernel_ms=63700.285156 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768
-LEDGER COMMIT predicted_ms=3601.23 measured_ms=40517.8 epsilon_abs=1e-06 epsilon_rel=0.03125
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=55354.097656 kernel_ms=71354.828125 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768
+LEDGER COMMIT predicted_ms=3601.23 measured_ms=55354.1 epsilon_abs=51752.9 epsilon_rel=14.3709

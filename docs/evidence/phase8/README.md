@@ -8,7 +8,7 @@ MinGW g++ 13.2）按下列命令原样复跑。数值为运行时实测，逐次
 |------|----------|-----------|
 | ctest_release.txt | `ctest --test-dir build --output-on-failure`（Release：-O3 -DNDEBUG） | 全部 |
 | acceptance_tests.txt | `./build/unikern_acceptance.exe`（ctest 目标 acceptance 的直跑输出） | R1-R10 CPU 侧 |
-| run_1024_first.txt | `./build/unikern.exe run --hcs samples/hcs_amd.json --dims 1024 1024 1024 --workdir uk_evidence/run1 --ledger uk_evidence/acceptance.sqlite3` | R5.2/R6/R7.3 |
+| run_1024_first.txt | `./build/unikern.exe run --hcs samples/hcs_amd.json --dims 1024 1024 1024 --workdir uk_evidence/run1 --ledger uk_evidence/audit.sqlite3` | R5.2/R6/R7.3 |
 | run_1024_second_ledger_hit.txt | 同上命令**再次执行**（同键） | R7.2 命中跳过搜索 |
 | run_32768_streamed.txt | `./build/unikern.exe run --hcs samples/hcs_amd.json --dims 32768 32768 32768 --workdir uk_evidence/run_stream --ledger uk_evidence/stream.sqlite3` | R8.2/R8.3 真机流式 |
 | solve_emit.txt | `./build/unikern.exe solve --hcs samples/hcs_amd.json --emit uk_evidence/emit --ledger uk_evidence/solve.sqlite3` | R5.1/R5.3 |

@@ -25,8 +25,8 @@
 - [x] `src/backends.cpp`：三后端改调 codegen；AMD 用 find_hipcc() 真实探测
 - [x] 清理：`build*/` 与生成物加入 .gitignore 并 `git rm -r --cached`（原被误提交）
 - [x] **阻塞 1 已解**：`src/runner.cpp` 已用 Write 工具重写（不经 shell 传输，路径前斜杠，filesystem 探测 hipcc）
-- [ ] **阻塞 2**：`src/main.cpp` 未适配 `generate(sol, hcs, tree)` 新签名 → 交由工作流「CLI 修复工程师」
-- [ ] 未完成：HIP 真机闭环 / SQLite 账本 / 流式双缓冲 / R1-R10 验收 → 交由动态工作流「UNIKERN MVP 收官」按 Phase 5→8 顺序执行（6 名专职子代理 + world.run 门禁）
+- [x] **阻塞 2 已解**（工作流「CLI 修复工程师」）：`src/main.cpp` 适配三参 generate + run/verify 子命令 → commit 94ec757
+- [x] 工作流「UNIKERN MVP 收官」完成全部剩余阶段：HIP 真机闭环（ff966fa）/ SQLite 账本（8c2c980）/ 流式双缓冲（1eb16d9）/ R1-R10 验收矩阵（c7339d4 + 独立复核修复 859e79e）
 
 ## 下一步（按序）
 1. 零反斜杠重写 runner.cpp（前斜杠路径 + char(92) 判断 + 分块写入 ≤80 行）
@@ -83,3 +83,17 @@ Phase 0-8 全部完成。剩余真机项（Apple Metal / Intel OpenCL 的编译�
 - [x] docs/acceptance-mvp.md v2：三处夸大表述改为与测试源码一致；引用转录路径；
       头部标明构建类型与 NDEBUG 证据
 - [x] commit（tests + docs + evidence + findings + progress）
+
+## Session 2026-10-27（收尾审计 v3 — ε 实算缺陷修复）
+- [x] 人工审读 docs/acceptance-mvp.md 发现独立复核漏网缺陷：LEDGER COMMIT 打印的
+      epsilon_abs=1e-06 / epsilon_rel=0.03125 是**硬编码常量**（对拍容差 2⁻⁵ 及其分母
+      下限），非任务计划要求的 ε=|C−T| 实算——三组不同实测对应同一常量即暴露点
+- [x] src/main.cpp 修复：epsilon_abs=|measured−predicted|、epsilon_rel=ε_abs/max(c_ms,1e-9)；
+      误导性注释（"口径一致"）重写为诚实口径说明（HCS link 32GB/s 标称 vs 真实 PCIe 有效带宽，
+      大 ε 即 R7.3 校准信号）→ 构建 0 告警，ctest 2/2 绿
+- [x] 真机证据全量重采（RX 6600M）：1024³ resident ε_abs=2.35ms ε_rel=4.79（miss→commit）
+      → 二跑 LEDGER HIT ε_rel=4.27；32768³ streamed ε_abs=51.75s ε_rel=14.37
+      （e2e 55.4s < 串行内核 71.4s，重叠不变式保持）
+- [x] docs/acceptance-mvp.md v3：R6/R7/R8 证据块刷新 + 审计补遗一节；三份转录与
+      ledger_dump.txt、README 复现命令同步；task_plan 增 E13；findings 见下
+- [x] commit（src/main.cpp + docs + evidence + 规划文件）
