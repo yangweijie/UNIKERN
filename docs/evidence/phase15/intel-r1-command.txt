@@ -1,0 +1,5 @@
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+RUN intel:ocl built=no ran=no verified=FAIL max_rel=0 measured_ms=0
+-- log tail --
+OpenCL runner stub: no OpenCL import library was found at build time (UK_HAS_OCL undefined) — intel:ocl execution unavailable on this build; source generation remains valid (R10 honesty)
+RUN FAILED; solution NOT committed to ledger (R6.3)

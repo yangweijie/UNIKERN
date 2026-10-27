@@ -21,7 +21,7 @@
 
 | 需求 | 验收方式 | 关键证据 | 状态 |
 |------|----------|----------|------|
-| R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝；v7 增 `--op` 声明位；v8 增 KML 文本前端；v9 增"声明→Apple 真机执行"闭环；**v12.1 据实改判（本行原为 v8/v9 旧文未随 v11/v12 更新）：AMD 的声明执行已真机闭合（G1 全闭合），Intel 侧声明过能力门后因本机无设备诚实失败** | `[R1.1/2] KML text front end ... OK`；`run --vendor apple --kml samples/kml_conv.json` → `verify=PASS max_rel=0`、`LEDGER COMMIT`；**AMD 同一声明真机 COMMIT→HIT（v12 复采，`docs/evidence/phase15/phase15-recheck-v12.txt`）**；`run --vendor intel --kml samples/conv.kml`（本机）→ `COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1、solution 零落库（2026-10-28 本机实测；旧"`--vendor amd/intel` rc=2 且不建账本"读数属 Phase 12 能力拒绝时代，彼时为真，已被 v11 能力面翻转取代） | ✅（R1.1 声明+执行：Apple 真机 ✅、AMD 真机 ✅、Intel 编译级待真机（本机无设备）；R1.2 ✅、R1.3 ✅） |
+| R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝；v7 增 `--op` 声明位；v8 增 KML 文本前端；v9 增"声明→Apple 真机执行"闭环；**v12.1 据实改判（本行原为 v8/v9 旧文未随 v11/v12 更新）：AMD 的声明执行已真机闭合（G1 全闭合），Intel 侧声明过能力门后因本机无设备诚实失败** | `[R1.1/2] KML text front end ... OK`；`run --vendor apple --kml samples/kml_conv.json` → `verify=PASS max_rel=0`、`LEDGER COMMIT`；**AMD 同一声明真机 COMMIT→HIT（v12 复采，`docs/evidence/phase15/phase15-recheck-v12.txt`）**；`run --hcs samples/hcs_amd.json --vendor intel --kml samples/conv.kml`（本机，全量命令转录 `docs/evidence/phase15/intel-r1-command.txt`）→ `COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1、solution 零落库（2026-10-28 本机实测；旧"`--vendor amd/intel` rc=2 且不建账本"读数属 Phase 12 能力拒绝时代，彼时为真，已被 v11 能力面翻转取代） | ✅（R1.1 声明+执行：Apple 真机 ✅、AMD 真机 ✅、Intel 编译级待真机（本机无设备）；R1.2 ✅、R1.3 ✅） |
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
@@ -56,7 +56,7 @@ $ ./build/unikern_acceptance.exe
 [R1] canonical uniqueness + illegal type-name rejection OK
 ```
 
-**状态：✅ 本机已验（v12.1 据实改判；v8-v10 期间曾因执行半边未齐保留 🟡，本段旧文同 R1 行一并过期）**。R1.3 唯一性本机已验。R1.2 缺口在 v8 闭合：KML 文本前端落地（`kml_import`/`kml_export`），非法声明一次列全所有违规（未知/拼写错误字段、op 与 dtype 名、dims 个数与非整数与非正数、layout 不支持、子节点带路径前缀），拒绝即 rc=2 且不进求解。R1.1 的执行半边已按厂商逐家闭合：Apple 真机（v9 声明驱动 512³ COMMIT/HIT；Phase 13 conv/reduce 真机）；**AMD 真机（v11/Phase 15：conv/reduce/gemm 全 COMMIT→HIT，v12 复采含 migrations=0）**；**Intel 侧为编译级**（v10/Phase 14：三算子 .cl 过 clang 的 OpenCL 前端；本机无 Intel 设备——2026-10-28 实测 `run --vendor intel --kml samples/conv.kml` 以 `COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1 收场、solution 零落库，是诚实失败而非能力拒绝，真机运行待 Intel 机器）。v8 也说清 layout 口径：只接受 "NT"（三后端 emitted kernel 实际按 A[M][K]/B[K][N]/C[M][N] 行主序索引的标签），其它值在**前端**就拒——不是收下后按行主序默默执行，那正是 G7 的同类静默。
+**状态：✅ 本机已验（v12.1 据实改判；v8-v10 期间曾因执行半边未齐保留 🟡，本段旧文同 R1 行一并过期）**。R1.3 唯一性本机已验。R1.2 缺口在 v8 闭合：KML 文本前端落地（`kml_import`/`kml_export`），非法声明一次列全所有违规（未知/拼写错误字段、op 与 dtype 名、dims 个数与非整数与非正数、layout 不支持、子节点带路径前缀），拒绝即 rc=2 且不进求解。R1.1 的执行半边已按厂商逐家闭合：Apple 真机（v9 声明驱动 512³ COMMIT/HIT；Phase 13 conv/reduce 真机）；**AMD 真机（v11/Phase 15：conv/reduce/gemm 全 COMMIT→HIT，v12 复采含 migrations=0）**；**Intel 侧为编译级**（v10/Phase 14：三算子 .cl 过 clang 的 OpenCL 前端；本机无 Intel 设备——2026-10-28 实测 `run --hcs samples/hcs_amd.json --vendor intel --kml samples/conv.kml`（全量转录 `docs/evidence/phase15/intel-r1-command.txt`）以 `COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1 收场、solution 零落库，是诚实失败而非能力拒绝（转录内根因逐字可见：本机构建期无 OpenCL 导入库 → runner stub，且本机无 Intel 设备/平台），真机运行待 Intel 机器）。v8 也说清 layout 口径：只接受 "NT"（三后端 emitted kernel 实际按 A[M][K]/B[K][N]/C[M][N] 行主序索引的标签），其它值在**前端**就拒——不是收下后按行主序默默执行，那正是 G7 的同类静默。
 
 ### R2 — 多面体可行域判定（F）
 
@@ -616,7 +616,10 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
 `docs/evidence/phase15/phase15-recheck-v12.txt`，README 含复现命令表）：
 
 - **G1 执行半边的 AMD 侧闭合确认（→ G1 全闭合）**：在 Phase 16 驻留守卫后的当前二进制
-  （md5 `e554574a9c618f2676fd460651fedc8a`，构建 `ninja: no work to do.` 与 HEAD 同源）上
+  （md5 `e554574a9c618f2676fd460651fedc8a`，构建 `ninja: no work to do.` 与当时代码同源；
+  **v12.1 b9cd4e8 修改 src/main.cpp 后当前锚已为 `9759d55a74e90acd11017d4d6b67a09a`——
+  run/solve 求值路径未动，本节转录读数仍有效，md5 全演进见
+  `docs/evidence/phase15/binary-md5.txt`**）上
   复核重采——backends 实测 `amd=yes / apple=no / intel=no`（本机无 Intel 设备）；`solve --emit`
   三算子行数 conv=253 / reduce=217 / gemm=425（= v11 首轮 219/183/390 各 +34/35 行，
   差额即 Phase 16 守卫并入三程序，每份 `uk_resident` 计数 2）；三算子真机 run

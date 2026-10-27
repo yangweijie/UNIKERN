@@ -3,7 +3,8 @@
 G1 执行半边的 **AMD 收尾**：conv/reduce 的 HIP 可执行程序 + 能力面翻转 + RX 6600M（gfx1032）真机闭环。
 转录二进制锚：`binary-md5.txt`（unikern.exe `535c3c9e4a53459866459661155ae403`、
 unikern_acceptance.exe `980cc3ca6c88f8d04aa57bad471908b9`；ROCm 7.1 hipcc / HIP 7.13.99004，
-`--offload-arch=gfx1032`）。
+`--offload-arch=gfx1032`）。锚随提交演进：v12 复核重采时点 `e554574a…`，v12.1（b9cd4e8 改
+src/main.cpp，run/solve 求值路径未动，读数不受影响）后当前为 `9759d55a…`——全演进记录在该文件。
 
 | 文件 | 生成命令 | 证明的事 |
 |------|----------|----------|
@@ -59,3 +60,9 @@ Phase 16 驻留守卫（ea76c2f）落盘后的**当前二进制**上全量重采
 口径注记：首轮读数与 phase15（无守卫）/phase16（HIT 轮）转录同量级（conv 67–72、
 reduce 0.35–1.11、gemm 3.41–3.46），真机数字有波动，结论只依赖 PASS/FAIL、
 migrations=0 与 COMMIT→HIT 结构，不依赖单点绝对值。
+
+## v12.2 补录（2026-10-28，独立复核残留清尾）
+
+| 文件 | 生成命令 | 证明的事 |
+|------|----------|----------|
+| intel-r1-command.txt | `./build/unikern.exe run --hcs samples/hcs_amd.json --vendor intel --kml samples/conv.kml --ledger /tmp/uk_intel_r1.jsonl`（当前二进制 `9759d55a…`） | R1 行引用的 Intel 本机读数的**全量命令转录**：`COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1，账本文件未创建（solution 零落库）；失败根因逐字可见——本机构建期无 OpenCL 导入库（UK_HAS_OCL 未定义 → runner stub），且本机无 Intel 设备/平台 |

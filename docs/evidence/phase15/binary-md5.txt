@@ -1,2 +1,8 @@
 535c3c9e4a53459866459661155ae403 *build/unikern.exe
 980cc3ca6c88f8d04aa57bad471908b9 *build/unikern_acceptance.exe
+# 2026-10-28 v12 复核重采时点（Phase 16 守卫 ea76c2f 落盘后）：
+e554574a9c618f2676fd460651fedc8a *build/unikern.exe
+1c0f86208e61deeff0404fca551847a4 *build/unikern_acceptance.exe
+# 2026-10-28 v12.1（commit b9cd4e8 改 src/main.cpp，run/solve 求值路径未动）后当前锚：
+9759d55a74e90acd11017d4d6b67a09a *build/unikern.exe
+1c0f86208e61deeff0404fca551847a4 *build/unikern_acceptance.exe
