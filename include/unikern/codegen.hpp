@@ -31,6 +31,8 @@ bool codegen_layout_supported(const std::string& layout);
 // program and the OpenCL source are still gemm-only, so they keep the shared
 // op_support_gap() answer. Empty string = this backend can generate the tree.
 std::string msl_op_gap(const KmlTree& tree);
+// Same question for the OpenCL source (Phase 14: gemm/conv/reduce).
+std::string ocl_op_gap(const KmlTree& tree);
 
 // AMD HIP: complete runnable program (kernel + deterministic init + CPU
 // reference + differential verify + event timing). Self-verifying by design.

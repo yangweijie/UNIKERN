@@ -98,6 +98,51 @@ std::string reduce_msl_kernels() {
   return o.str();
 }
 
+// --- Phase 14: conv and reduce OpenCL C kernels (same structure as MSL) ------
+std::string ocl_conv_kernel() {
+  std::ostringstream o;
+  o << "__kernel void uk_conv(__global const float* X, __global const float* Wt,\n"
+    << "                      __global float* Y,\n"
+    << "                      const int H, const int W, const int C,\n"
+    << "                      const int Kh, const int Kw, const int Oc) {\n"
+    << "  const int Ho = H - Kh + 1, Wo = W - Kw + 1;\n"
+    << "  const int wo = get_global_id(0), ho = get_global_id(1);\n"
+    << "  const int oc = get_global_id(2);\n"
+    << "  if (wo >= Wo || ho >= Ho || oc >= Oc) return;\n"
+    << "  float acc = 0.f;\n"
+    << "  for (int c = 0; c < C; ++c)\n"
+    << "    for (int kh = 0; kh < Kh; ++kh)\n"
+    << "      for (int kw = 0; kw < Kw; ++kw) {\n"
+    << "        const float xv = X[((ho + kh) * W + (wo + kw)) * C + c];\n"
+    << "        const float wv = Wt[((oc * Kh + kh) * Kw + kw) * C + c];\n"
+    << "        acc += xv * wv;\n"
+    << "      }\n"
+    << "  Y[(oc * Ho + ho) * Wo + wo] = acc;\n"
+    << "}\n";
+  return o.str();
+}
+
+std::string ocl_reduce_kernels() {
+  std::ostringstream o;
+  o << "// Pass 1: strided partial sums, one per global work item.\n"
+    << "__kernel void uk_reduce_part(__global const float* X, __global float* P,\n"
+    << "                             const int n) {\n"
+    << "  const int tid = get_global_id(0);\n"
+    << "  const int nth = get_global_size(0);\n"
+    << "  float s = 0.f;\n"
+    << "  for (int i = tid; i < n; i += nth) s += X[i];\n"
+    << "  P[tid] = s;\n"
+    << "}\n\n"
+    << "// Pass 2: fold the partials in index order (single work item).\n"
+    << "__kernel void uk_reduce_sum(__global const float* P, __global float* Y,\n"
+    << "                            const int np) {\n"
+    << "  float s = 0.f;\n"
+    << "  for (int i = 0; i < np; ++i) s += P[i];\n"
+    << "  Y[0] = s;\n"
+    << "}\n";
+  return o.str();
+}
+
 std::string refusal_source(const char* lang, const Hcs& hcs, const std::string& gap) {
   std::ostringstream o;
   o << "// unikern generated — REFUSAL: no kernel emitted\n"
@@ -172,7 +217,7 @@ std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
 }
 
 std::string ocl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
-  const std::string gap = op_support_gap(tree);
+  const std::string gap = ocl_op_gap(tree);
   if (!gap.empty()) return refusal_source("OpenCL C", hcs, gap);
   const TileInfo ti = info_for(tree, sol);
   std::ostringstream o;
@@ -180,8 +225,10 @@ std::string ocl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
               "Intel Arc is scenario B: an oversubscribed workload takes the"
               " explicit streaming path (R8.2/R8.3 double buffering), which"
               " this MVP implements only in the AMD HIP program.",
-              sol, hcs, ti)
-    << "#define TM " << ti.tm << "\n"
+              sol, hcs, ti);
+  if (tree.op == OpKind::Conv) return o.str() + ocl_conv_kernel();
+  if (tree.op == OpKind::Reduction) return o.str() + ocl_reduce_kernels();
+  o << "#define TM " << ti.tm << "\n"
     << "#define TN " << ti.tn << "\n"
     << "#define TK 16\n"
     << "#define RPT " << ti.rpt << "\n"

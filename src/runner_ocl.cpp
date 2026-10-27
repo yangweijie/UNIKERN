@@ -25,6 +25,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -143,8 +144,13 @@ void cpu_ref(const std::vector<float>& A, const std::vector<float>& B,
 }
 
 struct TimingPlan {
-  int PM = 0, PN = 0, PK = 0;
+  OpKind op = OpKind::Gemm;
+  int PM = 0, PN = 0, PK = 0;                        // gemm launch dims
+  int H = 0, Wd = 0, C = 0, Kh = 0, Kw = 0, Oc = 0;  // conv dims
+  int64_t L = 0;                                     // reduce length
+  int P = 0;                                         // reduce pass-1 width
   int TM = 0, TN = 0;            // emitted block tile (emit_tile_for)
+  int64_t payload = 0;
   int64_t vram_bytes = 0;
   bool vram_unknown = false;     // no HCS vram tier and no device query
   bool stream_refuse = false;    // payload > 0.85 * vram
@@ -153,21 +159,50 @@ struct TimingPlan {
   size_t max_wi[3] = {1024, 1024, 1024};
 };
 
+// Launch width for reduce pass 1 (fixed so a run is reproducible); mirrors the
+// Metal runner and the generated kernel's strided loop.
+int reduce_width(int64_t L) {
+  int64_t w = L < 4096 ? L : 4096;
+  return w < 1 ? 1 : int(w);
+}
+
 TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
                      cl_device_id dev) {
   TimingPlan p;
+  p.op = tree.op;
   const EmittedTile t = emit_tile_for(tree, sol);
   p.TM = t.tm;
   p.TN = t.tn;
-  // gemm-only: run_ocl refuses a non-gemm tree at its entry, so the timing dims
-  // always come from the declared tree (no silent 4096^3 fallback).
   const auto floor16 = [](int64_t v) {
     const int a = int((v / 16) * 16);
     return a < 32 ? 32 : a;
   };
-  p.PM = floor16(tree.dims[0]);
-  p.PN = floor16(tree.dims[1]);
-  p.PK = floor16(tree.dims[2]);
+  switch (tree.op) {
+    case OpKind::Gemm:
+      p.PM = floor16(tree.dims[0]);
+      p.PN = floor16(tree.dims[1]);
+      p.PK = floor16(tree.dims[2]);
+      p.payload = int64_t(p.PM) * p.PK * 4 + int64_t(p.PK) * p.PN * 4 +
+                  int64_t(p.PM) * p.PN * 4;
+      break;
+    case OpKind::Conv: {
+      p.H = tree.dims[0];
+      p.Wd = tree.dims[1];
+      p.C = tree.dims[2];
+      p.Kh = tree.dims[3];
+      p.Kw = tree.dims[4];
+      p.Oc = tree.dims[5];
+      const int Ho = p.H - p.Kh + 1, Wo = p.Wd - p.Kw + 1;
+      p.payload = (int64_t(p.H) * p.Wd * p.C +
+                   int64_t(p.Oc) * p.Kh * p.Kw * p.C + int64_t(p.Oc) * Ho * Wo) * 4;
+      break;
+    }
+    case OpKind::Reduction:
+      p.L = tree.dims[0];
+      p.P = reduce_width(p.L);
+      p.payload = (p.L + p.P + 1) * 4;
+      break;
+  }
   p.vram_bytes = hcs.tier_bytes("vram");
   if (p.vram_bytes <= 0) {
     // HCS carries no vram tier: fall back to the device-reported global
@@ -181,12 +216,10 @@ TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
       p.vram_unknown = true;
     }
   }
-  const int64_t payload =
-      int64_t(p.PM) * p.PK * 4 + int64_t(p.PK) * p.PN * 4 + int64_t(p.PM) * p.PN * 4;
-  p.payload_mb = double(payload) / (1024.0 * 1024.0);
+  p.payload_mb = double(p.payload) / (1024.0 * 1024.0);
   if (p.vram_bytes > 0)
-    p.stream_refuse = payload > int64_t(0.85 * double(p.vram_bytes));
-  const bool big_ws = payload > (2ULL << 30);
+    p.stream_refuse = p.payload > int64_t(0.85 * double(p.vram_bytes));
+  const bool big_ws = p.payload > (2ULL << 30);
   p.warm = big_ws ? 1 : 2;
   p.iters = big_ws ? 1 : 10;
   clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(p.max_wi), p.max_wi, nullptr);
@@ -199,10 +232,12 @@ struct OclAll {
   cl_context ctx = nullptr;
   cl_command_queue q = nullptr;
   cl_program prog = nullptr;
-  cl_kernel ker = nullptr;
+  cl_kernel ker = nullptr;   // uk_gemm / uk_conv / uk_reduce_part
+  cl_kernel ker2 = nullptr;  // uk_reduce_sum (reduce only)
   std::vector<cl_mem> bufs;
   ~OclAll() {
     for (auto b : bufs) if (b) clReleaseMemObject(b);
+    if (ker2) clReleaseKernel(ker2);
     if (ker) clReleaseKernel(ker);
     if (prog) clReleaseProgram(prog);
     if (q) clReleaseCommandQueue(q);
@@ -210,9 +245,24 @@ struct OclAll {
   }
 };
 
+// The declared workload as the evidence/perf field prints it; gemm keeps the
+// launch triple its published readings already carry.
+std::string perf_string(const TimingPlan& p) {
+  std::ostringstream os;
+  switch (p.op) {
+    case OpKind::Gemm: os << p.PM << "x" << p.PN << "x" << p.PK; break;
+    case OpKind::Conv:
+      os << p.H << "x" << p.Wd << "x" << p.C << "x" << p.Kh << "x" << p.Kw << "x"
+         << p.Oc;
+      break;
+    case OpKind::Reduction: os << p.L; break;
+  }
+  return os.str();
+}
+
 void note_plan(const TimingPlan& p) {
-  uk_ocl_log += "UK_RUNNER plan perf=" + std::to_string(p.PM) + "x" +
-                std::to_string(p.PN) + "x" + std::to_string(p.PK) +
+  uk_ocl_log += "UK_RUNNER plan op=" + std::string(to_string(p.op)) +
+                " perf=" + perf_string(p) +
                 " tile=" + std::to_string(p.TM) + "x" + std::to_string(p.TN) +
                 " vram_bytes=" + std::to_string((long long)p.vram_bytes) +
                 " payload_mb=" + std::to_string(p.payload_mb) +
@@ -224,7 +274,7 @@ void note_plan(const TimingPlan& p) {
 // grid. Callers guarantee the grid fits within CL_DEVICE_MAX_WORK_ITEM_SIZES
 // (the timing plan is checked before the timing phase; the 256^3 verify grid
 // always fits).
-void launch_full(OclAll& a, cl_mem dA, cl_mem dB, cl_mem dC, int M, int N, int K,
+void launch_gemm(OclAll& a, cl_mem dA, cl_mem dB, cl_mem dC, int M, int N, int K,
                  const TimingPlan& p) {
   size_t gws[3] = {size_t((N + p.TN - 1) / p.TN) * 16,
                    size_t((M + p.TM - 1) / p.TM) * 16, 1};
@@ -239,6 +289,107 @@ void launch_full(OclAll& a, cl_mem dA, cl_mem dB, cl_mem dC, int M, int N, int K
             "launch gemm");
 }
 
+// conv: 3D global range (Wo, Ho, Oc); no local size is imposed — the kernel
+// bounds-checks, and the device picks a legal workgroup.
+void launch_conv(OclAll& a, cl_mem dX, cl_mem dWt, cl_mem dY, const TimingPlan& p) {
+  const int Ho = p.H - p.Kh + 1, Wo = p.Wd - p.Kw + 1;
+  size_t gws[3] = {size_t(Wo), size_t(Ho), size_t(p.Oc)};
+  UK_OCL_CK(clSetKernelArg(a.ker, 0, sizeof(cl_mem), &dX), "conv arg X");
+  UK_OCL_CK(clSetKernelArg(a.ker, 1, sizeof(cl_mem), &dWt), "conv arg Wt");
+  UK_OCL_CK(clSetKernelArg(a.ker, 2, sizeof(cl_mem), &dY), "conv arg Y");
+  int h = p.H, w = p.Wd, c = p.C, kh = p.Kh, kw = p.Kw, oc = p.Oc;
+  UK_OCL_CK(clSetKernelArg(a.ker, 3, sizeof(int), &h), "conv arg H");
+  UK_OCL_CK(clSetKernelArg(a.ker, 4, sizeof(int), &w), "conv arg W");
+  UK_OCL_CK(clSetKernelArg(a.ker, 5, sizeof(int), &c), "conv arg C");
+  UK_OCL_CK(clSetKernelArg(a.ker, 6, sizeof(int), &kh), "conv arg Kh");
+  UK_OCL_CK(clSetKernelArg(a.ker, 7, sizeof(int), &kw), "conv arg Kw");
+  UK_OCL_CK(clSetKernelArg(a.ker, 8, sizeof(int), &oc), "conv arg Oc");
+  UK_OCL_CK(clEnqueueNDRangeKernel(a.q, a.ker, 3, nullptr, gws, nullptr, 0, nullptr,
+                                   nullptr),
+            "launch conv");
+}
+
+// reduce: pass 1 (P strided items) then pass 2 (one item folds the partials).
+// Both enqueued in order on the same in-order queue.
+void launch_reduce(OclAll& a, cl_mem dX, cl_mem dP, cl_mem dY, int64_t n, int p) {
+  size_t gws1[1] = {size_t(p)};
+  int nval = int(n);
+  UK_OCL_CK(clSetKernelArg(a.ker, 0, sizeof(cl_mem), &dX), "red arg X");
+  UK_OCL_CK(clSetKernelArg(a.ker, 1, sizeof(cl_mem), &dP), "red arg P");
+  UK_OCL_CK(clSetKernelArg(a.ker, 2, sizeof(int), &nval), "red arg n");
+  UK_OCL_CK(clEnqueueNDRangeKernel(a.q, a.ker, 1, nullptr, gws1, nullptr, 0, nullptr,
+                                   nullptr),
+            "launch reduce part");
+  size_t gws2[1] = {1};
+  UK_OCL_CK(clSetKernelArg(a.ker2, 0, sizeof(cl_mem), &dP), "red2 arg P");
+  UK_OCL_CK(clSetKernelArg(a.ker2, 1, sizeof(cl_mem), &dY), "red2 arg Y");
+  UK_OCL_CK(clSetKernelArg(a.ker2, 2, sizeof(int), &p), "red2 arg np");
+  UK_OCL_CK(clEnqueueNDRangeKernel(a.q, a.ker2, 1, nullptr, gws2, nullptr, 0, nullptr,
+                                   nullptr),
+            "launch reduce sum");
+}
+
+// Warm + timed passes. e2e brackets [marker] transfers+launch [marker]; the
+// kernel-only reference is iters launches between two markers on resident
+// operands (the same bracket the pre-Phase-14 gemm path used).
+struct Span {
+  double e2e_ms = 0;
+  double kernel_ms = 0;
+};
+
+Span time_passes(OclAll& a, const std::function<void()>& h2d,
+                 const std::function<void()>& launch, const std::function<void()>& d2h,
+                 int warm, int iters) {
+  Span sp;
+  for (int w = 0; w < warm; ++w) {
+    h2d();
+    launch();
+    d2h();
+    if (uk_ocl_fail) return sp;
+  }
+  UK_OCL_CK(clFinish(a.q), "warm finish");
+  if (uk_ocl_fail) return sp;
+  double total = 0.0;
+  for (int i = 0; i < iters; ++i) {
+    cl_event t0 = nullptr, t1 = nullptr;
+    UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &t0), "marker t0");
+    h2d();
+    launch();
+    d2h();
+    UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &t1), "marker t1");
+    if (uk_ocl_fail) return sp;
+    cl_ulong s0 = 0, s1 = 0;
+    UK_OCL_CK(clGetEventProfilingInfo(t0, CL_PROFILING_COMMAND_START, sizeof(s0), &s0,
+                                      nullptr), "p0");
+    UK_OCL_CK(clGetEventProfilingInfo(t1, CL_PROFILING_COMMAND_END, sizeof(s1), &s1,
+                                      nullptr), "p1");
+    if (uk_ocl_fail) return sp;
+    total += double(s1 - s0) / 1e6;
+    clReleaseEvent(t0);
+    clReleaseEvent(t1);
+  }
+  sp.e2e_ms = total / double(iters);
+
+  cl_event k0 = nullptr, k1 = nullptr;
+  UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &k0), "marker k0");
+  for (int i = 0; i < iters; ++i) {
+    launch();
+    if (uk_ocl_fail) return sp;
+  }
+  UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &k1), "marker k1");
+  if (uk_ocl_fail) return sp;
+  cl_ulong ks0 = 0, ks1 = 0;
+  UK_OCL_CK(clGetEventProfilingInfo(k0, CL_PROFILING_COMMAND_START, sizeof(ks0), &ks0,
+                                    nullptr), "pk0");
+  UK_OCL_CK(clGetEventProfilingInfo(k1, CL_PROFILING_COMMAND_END, sizeof(ks1), &ks1,
+                                    nullptr), "pk1");
+  if (uk_ocl_fail) return sp;
+  sp.kernel_ms = double(ks1 - ks0) / 1e6 / double(iters);
+  clReleaseEvent(k0);
+  clReleaseEvent(k1);
+  return sp;
+}
+
 }  // namespace
 
 RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
@@ -250,15 +401,15 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
   // Fold the shared diagnostics buffer into the outcome at every return.
   auto finish = [&r]() { r.log = uk_ocl_log; return r; };
 
-  // R10.2 first, before anything is written or compiled: a non-gemm tree has no
-  // kernel here, so running it would measure another workload than declared.
-  // Checking at the entry also keeps the refusal source from landing in the
-  // workdir over the previous run's artifact.
-  const std::string op_gap = op_support_gap(tree);
+  // R10.2 first, before anything is written or compiled: a tree without a
+  // kernel here would be measured as another workload than declared. Since
+  // Phase 14 this asks the OpenCL generator's own predicate (gemm/conv/reduce);
+  // the HIP program still answers gemm-only.
+  const std::string op_gap = ocl_op_gap(tree);
   if (!op_gap.empty()) {
     std::cout << "UNIKERN_ERROR what=op_unsupported reason=" << op_gap << "\n"
-              << "intel:ocl executes the generated gemm kernel only; running "
-              << "this tree would measure a different workload than declared "
+              << "intel:ocl executes the generated kernels only; running this "
+              << "tree would measure a different workload than declared "
               << "(R10.2: unsupported interval, never a silent swap).\n";
     uk_ocl_log += "UK_RUNNER refused: " + op_gap + "\n";
     return finish();
@@ -314,41 +465,117 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
     return finish();
   }
   r.built = true;
-  a.ker = clCreateKernel(a.prog, "uk_gemm", &e);
+  const char* main_kernel = tree.op == OpKind::Conv        ? "uk_conv"
+                            : tree.op == OpKind::Reduction ? "uk_reduce_part"
+                                                           : "uk_gemm";
+  a.ker = clCreateKernel(a.prog, main_kernel, &e);
   UK_OCL_CK(e, "kernel");
-  if (uk_ocl_fail) return finish();
+  if (uk_ocl_fail) {
+    uk_ocl_log += std::string("UK_RUNNER note: kernel name=") + main_kernel + "\n";
+    return finish();
+  }
+  if (tree.op == OpKind::Reduction) {
+    a.ker2 = clCreateKernel(a.prog, "uk_reduce_sum", &e);
+    UK_OCL_CK(e, "kernel reduce_sum");
+    if (uk_ocl_fail) return finish();
+  }
 
-  // ---- differential verify: 256^3 vs scalar CPU reference, tolerance 2^-5 ----
+  // ---- differential verify vs the shared scalar CPU reference, tol 2^-5 ------
   {
-    const int VM = 256, VN = 256, VK = 256;
-    std::vector<float> vA((size_t)VM * VK), vB((size_t)VK * VN);
-    std::vector<float> vC((size_t)VM * VN, 0.f), vR((size_t)VM * VN);
-    for (size_t i = 0; i < vA.size(); ++i) vA[i] = initA((int)i);
-    for (size_t i = 0; i < vB.size(); ++i) vB[i] = initB((int)i);
-    cpu_ref(vA, vB, vR, VM, VN, VK);
-    cl_mem dA = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                               vA.size() * 4, vA.data(), &e);
-    cl_mem dB = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                               vB.size() * 4, vB.data(), &e);
-    cl_mem dC = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, vC.size() * 4, nullptr, &e);
-    UK_OCL_CK(e, "buffer dA");
-    a.bufs.push_back(dA);
-    UK_OCL_CK(e, "buffer dB");
-    a.bufs.push_back(dB);
-    UK_OCL_CK(e, "buffer dC");
-    a.bufs.push_back(dC);
-    if (uk_ocl_fail) return finish();
-    launch_full(a, dA, dB, dC, VM, VN, VK, plan);
-    if (uk_ocl_fail) return finish();
-    UK_OCL_CK(clEnqueueReadBuffer(a.q, dC, CL_TRUE, 0, vC.size() * 4, vC.data(),
-                                  0, nullptr, nullptr), "read verify");
-    if (uk_ocl_fail) return finish();
     float max_rel = 0.f;
-    for (size_t i = 0; i < vC.size(); ++i) {
-      float den = std::fabs(vR[i]);
+    if (tree.op == OpKind::Gemm) {
+      const int VM = 256, VN = 256, VK = 256;
+      std::vector<float> vA((size_t)VM * VK), vB((size_t)VK * VN);
+      std::vector<float> vC((size_t)VM * VN, 0.f), vR((size_t)VM * VN);
+      for (size_t i = 0; i < vA.size(); ++i) vA[i] = initA((int)i);
+      for (size_t i = 0; i < vB.size(); ++i) vB[i] = initB((int)i);
+      cpu_ref(vA, vB, vR, VM, VN, VK);
+      cl_mem dA = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                 vA.size() * 4, vA.data(), &e);
+      cl_mem dB = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                 vB.size() * 4, vB.data(), &e);
+      cl_mem dC = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, vC.size() * 4, nullptr, &e);
+      UK_OCL_CK(e, "buffer dA");
+      a.bufs.push_back(dA);
+      UK_OCL_CK(e, "buffer dB");
+      a.bufs.push_back(dB);
+      UK_OCL_CK(e, "buffer dC");
+      a.bufs.push_back(dC);
+      if (uk_ocl_fail) return finish();
+      launch_gemm(a, dA, dB, dC, VM, VN, VK, plan);
+      if (uk_ocl_fail) return finish();
+      UK_OCL_CK(clEnqueueReadBuffer(a.q, dC, CL_TRUE, 0, vC.size() * 4, vC.data(),
+                                    0, nullptr, nullptr), "read verify");
+      if (uk_ocl_fail) return finish();
+      for (size_t i = 0; i < vC.size(); ++i) {
+        float den = std::fabs(vR[i]);
+        if (den < 1e-6f) den = 1e-6f;
+        const float rel = std::fabs(vC[i] - vR[i]) / den;
+        if (rel > max_rel) max_rel = rel;
+      }
+    } else if (tree.op == OpKind::Conv) {
+      // Small shape with the same structure (valid padding, 3x3, 8 channels).
+      const int VH = 32, VW = 32, VC = 8, VKh = 3, VKw = 3, VOc = 16;
+      const int VoH = VH - VKh + 1, VoW = VW - VKw + 1;
+      std::vector<float> vX((size_t)VH * VW * VC), vWt((size_t)VOc * VKh * VKw * VC);
+      std::vector<float> vY((size_t)VOc * VoH * VoW, 0.f), vR(vY.size());
+      for (size_t i = 0; i < vX.size(); ++i) vX[i] = initA((int)i);
+      for (size_t i = 0; i < vWt.size(); ++i) vWt[i] = initB((int)i);
+      cpu_conv(vX.data(), vWt.data(), vR.data(), VH, VW, VC, VKh, VKw, VOc);
+      cl_mem dX = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                 vX.size() * 4, vX.data(), &e);
+      cl_mem dWt = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                  vWt.size() * 4, vWt.data(), &e);
+      cl_mem dY = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, vY.size() * 4, nullptr, &e);
+      UK_OCL_CK(e, "buffer dX");
+      a.bufs.push_back(dX);
+      UK_OCL_CK(e, "buffer dWt");
+      a.bufs.push_back(dWt);
+      UK_OCL_CK(e, "buffer dY");
+      a.bufs.push_back(dY);
+      if (uk_ocl_fail) return finish();
+      // launch_conv reads H/W/C/Kh/Kw/Oc from the plan, so drive it with a
+      // temporary plan carrying the verify shape (the timing plan stays put).
+      TimingPlan vp = plan;
+      vp.H = VH; vp.Wd = VW; vp.C = VC; vp.Kh = VKh; vp.Kw = VKw; vp.Oc = VOc;
+      launch_conv(a, dX, dWt, dY, vp);
+      if (uk_ocl_fail) return finish();
+      UK_OCL_CK(clEnqueueReadBuffer(a.q, dY, CL_TRUE, 0, vY.size() * 4, vY.data(),
+                                    0, nullptr, nullptr), "read verify conv");
+      if (uk_ocl_fail) return finish();
+      for (size_t i = 0; i < vR.size(); ++i) {
+        float den = std::fabs(vR[i]);
+        if (den < 1e-6f) den = 1e-6f;
+        const float rel = std::fabs(vY[i] - vR[i]) / den;
+        if (rel > max_rel) max_rel = rel;
+      }
+    } else {  // Reduction
+      // 2^-6 each at L=2^20 sums to 16384 in any order (fp32-exact), so a zero
+      // here means the structure is right — not float-order robustness.
+      const int64_t VL = int64_t(1) << 20;
+      const int VP = reduce_width(VL);
+      std::vector<float> vX((size_t)VL, 0.015625f);
+      std::vector<float> vR(1, 0.f), vY(1, 0.f);
+      cpu_reduce(vX.data(), vR.data(), VL);
+      cl_mem dX = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                 vX.size() * 4, vX.data(), &e);
+      cl_mem dP = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, (size_t)VP * 4, nullptr, &e);
+      cl_mem dY = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, sizeof(float), nullptr, &e);
+      UK_OCL_CK(e, "buffer dX");
+      a.bufs.push_back(dX);
+      UK_OCL_CK(e, "buffer dP");
+      a.bufs.push_back(dP);
+      UK_OCL_CK(e, "buffer dY");
+      a.bufs.push_back(dY);
+      if (uk_ocl_fail) return finish();
+      launch_reduce(a, dX, dP, dY, VL, VP);
+      if (uk_ocl_fail) return finish();
+      UK_OCL_CK(clEnqueueReadBuffer(a.q, dY, CL_TRUE, 0, sizeof(float), vY.data(),
+                                    0, nullptr, nullptr), "read verify reduce");
+      if (uk_ocl_fail) return finish();
+      float den = std::fabs(vR[0]);
       if (den < 1e-6f) den = 1e-6f;
-      const float rel = std::fabs(vC[i] - vR[i]) / den;
-      if (rel > max_rel) max_rel = rel;
+      max_rel = std::fabs(vY[0] - vR[0]) / den;
     }
     r.verified = max_rel <= 0.03125f;
     r.max_rel = max_rel;
@@ -375,10 +602,22 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
                   "implemented)\n";
     return finish();
   }
-  const int gx = (plan.PN + plan.TN - 1) / plan.TN;
-  const int gy = (plan.PM + plan.TM - 1) / plan.TM;
-  if (size_t(gx) * 16 > plan.max_wi[0] || size_t(gy) * 16 > plan.max_wi[1]) {
-    std::cout << "UNIKERN_ERROR what=grid_too_large groups=" << gx << "x" << gy
+  // The launch must fit CL_DEVICE_MAX_WORK_ITEM_SIZES. gemm's grid is expressed
+  // in workgroups of 16x16; conv and reduce launch global sizes directly, so
+  // the bound is checked on those numbers.
+  int gx = 0, gy = 0;
+  if (plan.op == OpKind::Gemm) {
+    gx = ((plan.PN + plan.TN - 1) / plan.TN) * 16;
+    gy = ((plan.PM + plan.TM - 1) / plan.TM) * 16;
+  } else if (plan.op == OpKind::Conv) {
+    gx = plan.Wd - plan.Kw + 1;
+    gy = plan.H - plan.Kh + 1;
+  } else {
+    gx = plan.P;
+    gy = 1;
+  }
+  if (size_t(gx) > plan.max_wi[0] || size_t(gy) > plan.max_wi[1]) {
+    std::cout << "UNIKERN_ERROR what=grid_too_large gws=" << gx << "x" << gy
               << " max_wi=" << plan.max_wi[0] << "x" << plan.max_wi[1] << "\n"
               << "intel:ocl runner refuses: the timing grid exceeds "
               << "CL_DEVICE_MAX_WORK_ITEM_SIZES (chunked/SVM launches are not "
@@ -390,80 +629,93 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
 
   // ---- timing: resident, e2e basis (H2D + kernel + D2H per pass) ----
   {
-    std::vector<float> tA((size_t)plan.PM * plan.PK, 0.5f);
-    std::vector<float> tB((size_t)plan.PK * plan.PN, 0.25f);
-    std::vector<float> tC((size_t)plan.PM * plan.PN, 0.f);
-    cl_mem tdA = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tA.size() * 4, nullptr, &e);
-    cl_mem tdB = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tB.size() * 4, nullptr, &e);
-    cl_mem tdC = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tC.size() * 4, nullptr, &e);
-    UK_OCL_CK(e, "buffer tdA");
-    a.bufs.push_back(tdA);
-    UK_OCL_CK(e, "buffer tdB");
-    a.bufs.push_back(tdB);
-    UK_OCL_CK(e, "buffer tdC");
-    a.bufs.push_back(tdC);
-    if (uk_ocl_fail) return finish();
-
-    // Warm passes: the full e2e sequence (the HIP program warms identically).
-    for (int w = 0; w < plan.warm; ++w) {
-      UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdA, CL_FALSE, 0, tA.size() * 4, tA.data(),
-                                     0, nullptr, nullptr), "warm h2d A");
-      UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdB, CL_FALSE, 0, tB.size() * 4, tB.data(),
-                                     0, nullptr, nullptr), "warm h2d B");
-      launch_full(a, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
-      UK_OCL_CK(clEnqueueReadBuffer(a.q, tdC, CL_FALSE, 0, tC.size() * 4, tC.data(),
-                                   0, nullptr, nullptr), "warm d2h C");
+    Span sp;
+    if (plan.op == OpKind::Gemm) {
+      std::vector<float> tA((size_t)plan.PM * plan.PK, 0.5f);
+      std::vector<float> tB((size_t)plan.PK * plan.PN, 0.25f);
+      std::vector<float> tC((size_t)plan.PM * plan.PN, 0.f);
+      cl_mem tdA = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tA.size() * 4, nullptr, &e);
+      cl_mem tdB = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tB.size() * 4, nullptr, &e);
+      cl_mem tdC = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tC.size() * 4, nullptr, &e);
+      UK_OCL_CK(e, "buffer tdA");
+      a.bufs.push_back(tdA);
+      UK_OCL_CK(e, "buffer tdB");
+      a.bufs.push_back(tdB);
+      UK_OCL_CK(e, "buffer tdC");
+      a.bufs.push_back(tdC);
       if (uk_ocl_fail) return finish();
+      sp = time_passes(
+          a,
+          [&]() {
+            UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdA, CL_FALSE, 0, tA.size() * 4,
+                                           tA.data(), 0, nullptr, nullptr), "h2d A");
+            UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdB, CL_FALSE, 0, tB.size() * 4,
+                                           tB.data(), 0, nullptr, nullptr), "h2d B");
+          },
+          [&]() { launch_gemm(a, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan); },
+          [&]() {
+            UK_OCL_CK(clEnqueueReadBuffer(a.q, tdC, CL_FALSE, 0, tC.size() * 4,
+                                          tC.data(), 0, nullptr, nullptr), "d2h C");
+          },
+          plan.warm, plan.iters);
+    } else if (plan.op == OpKind::Conv) {
+      const int Ho = plan.H - plan.Kh + 1, Wo = plan.Wd - plan.Kw + 1;
+      std::vector<float> tX((size_t)plan.H * plan.Wd * plan.C, 0.5f);
+      std::vector<float> tWt((size_t)plan.Oc * plan.Kh * plan.Kw * plan.C, 0.25f);
+      std::vector<float> tY((size_t)plan.Oc * Ho * Wo, 0.f);
+      cl_mem tdX = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tX.size() * 4, nullptr, &e);
+      cl_mem tdWt = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tWt.size() * 4, nullptr, &e);
+      cl_mem tdY = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tY.size() * 4, nullptr, &e);
+      UK_OCL_CK(e, "buffer tdX");
+      a.bufs.push_back(tdX);
+      UK_OCL_CK(e, "buffer tdWt");
+      a.bufs.push_back(tdWt);
+      UK_OCL_CK(e, "buffer tdY");
+      a.bufs.push_back(tdY);
+      if (uk_ocl_fail) return finish();
+      sp = time_passes(
+          a,
+          [&]() {
+            UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdX, CL_FALSE, 0, tX.size() * 4,
+                                           tX.data(), 0, nullptr, nullptr), "h2d X");
+            UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdWt, CL_FALSE, 0, tWt.size() * 4,
+                                           tWt.data(), 0, nullptr, nullptr), "h2d Wt");
+          },
+          [&]() { launch_conv(a, tdX, tdWt, tdY, plan); },
+          [&]() {
+            UK_OCL_CK(clEnqueueReadBuffer(a.q, tdY, CL_FALSE, 0, tY.size() * 4,
+                                          tY.data(), 0, nullptr, nullptr), "d2h Y");
+          },
+          plan.warm, plan.iters);
+    } else {  // Reduction
+      std::vector<float> tX((size_t)plan.L, 0.5f);
+      std::vector<float> tP((size_t)plan.P, 0.f);
+      std::vector<float> tY(1, 0.f);
+      cl_mem tdX = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tX.size() * 4, nullptr, &e);
+      cl_mem tdP = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, tP.size() * 4, nullptr, &e);
+      cl_mem tdY = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, sizeof(float), nullptr, &e);
+      UK_OCL_CK(e, "buffer tdX");
+      a.bufs.push_back(tdX);
+      UK_OCL_CK(e, "buffer tdP");
+      a.bufs.push_back(tdP);
+      UK_OCL_CK(e, "buffer tdY");
+      a.bufs.push_back(tdY);
+      if (uk_ocl_fail) return finish();
+      sp = time_passes(
+          a,
+          [&]() {
+            UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdX, CL_FALSE, 0, tX.size() * 4,
+                                           tX.data(), 0, nullptr, nullptr), "h2d X");
+          },
+          [&]() { launch_reduce(a, tdX, tdP, tdY, plan.L, plan.P); },
+          [&]() {
+            UK_OCL_CK(clEnqueueReadBuffer(a.q, tdY, CL_FALSE, 0, sizeof(float),
+                                          tY.data(), 0, nullptr, nullptr), "d2h Y");
+          },
+          plan.warm, plan.iters);
     }
-    UK_OCL_CK(clFinish(a.q), "warm finish");
-    if (uk_ocl_fail) return finish();
-
-    // Timed passes: marker-bracketed e2e span per pass.
-    double total_ms = 0.0;
-    for (int i = 0; i < plan.iters; ++i) {
-      cl_event t0 = nullptr, t1 = nullptr;
-      UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &t0), "marker t0");
-      UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdA, CL_FALSE, 0, tA.size() * 4, tA.data(),
-                                     0, nullptr, nullptr), "h2d A");
-      UK_OCL_CK(clEnqueueWriteBuffer(a.q, tdB, CL_FALSE, 0, tB.size() * 4, tB.data(),
-                                     0, nullptr, nullptr), "h2d B");
-      launch_full(a, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
-      UK_OCL_CK(clEnqueueReadBuffer(a.q, tdC, CL_FALSE, 0, tC.size() * 4, tC.data(),
-                                   0, nullptr, nullptr), "d2h C");
-      UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &t1), "marker t1");
-      if (uk_ocl_fail) return finish();
-      cl_ulong s0 = 0, s1 = 0;
-      UK_OCL_CK(clGetEventProfilingInfo(t0, CL_PROFILING_COMMAND_START, sizeof(s0), &s0,
-                                        nullptr), "p0");
-      UK_OCL_CK(clGetEventProfilingInfo(t1, CL_PROFILING_COMMAND_END, sizeof(s1), &s1,
-                                        nullptr), "p1");
-      if (uk_ocl_fail) return finish();
-      total_ms += double(s1 - s0) / 1e6;
-      clReleaseEvent(t0);
-      clReleaseEvent(t1);
-    }
-    r.measured_ms = total_ms / double(plan.iters);
-
-    // Kernel-only reference: iters launches between two markers on the
-    // already-resident operands (the same whole-loop bracket the HIP program
-    // uses for its kernel reference).
-    cl_event k0 = nullptr, k1 = nullptr;
-    UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &k0), "marker k0");
-    for (int i = 0; i < plan.iters; ++i) {
-      launch_full(a, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
-      if (uk_ocl_fail) return finish();
-    }
-    UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &k1), "marker k1");
-    if (uk_ocl_fail) return finish();
-    cl_ulong ks0 = 0, ks1 = 0;
-    UK_OCL_CK(clGetEventProfilingInfo(k0, CL_PROFILING_COMMAND_START, sizeof(ks0), &ks0,
-                                      nullptr), "pk0");
-    UK_OCL_CK(clGetEventProfilingInfo(k1, CL_PROFILING_COMMAND_END, sizeof(ks1), &ks1,
-                                      nullptr), "pk1");
-    if (uk_ocl_fail) return finish();
-    r.kernel_ms = double(ks1 - ks0) / 1e6 / double(plan.iters);
-    clReleaseEvent(k0);
-    clReleaseEvent(k1);
+    r.measured_ms = sp.e2e_ms;
+    r.kernel_ms = sp.kernel_ms;
   }
 
   // ---- result contract (identical shape to the HIP program's line) ----
@@ -476,7 +728,7 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
       << " kernel_ms=" << r.kernel_ms
       << " mode=resident"
       << " payload_mb=" << plan.payload_mb
-      << " perf=" << plan.PM << "x" << plan.PN << "x" << plan.PK << "\n";
+      << " perf=" << perf_string(plan) << "\n";
   std::cout << res.str();
   uk_ocl_log += res.str();
   return finish();

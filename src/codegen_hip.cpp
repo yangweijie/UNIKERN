@@ -44,6 +44,12 @@ std::string msl_op_gap(const KmlTree& tree) {
   return "";  // gemm, conv and reduce all have MSL kernels
 }
 
+std::string ocl_op_gap(const KmlTree& tree) {
+  if (!codegen_layout_supported(tree.layout))
+    return "kernel generation implements layout=NT only; layout=" + tree.layout;
+  return "";  // gemm, conv and reduce all have OpenCL C kernels
+}
+
 std::string op_support_gap(const KmlTree& tree) {
   if (tree.op != OpKind::Gemm)
     return std::string("kernel generation covers gemm only; op=") + to_string(tree.op);

@@ -51,6 +51,9 @@ public:
   std::string generate(const Solution& s, const Hcs& h, const KmlTree& t) const override {
     return ocl_kernel_source(s, h, t);
   }
+  std::string capability_gap(const KmlTree& tree) const override {
+    return ocl_op_gap(tree);  // Phase 14: gemm + conv + reduce
+  }
 };
 
 std::vector<BackendCoverage> primitive_coverage(const KmlTree& tree) {

@@ -286,3 +286,22 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   真机复跑、G5（R8.5 长测）、R10.2 的 F 约束合流（V1）、conv/reduce 调优与浮点次序鲁棒性
 - ctest 2/2 绿（Apple 主机）；平台边界：conv/reduce 只在 Apple 真机跑过，
   `runner_ocl.cpp` 仍仅 `-fsyntax-only`
+
+## Session 2026-10-28（Phase 14 — Intel/OpenCL 的 conv/reduce）
+- [x] 生成：`ocl_kernel_source` 按算子分派（uk_conv / uk_reduce_part+uk_reduce_sum）；
+  每份源只带自己算子的内核，`[R14]` 逐算子断言
+- [x] 能力面三向：`ocl_op_gap()` + `BackendIntel::capability_gap()`；覆盖表
+  amd unsupported / apple+intel covered；toolchain 轴单列（本机 intel=absent）
+- [x] runner_ocl 泛化：plan 按算子、三个 launcher + 共用 `time_passes`、reduce 双 kernel
+  （OclAll 加 ker2）、grid 上限按算子取数、perf 按算子声明打印
+- [x] 本机验证两层：三份 .cl 过 `clang -x cl` 语法检查（负测可红）；runner host 侧过
+  `-fsyntax-only -DUK_HAS_OCL`；**运行未验**（本机无 Intel 设备，`run --vendor intel`
+  以 no-device rc=1 收场，账本不建）
+- [x] acceptance：改 `[R10.2]/[R10.3]/[R13]` 为三向期望，新增 `[R14]`；
+  `probe/phase14_arm_probes.py` 三腿逐一摘除即红（:1042 / :1303 / :1249），残留 0、ctest 绿
+- [x] Apple 三算子回归仍 PASS（gemm/conv/reduce 全 verify=PASS max_rel=0）
+
+## Phase 14 闭合记录（2026-10-28）
+- G1 执行半边的 **Intel** 侧闭合（生成+能力面+runner 分派；编译级验证，运行待真机）
+- 只剩 **AMD 的 HIP 程序**：本机无 hipcc，连语法都验不了 → 需 ROCm 主机，留 Phase 15
+- Phase 13 的两条旧结论（Intel 也拒 conv/reduce；OpenCL 仍 gemm-only）已据实标记取代

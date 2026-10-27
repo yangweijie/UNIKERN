@@ -1,0 +1,24 @@
+
+=== ARM-PROBE ocl_covers_three_ops (src/codegen_hip.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+Assertion failed: (ocl_red.find("__kernel void uk_reduce_part") != std::string::npos && ocl_red.find("__kernel void uk_reduce_sum") != std::string::npos), function main, file acceptance.cpp, line 1042.
+--- ocl_covers_three_ops restored ---
+
+=== ARM-PROBE intel_capability_override (src/backends.cpp): leg disabled — a test must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel, provenance banner intact (compiles out-of-band; runtime needs the Intel host) OK
+Assertion failed: (c.primitive_covered && c.reason.empty()), function main, file acceptance.cpp, line 1303.
+--- intel_capability_override restored ---
+
+=== ARM-PROBE ocl_per_op_dispatch (src/codegen_other.cpp): leg disabled — a test must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[R13] conv/reduce CPU references exact on hand-computed cases; each source carries only its own kernels; capability split HIP=gemm-only / MSL+OCL=three ops OK
+Assertion failed: (oc.find("__kernel void uk_conv") != std::string::npos && oc.find("uk_gemm") == std::string::npos && oc.find("uk_reduce") == std::string::npos), function main, file acceptance.cpp, line 1249.
+--- ocl_per_op_dispatch restored ---
+
+residual ARM-PROBE legs: none
+[5/5] Linking CXX executable unikern_acceptance
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   1.08 sec

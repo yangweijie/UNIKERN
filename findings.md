@@ -363,3 +363,21 @@
   同量级；UNIKERN_RESULT 的形状与字段未变，`perf=` 对 gemm 仍是 `PMxPNxPK`
 - 遗留（如实）：AMD/Intel 的 conv/reduce 内核；这两家的 `--kml` 真机复跑；
   conv/reduce 调优与浮点次序鲁棒性验证；R10.2 的 F 约束合流（V1）
+
+## Phase 14 Intel/OpenCL 的 conv/reduce（2026-10-28）
+- **没有真机也能做真验证**：clang 自带 OpenCL 前端，`clang -x cl -cl-std=CL1.2 -fsyntax-only`
+  对生成的三份 `.cl` 全部 rc=0、0 诊断；负测（未声明标识符）rc=1。这比"只做文本断言"强一档，
+  但要写清它证明的是**可编译**，不是可运行
+- **"覆盖 ≠ 可运行"必须由两个轴承担**：覆盖表里 `intel:ocl primitive=covered` 与
+  `toolchain=absent` 同时为真；本机 `run --vendor intel --kml conv` 因此以
+  「no Intel GPU platform/device found」rc=1 收场（不是能力拒绝，也仍不建账本）。
+  两种失败原因在输出里分得开，这是 R10 要的形态
+- runner_ocl 泛化与 Metal 同构：plan 按算子、`launch_gemm/launch_conv/launch_reduce`、
+  共用 `time_passes`（标记事件括 e2e；kernel-only = N 次连续 launch）；reduce 要**两个** kernel
+  对象（part + sum），OclAll 相应加 `ker2`
+- conv 的 verify 计时用**临时 plan**（`vp`）承载 verify 的形状，避免把 timing 的六维改掉——
+  这类"借用同一个结构体装两种尺寸"的地方最容易串味，注释里点明
+- **Phase 13 的两条旧结论当场被推翻并保留原文**：①"AMD/Intel 对 conv/reduce rc=2 拒绝"
+  （现在只有 AMD）；②"OpenCL 源仍 gemm-only"（现在不是）。旧转录保留、标注取代，新读数在
+  `docs/evidence/phase14/phase14-ocl-and-regression.txt`
+- 仍缺：AMD 的 HIP 程序（无 hipcc，连语法都验不了）、Intel 真机运行、调优与浮点次序鲁棒性

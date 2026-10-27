@@ -1036,10 +1036,12 @@ int main(int argc, char** argv) {
     assert(hip_red.find("uk_gemm") == std::string::npos);
     const std::string msl_red = msl_kernel_source(rsol, h, red);
     const std::string ocl_red = ocl_kernel_source(rsol, h, red);
-    // Phase 13: the capability answer is per backend now. HIP/OCL still have no
-    // reduce kernel and say so; Metal has one and must not emit a gemm instead.
-    assert(ocl_red.find("__kernel") == std::string::npos &&
-           ocl_red.find("gemm only") != std::string::npos);
+    // Phase 13/14: the capability answer is per backend. HIP has no conv/reduce
+    // kernel and says so; Metal and OpenCL have them and must not emit a gemm.
+    assert(ocl_red.find("__kernel void uk_reduce_part") != std::string::npos &&
+           ocl_red.find("__kernel void uk_reduce_sum") != std::string::npos);
+    assert(ocl_red.find("gemm only") == std::string::npos);
+    assert(ocl_red.find("uk_gemm") == std::string::npos);
     assert(msl_red.find("uk_reduce_part") != std::string::npos &&
            msl_red.find("uk_reduce_sum") != std::string::npos);
     assert(msl_red.find("gemm only") == std::string::npos);
@@ -1084,7 +1086,9 @@ int main(int argc, char** argv) {
              std::string::npos);
       assert(slurp(emit_dir + "/uk_amd.cpp").find("op_unsupported") !=
              std::string::npos);
-      assert(slurp(emit_dir + "/uk_intel.cl").find("gemm only") != std::string::npos);
+      // Phase 14: the OpenCL source is a real kernel too; only HIP refuses.
+      assert(slurp(emit_dir + "/uk_intel.cl").find("uk_reduce_part") !=
+             std::string::npos);
     }
     {
       // conv has no CLI arity (six dims vs three flags), so it must be rejected
@@ -1121,9 +1125,9 @@ int main(int argc, char** argv) {
              std::string::npos);
     }
     fs::remove_all(dir);
-    std::cout << "[R10.2] op coverage is per backend: gemm-only backends refuse "
-                 "loudly, Metal generates real conv/reduce kernels; refused runs "
-                 "leave no ledger row; gemm path unaffected OK\n";
+    std::cout << "[R10.2] op coverage is per backend: HIP refuses loudly, Metal and "
+                 "OpenCL generate real conv/reduce kernels; refused runs leave no "
+                 "ledger row; gemm path unaffected OK\n";
   }
 
   // -------- R13: conv/reduce references + per-op kernel structure -----------
@@ -1203,15 +1207,59 @@ int main(int argc, char** argv) {
       assert(op_support_gap(g).empty() && !op_support_gap(c).empty() &&
              !op_support_gap(r).empty());
       assert(msl_op_gap(g).empty() && msl_op_gap(c).empty() && msl_op_gap(r).empty());
+      assert(ocl_op_gap(g).empty() && ocl_op_gap(c).empty() && ocl_op_gap(r).empty());
       // A non-NT layout is refused by both, with the layout named.
       KmlTree bad = g;
       bad.layout = "colmajor";
       assert(op_support_gap(bad).find("layout=colmajor") != std::string::npos);
       assert(msl_op_gap(bad).find("layout=colmajor") != std::string::npos);
+      assert(ocl_op_gap(bad).find("layout=colmajor") != std::string::npos);
     }
     std::cout << "[R13] conv/reduce CPU references exact on hand-computed cases; "
-                 "each MSL source carries only its own kernels; capability split "
-                 "HIO=gemm-only / MSL=three ops OK\n";
+                 "each source carries only its own kernels; capability split "
+                 "HIP=gemm-only / MSL+OCL=three ops OK\n";
+  }
+
+  // -------- R14: per-op OpenCL source structure ------------------------------
+  {
+    // What this arm can prove without an Intel device: the emitted OpenCL C
+    // carries exactly the declared op's kernels, and nothing of the others.
+    // Whether that source *compiles* is checked out-of-band with clang's OpenCL
+    // front-end (see docs/evidence/phase14/); whether it *runs* needs the Intel
+    // host — stated, not implied.
+    Hcs h = discrete_hcs(int64_t(8) << 30, 512);
+    KmlTree g;
+    KmlTree c;
+    c.op = OpKind::Conv;
+    const int cd[6] = {8, 8, 4, 3, 3, 8};
+    for (int i = 0; i < 6; ++i) c.dims[i] = cd[i];
+    KmlTree r;
+    r.op = OpKind::Reduction;
+    r.dims[0] = 1 << 16;
+    for (int i = 1; i < 6; ++i) r.dims[i] = 0;
+
+    const std::string og = ocl_kernel_source(solve(h, g), h, g);
+    const std::string oc = ocl_kernel_source(solve(h, c), h, c);
+    const std::string orr = ocl_kernel_source(solve(h, r), h, r);
+    assert(og.find("void uk_gemm") != std::string::npos &&
+           og.find("uk_conv") == std::string::npos &&
+           og.find("uk_reduce") == std::string::npos);
+    assert(oc.find("__kernel void uk_conv") != std::string::npos &&
+           oc.find("uk_gemm") == std::string::npos &&
+           oc.find("uk_reduce") == std::string::npos);
+    assert(orr.find("__kernel void uk_reduce_part") != std::string::npos &&
+           orr.find("__kernel void uk_reduce_sum") != std::string::npos &&
+           orr.find("uk_gemm") == std::string::npos &&
+           orr.find("uk_conv") == std::string::npos);
+    // Same provenance banner as the gemm source (R5.3/R8).
+    for (const auto* src : {&og, &oc, &orr}) {
+      assert(src->find("fp=") != std::string::npos &&
+             src->find("R8.1") != std::string::npos &&
+             src->find("R8.6") != std::string::npos);
+    }
+    std::cout << "[R14] OpenCL sources per op: conv/reduce kernels present, no "
+                 "cross-op kernel, provenance banner intact (compiles out-of-band; "
+                 "runtime needs the Intel host) OK\n";
   }
 
   // -------- R10.3: per-backend primitive coverage, three axes kept apart -----
@@ -1247,11 +1295,12 @@ int main(int argc, char** argv) {
     // gemm-only two name the op. This is the leg that would have silently
     // passed a global "everything unsupported" table.
     for (const auto& c : primitive_coverage(red)) {
-      if (c.backend == "apple:metal") {
-        assert(c.primitive_covered && c.reason.empty());
-      } else {
+      if (c.backend == "amd:hip") {
         assert(!c.primitive_covered);
         assert(c.reason.find("op=reduce") != std::string::npos);
+      } else {
+        // Phase 14: Metal and OpenCL both cover reduce.
+        assert(c.primitive_covered && c.reason.empty());
       }
     }
     KmlTree conv;
@@ -1259,11 +1308,10 @@ int main(int argc, char** argv) {
     const int cdims[6] = {16, 16, 8, 3, 3, 32};
     for (int i = 0; i < 6; ++i) conv.dims[i] = cdims[i];
     for (const auto& c : primitive_coverage(conv)) {
-      if (c.backend == "apple:metal")
-        assert(c.primitive_covered);
+      if (c.backend == "amd:hip")
+        assert(!c.primitive_covered && c.reason.find("op=conv") != std::string::npos);
       else
-        assert(!c.primitive_covered &&
-               c.reason.find("op=conv") != std::string::npos);
+        assert(c.primitive_covered);
     }
     std::cout << "[R10.3] coverage report: three backends, primitive/execution/"
                  "toolchain axes distinct and derived from the live objects OK\n";

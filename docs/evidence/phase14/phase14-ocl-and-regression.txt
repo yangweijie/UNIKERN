@@ -1,0 +1,59 @@
+$ md5 -q ./build-apple/unikern
+728c1c14b16f9da10a100d8407a74c47
+
+# ---- per-op OpenCL source: emit, then syntax/type check with clang -x cl ----
+$ ./build-apple/unikern solve --hcs samples/hcs_amd.json --kml samples/kml_gemm.json --ledger /tmp/uk_p14.NJxZ1l/l.jsonl --emit /tmp/uk_p14.NJxZ1l/gemm
+rc=0
+EMIT intel:ocl -> /tmp/uk_p14.NJxZ1l/gemm/uk_intel.cl lines=53 (toolchain absent)
+$ clang -x cl -cl-std=CL1.2 -fsyntax-only /tmp/uk_p14.NJxZ1l/gemm/uk_intel.cl
+rc=0  diagnostics=0
+  void uk_gemm(__global const float* A, __global const float* B,
+
+$ ./build-apple/unikern solve --hcs samples/hcs_amd.json --kml samples/kml_conv.json --ledger /tmp/uk_p14.NJxZ1l/l.jsonl --emit /tmp/uk_p14.NJxZ1l/conv
+rc=0
+EMIT intel:ocl -> /tmp/uk_p14.NJxZ1l/conv/uk_intel.cl lines=32 (toolchain absent)
+$ clang -x cl -cl-std=CL1.2 -fsyntax-only /tmp/uk_p14.NJxZ1l/conv/uk_intel.cl
+rc=0  diagnostics=0
+  __kernel void uk_conv(__global const float* X, __global const float* Wt,
+
+$ ./build-apple/unikern solve --hcs samples/hcs_amd.json --kml samples/kml_reduce.json --ledger /tmp/uk_p14.NJxZ1l/l.jsonl --emit /tmp/uk_p14.NJxZ1l/reduce
+rc=0
+EMIT intel:ocl -> /tmp/uk_p14.NJxZ1l/reduce/uk_intel.cl lines=31 (toolchain absent)
+$ clang -x cl -cl-std=CL1.2 -fsyntax-only /tmp/uk_p14.NJxZ1l/reduce/uk_intel.cl
+rc=0  diagnostics=0
+  __kernel void uk_reduce_part(__global const float* X, __global float* P,
+  __kernel void uk_reduce_sum(__global const float* P, __global float* Y,
+
+# ---- negative control: the check can fail ----
+$ clang -x cl -cl-std=CL1.2 -fsyntax-only /tmp/uk_p14.NJxZ1l/bad.cl
+rc=1   # non-zero: a broken source is caught, not waved through
+/tmp/uk_p14.NJxZ1l/bad.cl:1:47: error: use of undeclared identifier 'undeclared_thing'
+    1 | __kernel void bad(__global float* b) { b[0] = undeclared_thing; }
+
+# ---- capability/coverage now three-way (AMD is the only gemm-only one) ----
+$ ./build-apple/unikern backends
+vendor    backend      available  note
+amd       amd:hip     no        source-gen ready (Phase 5 full)
+apple     apple:metal     yes        source-gen ready (Phase 5 full)
+intel     intel:ocl     no        source-gen ready (Phase 5 full)
+
+$ ./build-apple/unikern kml samples/kml_conv.json
+KML OK op=conv dtype=fp32 tile=64x128 layout=NT children=0
+OP_SIG conv:fp32:64x64x32x3x3x64
+COVER amd:hip primitive=unsupported reason=kernel generation covers gemm only; op=conv execution=resident+streamed toolchain=absent
+COVER apple:metal primitive=covered execution=resident-only toolchain=present
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor intel --kml samples/kml_conv.json --ledger /tmp/uk_p14.NJxZ1l/i.jsonl
+rc=1  ledger_created=no
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+RUN intel:ocl built=no ran=no verified=FAIL max_rel=0 measured_ms=0
+-- log tail --
+# (rc!=2 here is expected on this host: the capability gate passes because the
+#  OpenCL source covers conv, and the run then fails for lack of an Intel device —
+#  a host fact, not a capability refusal. Runtime verification needs the Intel box.)
+
+# ---- Apple regression: shared paths still execute (gemm/conv/reduce) ----
+gemm    rc=0 UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=1.132108 kernel_ms=0.582958 mode=resident payload_mb=3.000000 perf=512x512x512
+conv    rc=0 UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=2.020908 kernel_ms=1.091083 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+reduce  rc=0 UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.888300 kernel_ms=0.520292 mode=resident payload_mb=16.015629 perf=4194304
