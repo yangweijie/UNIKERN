@@ -23,7 +23,8 @@ std::string banner(const char* lang, const char* r8_note, const Solution& sol,
   std::ostringstream o;
   o << "// unikern generated — " << lang << "\n"
     << "// hcs=" << hcs.vendor << "/" << hcs.device << " fp="
-    << hcs_fingerprint(hcs).substr(0, 12) << "\n"
+    << hcs_fingerprint(hcs).substr(0, 12) << " toolchain="
+    << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain) << "\n"
     << "// solved tile=" << sol.best.tile_m << "x" << sol.best.tile_n
     << " -> emitted " << ti.tm << "x" << ti.tn << (ti.clamped ? " (clamped)" : "")
     << "\n// placement: " << sol.placement_record << "\n"

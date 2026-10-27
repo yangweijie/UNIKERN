@@ -64,6 +64,7 @@ Hcs discrete_hcs(int64_t vram_bytes, double vram_bw_gbps) {
   h.link_bw_gbps = 32;
   h.flops_gflops = 22000;
   h.compute_units = 36;
+  h.toolchain = "rocm-7.13";
   h.tiers.push_back({"vram", vram_bytes, vram_bw_gbps, Confidence::Official});
   h.tiers.push_back({"ram", int64_t(64) << 30, 50, Confidence::Official});
   h.tiers.push_back({"nvme", int64_t(2000) << 30, 7, Confidence::Official});
@@ -239,10 +240,13 @@ int main(int argc, char** argv) {
     const Solution sb = solve(b, red);
     assert(sa.c_ms > 20.0);  // memory-bound sanity (compute term is ~0.05 ms)
     assert(sb.c_ms > 1.95 * sa.c_ms && sb.c_ms < 2.05 * sa.c_ms);
-    // The constants version is reported on every solution (increment
-    // mechanism is a Phase-6+ stub: always 1 — recorded honestly in the
-    // acceptance matrix).
+    // The constants version travels with the HCS (R3.3): default 1, and a
+    // calibrated HCS carries its own bumped version through solve — the
+    // increment mechanism lives in the calibration flow, not in the solver.
     assert(sa.constants_version == 1 && sb.constants_version == 1);
+    Hcs versioned = discrete_hcs(int64_t(8) << 30, 512);
+    versioned.constants_version = 2;
+    assert(solve(versioned, red).constants_version == 2);
     std::cout << "[R3] C bitwise-stable over 10^4 repeats + HCS constants "
               << "adopted OK\n";
   }
@@ -293,6 +297,8 @@ int main(int argc, char** argv) {
       const std::string head = head_lines(src, 5);
       assert(head.find("unikern generated") != std::string::npos);
       assert(head.find("fp=" + fp12) != std::string::npos);  // R5.3 HCS fp
+      assert(head.find("toolchain=rocm-7.13") !=
+             std::string::npos);  // R5.3 toolchain fingerprint (G3)
       switch (b->vendor()) {
         case Vendor::Amd:
           seen_amd = true;
@@ -408,6 +414,17 @@ int main(int argc, char** argv) {
       const Hcs apple = unified_hcs(400);
       assert(!ledger->lookup(key_of(apple, t)).has_value());
       assert(ledger->size() == 1);
+      // R7.3 calibration input: a re-commit with a kernel reference makes
+      // the row usable, and measured_rows serves it back under the fp.
+      const double kernel_ref = 0.54321;
+      ledger->commit(k, seeded, measured, kernel_ref);
+      const std::vector<MeasuredRow> rows = ledger->measured_rows(k.hcs_fp);
+      assert(rows.size() == 1);
+      assert(rows[0].op_sig == k.op_sig);
+      assert(rows[0].c_ms == seeded.c_ms);
+      assert(rows[0].measured_ms == measured);
+      assert(rows[0].kernel_ms == kernel_ref);
+      assert(ledger->measured_rows("no-such-fp").empty());
     }
     std::cout << "[R7] sqlite round-trip + hit(off-grid tiles) + measured_ms "
               << "persisted + isolation OK\n";
@@ -450,6 +467,103 @@ int main(int argc, char** argv) {
     std::remove(crash_db);
     std::remove((std::string(crash_db) + ".marker").c_str());
     std::cout << "[R7] crash mid-transaction leaves no half row OK\n";
+  }
+
+  // ------------- R7.3/R3.3 calibration: measured rows -> constants --------
+  {
+    // FileLedger formats: calibration (7 fields), Phase 6 (6 fields, no
+    // kernel reference), legacy (4 fields) all resolve; measured_rows serves
+    // only rows with a measurement under the requested fingerprint.
+    const char* jsonl = "acceptance_file_ledger.jsonl";
+    std::remove(jsonl);
+    {
+      std::ofstream f(jsonl, std::ios::binary);
+      f << "gemm:fp32:1024x1024x1024|fpA|th1\t0.5\t2.0\t0.5\t128\t128\tp\n"
+        << "gemm:fp32:2048x2048x2048|fpB|th2\t0.5\t3.0\t128\t128\tp\n"
+        << "gemm:fp32:4096x4096x4096|fpA|th3\t0.5\t1.0\tp\n"
+        << "gemm:fp32:512x512x512|fpA|th4\t0.5\t0\t128\t128\tp\n";
+    }
+    {
+      auto ledger = make_file_ledger(jsonl);
+      const Hcs probe = discrete_hcs(int64_t(8) << 30, 512);
+      (void)probe;
+      const std::vector<MeasuredRow> rows = ledger->measured_rows("fpA");
+      assert(rows.size() == 2);  // th4 has measured_ms=0, fpB is another HCS
+      assert(rows[0].op_sig == "gemm:fp32:1024x1024x1024" &&
+             rows[0].kernel_ms == 0.5);
+      assert(rows[1].op_sig == "gemm:fp32:4096x4096x4096" &&
+             rows[1].kernel_ms == 0.0);  // legacy row: no kernel reference
+      // A 7-field line resolves with tiles; the 6-field and legacy lines do
+      // too (legacy without tile dimensions).
+      Key k7{"gemm:fp32:1024x1024x1024", "fpA", "th1"};
+      const auto hit7 = ledger->lookup(k7);
+      assert(hit7.has_value() && hit7->best.tile_m == 128 &&
+             hit7->best.tile_n == 128);
+      Key k4{"gemm:fp32:4096x4096x4096", "fpA", "th3"};
+      const auto hit4 = ledger->lookup(k4);
+      assert(hit4.has_value() && hit4->best.tile_m == 0 &&
+             hit4->best.tile_n == 0);
+    }
+    std::remove(jsonl);
+
+    // calibrated_link_bw: synthetic rows with an exactly known byte model.
+    // GEMM fp32 1024^3 -> bytes = 3 * 1024^2 * 4 = 12582912.
+    //   row1: copy_ms = 2.0 - 0.5 = 1.5  -> 8.388608 GB/s
+    //   row2: copy_ms = 3.0 - 0.5 = 2.5  -> 5.0331648 GB/s
+    //   row3: kernel_ms = 0 -> no reference, skipped
+    //   row4: measured <= kernel -> no copy time, skipped
+    // Median of the two usable rows (even count) = their mean = 6.7108864.
+    std::vector<MeasuredRow> rows(4);
+    for (auto& r : rows) r.op_sig = "gemm:fp32:1024x1024x1024";
+    rows[0].measured_ms = 2.0; rows[0].kernel_ms = 0.5;
+    rows[1].measured_ms = 3.0; rows[1].kernel_ms = 0.5;
+    rows[2].measured_ms = 2.0; rows[2].kernel_ms = 0.0;
+    rows[3].measured_ms = 0.4; rows[3].kernel_ms = 0.5;
+    std::string detail;
+    const double bw = calibrated_link_bw(rows, &detail);
+    assert(bw > 6.7108 && bw < 6.7109);
+    assert(detail.find("usable_rows=2") != std::string::npos);
+    assert(calibrated_link_bw({}) == 0.0);
+    // Applying calibration happens OUTSIDE solve (P1 stays pure): a
+    // calibrated HCS adopts the measured constant, bumps the version, and
+    // the next solve reports the new provenance. The copy term grows when
+    // the real link is slower than the official constant — that is the
+    // prediction moving toward the measurement.
+    const Hcs base = discrete_hcs(int64_t(8) << 30, 512);
+    const KmlTree t;  // demo 4096^3: bytes = 3 * 4096^2 * 4 = 201326592
+    const double c_before = solve(base, t).c_ms;
+    Hcs cal = base;
+    cal.link_bw_gbps = bw;
+    cal.constants_version = base.constants_version + 1;
+    const Solution after = solve(cal, t);
+    assert(after.constants_version == 2);
+    assert(after.c_ms > c_before);
+    // Export -> import round-trips the calibrated HCS (constants_version,
+    // toolchain, tiers) and the fingerprint is provenance-independent.
+    const std::string json = hcs_export(cal);
+    const auto back = hcs_import(json);
+    assert(back.has_value());
+    assert(back->constants_version == 2);
+    assert(back->link_bw_gbps == bw);
+    assert(back->toolchain == cal.toolchain);
+    assert(hcs_fingerprint(*back) == hcs_fingerprint(cal));
+    // constants_version is optional provenance: absent -> 1, and two HCS
+    // differing only in version share one fingerprint (same hardware).
+    const std::string j1 =
+        "{\"vendor\":\"amd\",\"device\":\"d\",\"link_bw_gbps\":32,"
+        "\"flops_gflops\":22000,\"compute_units\":36,\"tiers\":[{\"name\":"
+        "\"vram\",\"bytes\":8589934592,\"bw_gbps\":512}]}";
+    const std::string j3 =
+        "{\"vendor\":\"amd\",\"device\":\"d\",\"link_bw_gbps\":32,"
+        "\"flops_gflops\":22000,\"compute_units\":36,\"constants_version\":3,"
+        "\"tiers\":[{\"name\":\"vram\",\"bytes\":8589934592,\"bw_gbps\":512}]}";
+    const auto h1 = hcs_import(j1);
+    const auto h3 = hcs_import(j3);
+    assert(h1.has_value() && h1->constants_version == 1);
+    assert(h3.has_value() && h3->constants_version == 3);
+    assert(hcs_fingerprint(*h1) == hcs_fingerprint(*h3));
+    std::cout << "[CAL] file-ledger formats + measured->link-bw median + "
+              << "version bump + export round-trip OK\n";
   }
 
   // ---------------- R8: explicit placement records (R8.1, R8.6) ------------

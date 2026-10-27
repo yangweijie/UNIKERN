@@ -97,3 +97,19 @@ Phase 0-8 全部完成。剩余真机项（Apple Metal / Intel OpenCL 的编译�
 - [x] docs/acceptance-mvp.md v3：R6/R7/R8 证据块刷新 + 审计补遗一节；三份转录与
       ledger_dump.txt、README 复现命令同步；task_plan 增 E13；findings 见下
 - [x] commit（src/main.cpp + docs + evidence + 规划文件）
+
+## Session 2026-10-27（v4 校准闭环 — G2/G3 闭合）
+- [x] G2 闭合：`Hcs.constants_version` 随 HCS 透传（solver stub 移除，P1 保持纯函数）；
+  `ILedger::measured_rows(fp)` + `commit(key, sol, measured, kernel_ms)`（SQLite
+  PRAGMA 迁移加列 / .jsonl 7 字段格式，双向兼容旧格式行）；`calibrated_link_bw`
+  = compulsory bytes/(measured−kernel) 的确定性中位数；`hcs_export`（max_digits10，
+  E4 教训复用——首版 6 位精度被单测当场抓住）往返 hcs_import；CLI 新增 `calibrate`
+- [x] G3 闭合：三后端产物头 `toolchain=<hcs.toolchain>`（R5.3 完全符合）
+- [x] 验收单测扩充：[CAL] 段（三种账本行格式 + 中位数合成用例 + 版本透传 + 导出往返
+  + 指纹与版本无关）；R3 版本透传断言；R5 toolchain 头断言；R7 kernel_ms 往返
+- [x] 真机校准闭环（RX 6600M）：run（ε_rel=4.83）→ calibrate（32→5.429 GB/s，v1→2）
+  → 校准后 run：predicted 2.415ms vs measured 2.707ms，**ε_rel=0.12**
+- [x] docs/acceptance-mvp.md v4：R3/R5/R7 矩阵行与章节刷新，G2/G3 标记闭合，
+  校准闭环补遗一节；证据新增 calibrate.txt / run_calibrated.txt / hcs_amd.calibrated.json，
+  solve_emit + emit 三源 + ledger_dump 同步刷新（含 kernel_ms 列）
+- [x] ctest 2/2 全绿；commit（11 源文件 + 文档 + 证据 + 规划）

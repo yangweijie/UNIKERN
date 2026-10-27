@@ -96,7 +96,8 @@ std::string placement_record(const Instance& x, const Hcs& h) {
 
 Solution solve(const Hcs& hcs, const KmlTree& tree) {
   Solution s;
-  s.constants_version = 1;
+  s.constants_version = hcs.constants_version;  // R3.3: provenance follows
+                                                // the constants actually used
 
   const Workload w = workload_of(tree);
   const std::vector<Instance> cands = sketch(hcs, tree);
@@ -133,6 +134,64 @@ Solution solve(const Hcs& hcs, const KmlTree& tree) {
     s.placement_record = placement_record(s.best, hcs);
   }
   return s;
+}
+
+// R7.3 calibration: effective scenario-B link bandwidth from measured rows.
+// The modelled compulsory bytes come from workload_of on a tree reconstructed
+// from the op signature; note op_signature records only dims[0..2], so a
+// Conv row reconstructs with the default Kh/Kw/Oc — the MVP calibrates on
+// GEMM rows, where the model is exact. Median across rows (even count: mean
+// of the two middles) keeps the aggregate deterministic and outlier-robust.
+double calibrated_link_bw(const std::vector<MeasuredRow>& rows,
+                          std::string* detail) {
+  std::vector<double> bws;
+  std::ostringstream log;
+  for (const auto& r : rows) {
+    if (r.measured_ms <= 0 || r.kernel_ms <= 0 || r.measured_ms <= r.kernel_ms)
+      continue;  // unusable row: no kernel reference or no copy time at all
+    const size_t c1 = r.op_sig.find(':');
+    const size_t c2 = c1 == std::string::npos ? std::string::npos
+                                              : r.op_sig.find(':', c1 + 1);
+    if (c2 == std::string::npos) continue;
+    const auto op = op_from_string(r.op_sig.substr(0, c1));
+    const auto dt = dtype_from_string(r.op_sig.substr(c1 + 1, c2 - c1 - 1));
+    if (!op || !dt) continue;
+    KmlTree t;
+    t.op = *op;
+    t.dtype = *dt;
+    const std::string dim_txt = r.op_sig.substr(c2 + 1);
+    try {
+      size_t p = 0;
+      for (int i = 0; i < 6; ++i) {
+        const size_t x = dim_txt.find('x', p);
+        t.dims[i] = std::stoi(dim_txt.substr(
+            p, x == std::string::npos ? std::string::npos : x - p));
+        if (x == std::string::npos) break;
+        p = x + 1;
+      }
+    } catch (...) {
+      continue;  // malformed dims in the signature: skip the row
+    }
+    const Workload w = workload_of(t);
+    if (w.bytes <= 0) continue;
+    const double copy_ms = r.measured_ms - r.kernel_ms;
+    const double bw = double(w.bytes) / (copy_ms * 1e6);  // bytes/(ms*1e6)=GB/s
+    bws.push_back(bw);
+    log << r.op_sig << " bytes=" << w.bytes << " copy_ms=" << copy_ms
+        << " eff_bw=" << bw << "GB/s; ";
+  }
+  if (bws.empty()) {
+    if (detail) *detail = "no usable rows (need measured_ms > kernel_ms > 0)";
+    return 0;
+  }
+  std::sort(bws.begin(), bws.end());
+  const double med = bws.size() % 2 == 1
+                         ? bws[bws.size() / 2]
+                         : 0.5 * (bws[bws.size() / 2 - 1] + bws[bws.size() / 2]);
+  if (detail)
+    *detail = "usable_rows=" + std::to_string(bws.size()) +
+              " median_link_bw=" + std::to_string(med) + "GB/s [" + log.str() + "]";
+  return med;
 }
 
 }  // namespace unikern

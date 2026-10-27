@@ -1,6 +1,6 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8
 
-- 日期：2026-10-27（独立复核修订版 v2：修复三项测试覆盖缺口，证据产物入库；**v3 收尾审计：修复 ε 实算缺陷并重采真机证据，见文末补遗**）
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；**v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合**）
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
@@ -23,11 +23,11 @@
 |------|----------|----------|------|
 | R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝 | `ctest` acceptance `[R1]`；结构等价树同串、异树异串 | 🟡（R1.2 结构校验缺口，见下） |
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
-| R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 | `[R3] C bitwise-stable over 10^4 repeats` | ✅（版本号机制为 stub，见下） |
+| R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
-| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹 + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce` | 🟡（AMD 构件 ✅；MSL/OpenCL 构件 ⛔ 真机） |
+| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce toolchain=rocm-7.13` | 🟡（AMD 构件 ✅；MSL/OpenCL 构件 ⛔ 真机） |
 | R6 差分验证 | 单测：容差函数 verify_fp32 五路径；真机：生成程序自带 CPU 对拍（2⁻⁵）+ CLI run | `[R6] fp32 graded tolerance ... OK`；`verified=PASS max_rel=0`（1024³ 与 32768³ 两档） | 🟡（AMD ✅；Apple/Intel ⛔ 真机） |
-| R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复；CLI 二次 run | `LEDGER HIT ... (from ledger)`；`[R7] crash mid-transaction ... OK` | ✅ |
+| R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环 | `LEDGER HIT ...`；`[R7] crash ...`；`[CAL] ...`；`CALIBRATED link_bw 32 -> 5.429` | ✅ |
 | R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s | 🟡（AMD ✅；Apple 真机 ⛔） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
 | R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends` | `[R10] ... vendor-API isolation OK`；`amd yes / apple no / intel no`（诚实探测） | 🟡（语义 ✅；Intel 真机 ⛔） |
@@ -86,7 +86,12 @@ $ ./build/unikern_acceptance.exe
 [R3] C bitwise-stable over 10^4 repeats + HCS constants adopted OK
 ```
 
-**状态：✅ 本机已验（附如实注记）**。R3.2 完整通过。R3.3 的"采用新常量"已验；"常量版本号"字段存在且随解报告（生成产物头部也带 `constants_v=1`），但**版本号自增机制是 stub**（`src/solver.cpp:99` 恒为 1），HCS 无版本演进通道——版本号递增留待校准流水线（R7.3 常量回写）接入时补。
+**状态：✅ 本机已验**。R3.2 完整通过。R3.3 完整通过（v4）：版本号随 HCS 透传
+（`solve` 报告所用 HCS 的 `constants_version`，`src/solver.cpp`），自增机制在
+calibration 流程里——`calibrate` 子命令从实测行导出校准 HCS 时 `constants_version`
++1（真机实测：1 → 2，`docs/evidence/phase8/calibrate.txt`），下次求解采用新常量并
+报告新版本。P1 确定性不受影响：`solve` 仍是 (hcs, tree) 的纯函数，账本状态只在
+calibration（构造新 HCS 文件）时进入系统。
 
 ### R4 — 唯一最优解求解器
 
@@ -131,7 +136,9 @@ $ head -2 uk_evidence/emit/uk_amd.cpp
 
 （`uk_apple.metal`、`uk_intel.cl` 头部同样携带 `fp=8039464947ce`。）
 
-**状态：🟡 部分已验**。R5.1（独立生成 + 仅 KML/HCS 输入）与 R5.3 的 HCS 指纹本机已验；指纹注记：生成头部记录 HCS 指纹 + `constants_v` 常量版本指纹，**HCS 的 `toolchain` 字段本身未进入产物头**（见 findings 缺口表）。R5.2 分后端：AMD 完整可运行程序已在本机真编译真执行（见 R6/R7 证据）；MSL / OpenCL C 为库形态内核源，**编译执行需用户 Mac / Intel 机器，⛔ 真机受阻**（产物自带 R8 honesty 注释说明此边界，`src/codegen_other.cpp:37-39`）。
+**状态：🟡 部分已验**。R5.1（独立生成 + 仅 KML/HCS 输入）与 R5.3 本机已验：生成头部
+记录 HCS 指纹 + `toolchain=`（v4 闭合 G3，`toolchain=rocm-7.13`）+ `constants_v` 常量
+版本指纹。R5.2 分后端：AMD 完整可运行程序已在本机真编译真执行（见 R6/R7 证据）；MSL / OpenCL C 为库形态内核源，**编译执行需用户 Mac / Intel 机器，⛔ 真机受阻**（产物自带 R8 honesty 注释说明此边界，`src/codegen_other.cpp`）。
 
 ### R6 — 正确性差分验证
 
@@ -185,6 +192,10 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.5866 epsilon_abs=2.09577 epsil
 账本行转储（`ledger_dump.txt`，python sqlite3 直读）证实 R7.3 实测回写：`gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b | c_ms=0.4908288930909091 | measured_ms=2.5866 | tm=128 | tn=128 | placement=...`。
 
 **状态：✅ 本机已验**（SQLite amalgamation 3.47.2 静态库；`.jsonl` 文件账本为兼容保留）。
+R7.3 的"回写并用于校准"完整闭环（v4）：`run` 把实测 ms 与 kernel_ms 参考一并入库
+（SQLite 迁移列 / `.jsonl` 7 字段格式，两种账本都向后兼容旧格式行），`calibrate`
+子命令读取该 HCS 指纹下的实测行、按"compulsory bytes / (measured − kernel)"算每行
+有效互联带宽、取确定性中位数导出校准 HCS——真机数字见文末校准补遗。
 
 ### R8 — 多级存储与显式流式调度（场景 A / 场景 B）
 
@@ -256,8 +267,8 @@ intel     intel:ocl     no        source-gen ready (Phase 5 full)
 | # | 缺口 | 影响 | 去向 |
 |---|------|------|------|
 | G1 | KML 无文本解析器，R1.2 结构校验无用户入口 | R1.2 仅类型名拒绝落地 | KML 文本前端（V1） |
-| G2 | `constants_version` 恒 1（stub） | R3.3 版本号字段在、递增机制缺 | R7.3 校准回写接入时补 |
-| G3 | 生成产物头未含 HCS `toolchain` 字段 | R5.3 工具链版本指纹以 `constants_v` + HCS 指纹近似 | 产物头加 `toolchain=` 一行（低成本） |
+| G2 | ~~`constants_version` 恒 1（stub）~~ **已闭合（v4）** | — | `calibrate` 递增版本号，实测 1→2 |
+| G3 | ~~生成产物头未含 HCS `toolchain` 字段~~ **已闭合（v4）** | — | 产物头 `toolchain=rocm-7.13`（三后端一致） |
 | G4 | Apple / Intel 真机执行与对拍 | R5.2/R6/R8 的对应后端项 | 用户 Mac / Intel 机器执行本报告同款命令 |
 | G5 | R8.5 运行时缺页迁移率监测器 | 仅显式路径 + 模式自选落地 | 真机长测（AMD 可做，未列入 MVP 单测） |
 
@@ -278,8 +289,35 @@ intel     intel:ocl     no        source-gen ready (Phase 5 full)
 层级常量"要吃的校准信号本身**，按实测报告、不做修饰。双缓冲重叠结论不受影响：
 streamed 端到端（55.4s）仍显著低于串行内核参考（71.4s）。
 
+## 校准闭环补遗（v4，2026-10-27）
+
+R7.3"实测回写**并用于校准** C 的层级常量"与 R3.3"记录常量版本号"在真机上闭环：
+
+```
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 1024 1024 1024 --ledger uk_evidence/cal.sqlite3 ...
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.860180 kernel_ms=0.542460 ...
+LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.86018 epsilon_abs=2.36935 epsilon_rel=4.82724
+
+$ ./build/unikern.exe calibrate --hcs samples/hcs_amd.json --ledger uk_evidence/cal.sqlite3 --out docs/evidence/phase8/hcs_amd.calibrated.json
+CALIBRATED link_bw_gbps 32 -> 5.429 constants_version 1 -> 2
+usable_rows=1 median_link_bw=5.429004GB/s [gemm:fp32:1024x1024x1024 bytes=12582912 copy_ms=2.31772 eff_bw=5.429GB/s; ]
+PREDICTED demo c_ms 12.5387 -> 43.3307
+
+$ ./build/unikern.exe run --hcs docs/evidence/phase8/hcs_amd.calibrated.json --dims 1024 1024 1024 ...
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.707170 kernel_ms=0.569090 ...
+LEDGER COMMIT predicted_ms=2.41533 measured_ms=2.70717 epsilon_abs=0.291837 epsilon_rel=0.120827
+```
+
+解读（口径如实）：样例 HCS 的互联带宽常量 32 GB/s 是标称值，实测有效值只有
+**5.43 GB/s**（差 5.9 倍）——这正是校准前 ε_rel=4.8 的全部来源。校准把 C(x) 的
+拷贝项修正到真实链路后，同一负载的预测 2.415ms 对实测 2.707ms，**ε_rel 收敛到
+0.12**；对拍（max_rel=0）与双缓冲结论均不受影响。`calibrate` 只消费账本实测行、
+产出新 HCS 文件——`solve` 保持 (hcs, tree) 纯函数（P1/R4.2 不被账本状态污染），
+常量演进以 `constants_version` 1→2 显式留痕。转录入库：`calibrate.txt`、
+`run_calibrated.txt`、`hcs_amd.calibrated.json`、`ledger_dump.txt`（含 kernel_ms 列）。
+
 ## 真机执行边界（诚实声明）
 
 - 本 session 真机证据全部来自 **AMD RX 6600M（gfx1032）**：1024³ resident、32768³ streamed、账本命中回写，命令与输出均为实际执行结果。
 - **Apple Silicon（Metal）与 Intel Arc B（ocloc / Level Zero）的真机执行超出本机能力**：本机无 macOS、无 Intel 工具链（findings.md Phase 5 探测），对应项只能做到源生成与结构校验，状态一律标 ⛔，不伪造。
-- 上游 session 证据（Phase 6/7 记录）：真机闭环 PASS、账本命中 true、流式演示 mode=streamed；其 ε 数值当时打印的是容差常量（见审计补遗），本 session 已按实算口径重采。
+- 上游 session 证据（Phase 6/7 记录）：真机闭环 PASS、账本命中 true、流式演示 mode=streamed；其 ε 数值当时打印的是容差常量（见审计补遗），v3 已按实算重采，v4 校准闭环后 ε_rel 收敛至 0.12。

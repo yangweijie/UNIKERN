@@ -1,0 +1,3 @@
+CALIBRATED link_bw_gbps 32 -> 5.429 constants_version 1 -> 2
+usable_rows=1 median_link_bw=5.429004GB/s [gemm:fp32:1024x1024x1024 bytes=12582912 copy_ms=2.31772 eff_bw=5.429GB/s; ]
+PREDICTED demo c_ms 12.5387 -> 43.3307

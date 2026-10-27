@@ -1,8 +1,8 @@
 // unikern generated — AMD HIP / RDNA (independent generation, R5.1)
-// hcs=amd/RDNA gfx103x (8GB discrete) fp=8039464947ce constants_v=1
+// hcs=amd/RDNA gfx103x (8GB discrete) fp=8039464947ce toolchain=rocm-7.13 constants_v=1
 // solved tile=128x128 -> emitted block tile=96x96 (clamped for register budget)
 // placement: placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
-// R8: vram_bytes=8589934592 stream_if_payload_gt=7301444403 shard_mb=64MiB (shard_rows=4096) prefetch_d=2
+// R8: vram_bytes=8589934592 stream_if_payload_gt=7301444403 shard_mb=64MiB (shard_rows=4096) prefetch_d=2 (defaults: solution carried no shard params)
 // R8: payload > 2GiB runs 1 warmup + 1 timed pass, else 2 + 10.
 // R8 timing basis: measured_ms = end-to-end per pass (H2D + kernel +
 // D2H, the same byte movement the C(x) copy term charges); kernel_ms is

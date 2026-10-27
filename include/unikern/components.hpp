@@ -24,15 +24,40 @@ std::vector<std::unique_ptr<IBackend>> make_backends();
 // R2-R4: deterministic solve. Pure function of (hcs, tree) => P1.
 Solution solve(const Hcs& hcs, const KmlTree& tree);
 
-// R9: HCS import with complete missing-field reporting.
+// R9: HCS import with complete missing-field reporting; export emits the
+// same flat JSON (round-trips through hcs_import, used by calibration).
 std::optional<Hcs> hcs_import(const std::string& json, std::string* err = nullptr);
+std::string hcs_export(const Hcs& h);
 std::string hcs_fingerprint(const Hcs& h);
+
+// R7.3 calibration source: measured timings recorded by real runs.
+struct MeasuredRow {
+  std::string op_sig;      // carries the dims, e.g. "gemm:fp32:1024x1024x1024"
+  double c_ms = 0;         // C(x) predicted at record time
+  double measured_ms = 0;  // end-to-end per pass
+  double kernel_ms = 0;    // kernel-only reference (rows without it are
+                           // skipped by calibration: copy time unknowable)
+};
+
+// R7.3/R3.3: calibrate the scenario-B link constant from measured rows.
+// For each usable row, copy_ms = measured_ms - kernel_ms and the effective
+// link bandwidth is the modelled compulsory bytes over that copy time; the
+// aggregate is the deterministic median across rows. Returns 0 when no row
+// is usable. solve() itself stays a pure function of (hcs, tree) — callers
+// apply the result by building a calibrated HCS, which also bumps
+// constants_version (P1 determinism is never fed ledger state).
+double calibrated_link_bw(const std::vector<MeasuredRow>& rows,
+                          std::string* detail = nullptr);
 
 // R7: ledger (Phase 6 swaps the file implementation for SQLite, P5).
 struct ILedger {
   virtual ~ILedger() = default;
   virtual std::optional<Solution> lookup(const Key& key) = 0;
-  virtual void commit(const Key& key, const Solution& sol, double measured_ms) = 0;
+  // kernel_ms: kernel-only reference from the UNIKERN_RESULT line (0 when
+  // the backend did not report one) — the calibration row's copy-time input.
+  virtual void commit(const Key& key, const Solution& sol, double measured_ms,
+                      double kernel_ms = 0) = 0;
+  virtual std::vector<MeasuredRow> measured_rows(const std::string& hcs_fp) = 0;
   virtual int size() const = 0;
 };
 std::unique_ptr<ILedger> make_file_ledger(const std::string& path);

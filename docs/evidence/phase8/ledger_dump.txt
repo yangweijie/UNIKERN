@@ -1,4 +1,3 @@
-== uk_evidence/audit.sqlite3 (1 rows) ==
-gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b | 0.4908288930909091 | 2.5866 | 128 | 128 | placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
-== uk_evidence/stream.sqlite3 (1 rows) ==
-gemm:fp32:32768x32768x32768|8039464947ce283c|6a3b610f5b94c858 | 3601.232464802909 | 55354.097656 | 128 | 128 | placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+== uk_evidence/cal.sqlite3 (2 rows) ==
+gemm:fp32:1024x1024x1024|8039464947ce283c|cbe87f0b3467756b | 0.4908288930909091 | 2.86018 | 0.54246 | 128 | 128 | placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+gemm:fp32:1024x1024x1024|06a9b5118d885151|cbe87f0b3467756b | 2.415332893090909 | 2.70717 | 0.56909 | 128 | 128 | placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=5.429GB/s)

@@ -1,5 +1,5 @@
-RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.84178
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.86018
 -- log tail --
 offload-arch: gfx1032
-UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.841780 kernel_ms=0.553284 mode=resident payload_mb=12.000000 perf=1024x1024x1024
-LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.84178 epsilon_abs=2.35095 epsilon_rel=4.78976
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.860180 kernel_ms=0.542460 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.86018 epsilon_abs=2.36935 epsilon_rel=4.82724

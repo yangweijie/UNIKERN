@@ -72,6 +72,7 @@ std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlT
   o << "// unikern generated — AMD HIP / RDNA (independent generation, R5.1)" << '\n'
     << "// hcs=" << hcs.vendor << "/" << hcs.device
     << " fp=" << hcs_fingerprint(hcs).substr(0, 12)
+    << " toolchain=" << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain)
     << " constants_v=" << sol.constants_version << '\n'
     << "// solved tile=" << sol.best.tile_m << "x" << sol.best.tile_n
     << " -> emitted block tile=" << tile.tm << "x" << tile.tn

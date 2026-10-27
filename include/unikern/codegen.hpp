@@ -26,6 +26,7 @@ struct RunOutcome {
   bool verified = false;
   double max_rel = 0;
   double measured_ms = 0;
+  double kernel_ms = 0;  // kernel-only reference from the result line
   std::string log;
 };
 // Compile + execute a HIP program with hipcc; parse the result line.

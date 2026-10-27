@@ -44,6 +44,20 @@ public:
     exec("CREATE TABLE IF NOT EXISTS solutions("
          "key TEXT PRIMARY KEY, op_sig TEXT, hcs_fp TEXT, tree_hash TEXT, "
          "c_ms REAL, measured_ms REAL, tm INTEGER, tn INTEGER, placement TEXT)");
+    // Calibration schema (kernel_ms column, R7.3): migrate older databases.
+    sqlite3_stmt* st = nullptr;
+    bool has_kernel = false;
+    if (sqlite3_prepare_v2(db_, "PRAGMA table_info(solutions)", -1, &st,
+                           nullptr) == SQLITE_OK) {
+      while (sqlite3_step(st) == SQLITE_ROW) {
+        const unsigned char* name = sqlite3_column_text(st, 1);
+        if (name && std::string(reinterpret_cast<const char*>(name)) ==
+                        "kernel_ms")
+          has_kernel = true;
+      }
+      sqlite3_finalize(st);
+    }
+    if (!has_kernel) exec("ALTER TABLE solutions ADD COLUMN kernel_ms REAL NOT NULL DEFAULT 0");
   }
 
   ~SqliteLedger() override { sqlite3_close(db_); }
@@ -76,13 +90,15 @@ public:
     return out;
   }
 
-  void commit(const Key& key, const Solution& sol, double measured_ms) override {
+  void commit(const Key& key, const Solution& sol, double measured_ms,
+              double kernel_ms) override {
     exec("BEGIN IMMEDIATE");  // R7.4: all-or-nothing against interrupts
     sqlite3_stmt* st = nullptr;
     if (sqlite3_prepare_v2(db_,
                            "INSERT OR REPLACE INTO solutions(key, op_sig, "
                            "hcs_fp, tree_hash, c_ms, measured_ms, tm, tn, "
-                           "placement) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                           "placement, kernel_ms) "
+                           "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
                            -1, &st, nullptr) != SQLITE_OK) {
       const std::string msg = sqlite3_errmsg(db_);
       exec("ROLLBACK");
@@ -99,6 +115,7 @@ public:
     sqlite3_bind_int(st, 8, sol.best.tile_n);
     sqlite3_bind_text(st, 9, sol.placement_record.c_str(), -1,
                       SQLITE_TRANSIENT);
+    sqlite3_bind_double(st, 10, kernel_ms);  // R7.3 calibration input
     const int rc = sqlite3_step(st);
     sqlite3_finalize(st);
     if (rc != SQLITE_DONE) {
@@ -107,6 +124,30 @@ public:
       throw std::runtime_error("sqlite ledger commit step: " + msg);
     }
     exec("COMMIT");
+  }
+
+  std::vector<MeasuredRow> measured_rows(const std::string& hcs_fp) override {
+    std::vector<MeasuredRow> out;
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "SELECT op_sig, c_ms, measured_ms, kernel_ms FROM "
+                           "solutions WHERE hcs_fp = ?1 AND measured_ms > 0 "
+                           "ORDER BY rowid",
+                           -1, &st, nullptr) != SQLITE_OK) {
+      return out;  // unreadable db: no calibration material
+    }
+    sqlite3_bind_text(st, 1, hcs_fp.c_str(), -1, SQLITE_TRANSIENT);
+    while (sqlite3_step(st) == SQLITE_ROW) {
+      MeasuredRow r;
+      const unsigned char* sig = sqlite3_column_text(st, 0);
+      r.op_sig = sig ? reinterpret_cast<const char*>(sig) : "";
+      r.c_ms = sqlite3_column_double(st, 1);
+      r.measured_ms = sqlite3_column_double(st, 2);
+      r.kernel_ms = sqlite3_column_double(st, 3);
+      out.push_back(r);
+    }
+    sqlite3_finalize(st);
+    return out;
   }
 
   int size() const override {

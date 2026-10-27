@@ -1,5 +1,5 @@
 // unikern generated — OpenCL C (Intel Xe -> SPIR-V via ocloc)
-// hcs=amd/RDNA gfx103x (8GB discrete) fp=8039464947ce
+// hcs=amd/RDNA gfx103x (8GB discrete) fp=8039464947ce toolchain=rocm-7.13
 // solved tile=128x128 -> emitted 96x96 (clamped)
 // placement: placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
 // R8.1: on scenario A targets (unified memory) execution is zero-copy

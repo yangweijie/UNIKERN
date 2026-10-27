@@ -3,8 +3,11 @@
 // (R6).
 // NOTE: ledger key is a 3-part composite ("op|hcs|tree"); the field separator
 // is TAB, because '|' occurs inside the key itself (E3).
-// Line format since Phase 6 (6 fields):
-//   key TAB c_ms TAB measured_ms TAB tm TAB tn TAB placement
+// Line format since calibration (7 fields):
+//   key TAB c_ms TAB measured_ms TAB kernel_ms TAB tm TAB tn TAB placement
+// Phase 6 format (6 fields): key TAB c_ms TAB measured_ms TAB tm TAB tn TAB
+//   placement — lookups resolve it with kernel_ms 0 (rows without a kernel
+//   reference cannot be calibrated).
 // Legacy format (Phases 2-5, 4 fields): key TAB c_ms TAB measured_ms TAB
 //   placement — lookups resolve it with tile dimensions 0 (no tiles recorded).
 #include "unikern/components.hpp"
@@ -49,7 +52,16 @@ public:
       } catch (...) {
         continue;  // corrupt line: skip rather than surface a bad solution
       }
-      if (f.size() >= 6) {
+      if (f.size() >= 7) {  // calibration format: kernel_ms at field 3
+        try {
+          s.best.tile_m = std::stoi(f[4]);
+          s.best.tile_n = std::stoi(f[5]);
+        } catch (...) {
+          s.best.tile_m = 0;
+          s.best.tile_n = 0;
+        }
+        s.placement_record = f[6];
+      } else if (f.size() >= 6) {
         try {
           s.best.tile_m = std::stoi(f[3]);
           s.best.tile_n = std::stoi(f[4]);
@@ -69,12 +81,56 @@ public:
     return std::nullopt;
   }
 
-  void commit(const Key& key, const Solution& sol, double measured_ms) override {
+  // Split the composite key "op_sig|hcs_fp|tree_hash" ('|' appears only as
+  // the part separator, E3).
+  static bool split_key(const std::string& composite, std::string parts[3]) {
+    const size_t p1 = composite.find('|');
+    if (p1 == std::string::npos) return false;
+    const size_t p2 = composite.find('|', p1 + 1);
+    if (p2 == std::string::npos) return false;
+    parts[0] = composite.substr(0, p1);
+    parts[1] = composite.substr(p1 + 1, p2 - p1 - 1);
+    parts[2] = composite.substr(p2 + 1);
+    return true;
+  }
+
+  std::vector<MeasuredRow> measured_rows(const std::string& hcs_fp) override {
+    std::vector<MeasuredRow> out;
+    std::ifstream in(path_);
+    std::string line;
+    while (std::getline(in, line)) {
+      std::vector<std::string> f;
+      size_t pos = 0;
+      while (true) {
+        const size_t tab = line.find(kSep, pos);
+        f.push_back(line.substr(pos, tab));
+        if (tab == std::string::npos) break;
+        pos = tab + 1;
+      }
+      if (f.size() < 4) continue;
+      std::string parts[3];
+      if (!split_key(f[0], parts) || parts[1] != hcs_fp) continue;
+      MeasuredRow r;
+      r.op_sig = parts[0];
+      try {
+        r.c_ms = std::stod(f[1]);
+        r.measured_ms = std::stod(f[2]);
+        if (f.size() >= 7) r.kernel_ms = std::stod(f[3]);
+      } catch (...) {
+        continue;  // corrupt row: not calibration material
+      }
+      if (r.measured_ms > 0) out.push_back(r);
+    }
+    return out;
+  }
+
+  void commit(const Key& key, const Solution& sol, double measured_ms,
+              double kernel_ms) override {
     std::ofstream out(path_, std::ios::app);
     out.precision(std::numeric_limits<double>::max_digits10);  // exact round-trip
     out << key_str(key) << kSep << sol.c_ms << kSep << measured_ms << kSep
-        << sol.best.tile_m << kSep << sol.best.tile_n << kSep
-        << sol.placement_record << "\n";
+        << kernel_ms << kSep << sol.best.tile_m << kSep << sol.best.tile_n
+        << kSep << sol.placement_record << "\n";
     out.flush();
   }
 

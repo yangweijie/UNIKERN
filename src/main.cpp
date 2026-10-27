@@ -276,13 +276,77 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
     std::cout << "VERIFY PASS (no ledger write)\n";
     return 0;
   }
-  ledger->commit(key, sol, r.measured_ms);  // R7.3: measured time into ledger
+  ledger->commit(key, sol, r.measured_ms, r.kernel_ms);  // R7.3: measured
+                                                         // time + kernel
+                                                         // reference into ledger
   const double epsilon_abs = std::fabs(r.measured_ms - sol.c_ms);
   const double epsilon_rel = epsilon_abs / std::max(sol.c_ms, 1e-9);
   std::cout << "LEDGER COMMIT predicted_ms=" << sol.c_ms
             << " measured_ms=" << r.measured_ms
             << " epsilon_abs=" << epsilon_abs
             << " epsilon_rel=" << epsilon_rel << "\n";
+  return 0;
+}
+
+// R7.3 + R3.3 calibration closure: read the measured rows recorded under
+// this HCS's fingerprint, derive the effective scenario-B link bandwidth
+// (deterministic median over rows), and export a calibrated HCS whose
+// constants_version is bumped. solve() stays pure — calibration happens
+// outside it, on HCS data; the next solve against the calibrated file
+// adopts the new constant and reports the new version.
+static int cmd_calibrate(int argc, char** argv) {
+  Options o;
+  std::string out_path;
+  const char* usage =
+      "usage: unikern calibrate --hcs <file.json> --ledger <l> [--out f.json]\n";
+  for (int i = 0; i < argc; ++i) {
+    const std::string a = argv[i];
+    if (a == "--hcs" && i + 1 < argc) o.hcs_path = argv[++i];
+    else if (a == "--ledger" && i + 1 < argc) o.ledger = argv[++i];
+    else if (a == "--out" && i + 1 < argc) out_path = argv[++i];
+  }
+  if (o.hcs_path.empty()) {
+    std::cerr << usage;
+    return 2;
+  }
+  auto hcs = load_hcs(o.hcs_path);
+  if (!hcs) return 2;
+  auto ledger = make_ledger(o.ledger);
+  const std::string fp = hcs_fingerprint(*hcs);
+  const std::vector<MeasuredRow> rows = ledger->measured_rows(fp);
+  if (rows.empty()) {
+    std::cerr << "CALIBRATE SKIP: no measured rows for hcs_fp=" << fp.substr(0, 8)
+              << " (run first, then calibrate)\n";
+    return 3;
+  }
+  std::string detail;
+  const double bw = calibrated_link_bw(rows, &detail);
+  if (bw <= 0) {
+    std::cerr << "CALIBRATE SKIP: " << detail << "\n";
+    return 3;
+  }
+  Hcs calibrated = *hcs;
+  calibrated.link_bw_gbps = bw;
+  calibrated.constants_version = hcs->constants_version + 1;
+  const std::string json = hcs_export(calibrated);
+  if (out_path.empty()) {
+    std::cout << json;
+  } else {
+    std::ofstream out(out_path, std::ios::binary);
+    if (!out) {
+      std::cerr << "cannot write " << out_path << "\n";
+      return 2;
+    }
+    out << json;
+  }
+  const KmlTree tree = demo_tree(o);
+  const double c_before = solve(*hcs, tree).c_ms;
+  const double c_after = solve(calibrated, tree).c_ms;
+  std::cout << "CALIBRATED link_bw_gbps " << hcs->link_bw_gbps << " -> " << bw
+            << " constants_version " << hcs->constants_version << " -> "
+            << calibrated.constants_version << "\n"
+            << detail << "\n"
+            << "PREDICTED demo c_ms " << c_before << " -> " << c_after << "\n";
   return 0;
 }
 
@@ -320,6 +384,7 @@ int main(int argc, char** argv) {
               << "  solve --hcs f.json [--ledger f] [--emit dir] [--dims M N K] [--selfcheck]\n"
               << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]\n"
               << "  verify --hcs f.json [--workdir dir] [--dims M N K]  (= run, no ledger write)\n"
+              << "  calibrate --hcs f.json --ledger l [--out f.json]  (R7.3: measured -> link bw)\n"
               << "  hcs <f.json> | backends | ledger\n"
               << "  ledger paths: *.jsonl = file ledger, else SQLite (default "
               << kDefaultLedger << ")\n";
@@ -331,6 +396,7 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[1], "backends")) return cmd_backends();
     if (!std::strcmp(argv[1], "run")) return cmd_run(argc - 2, argv + 2, true);
     if (!std::strcmp(argv[1], "verify")) return cmd_run(argc - 2, argv + 2, false);
+    if (!std::strcmp(argv[1], "calibrate")) return cmd_calibrate(argc - 2, argv + 2);
     if (!std::strcmp(argv[1], "ledger")) {
       std::cout << "ledger entries: " << make_ledger(kDefaultLedger)->size()
                 << "\n";

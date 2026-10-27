@@ -32,6 +32,13 @@ Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 | Ledger 写入实测 ms 并报告 ε = \|C − T\| | done（SQLite 账本；收尾审计修正 ε 为实算——首版误打容差常量，见 E13；1024³ ε_rel=4.79，32768³ ε_rel=14.37） |
 | Phase 8 验收：tests/acceptance.cpp（R1-R10 CPU 项）+ docs/acceptance-mvp.md | done（ctest 2/2 全绿） |
 
+### 缺口闭合（v4，2026-10-27）
+| 缺口 | 状态 |
+|------|------|
+| G2 constants_version stub | **closed**：版本随 HCS 透传 + `calibrate` 递增（真机 1→2）；R7.3 校准闭环（账本实测行→中位数有效互联带宽 32→5.429 GB/s→校准 HCS），ε_rel 4.83→0.12 |
+| G3 产物头无 toolchain | **closed**：三后端产物头 `toolchain=<hcs.toolchain>` |
+| G1 KML 文本解析 / G4 Apple+Intel 真机 / G5 R8.5 迁移监测 | 保留（V1 / 用户硬件 / 真机长测） |
+
 ## Decisions
 | # | 决策 | 状态 |
 |---|------|------|

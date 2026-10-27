@@ -202,6 +202,7 @@ RunOutcome run_hip(const std::string& program, const std::string& workdir) {
   r.verified = field(line, "verify") == "PASS";
   r.max_rel = std::atof(field(line, "max_rel").c_str());
   r.measured_ms = std::atof(field(line, "measured_ms").c_str());
+  r.kernel_ms = std::atof(field(line, "kernel_ms").c_str());
   return r;
 }
 

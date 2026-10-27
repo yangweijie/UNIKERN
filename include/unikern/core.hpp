@@ -51,6 +51,10 @@ struct Hcs {
   int compute_units = 0;
   std::string toolchain;         // version fingerprint tag
   Confidence confidence = Confidence::Official;
+  // R3.3: bumped every time the constants are recalibrated from measured
+  // data (see unikern::calibrate_hcs); provenance only — deliberately NOT
+  // part of hcs_fingerprint, which identifies the modelled hardware.
+  int constants_version = 1;
 
   // Convenience accessors (0 when absent).
   int64_t tier_bytes(const std::string& name) const;
