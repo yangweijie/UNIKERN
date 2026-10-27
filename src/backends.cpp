@@ -28,14 +28,14 @@ public:
   Vendor vendor() const override { return Vendor::Apple; }
   std::string name() const override { return "apple:metal"; }
   bool available() const override {
-#ifdef __APPLE__
-    return true;
+#ifdef UK_HAS_METAL
+    return metal_available();
 #else
-    return false;  // metal compiler is macOS-only; source generation still valid
+    return false;  // Metal framework not linked at build time
 #endif
   }
-  std::string generate(const Solution& s, const Hcs& h, const KmlTree& t) const override {
-    return msl_kernel_source(s, h, t);
+  std::string generate(const Solution& sol, const Hcs& hcs, const KmlTree& tree) const override {
+    return msl_kernel_source(sol, hcs, tree);
   }
 };
 

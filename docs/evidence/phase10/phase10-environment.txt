@@ -1,0 +1,20 @@
+$ cmake -S . -B build-apple -G Ninja -DCMAKE_BUILD_TYPE=Release  (AppleClang 21)
+$ ./build-apple/unikern backends
+vendor    backend      available  note
+amd       amd:hip     no        source-gen ready (Phase 5 full)
+apple     apple:metal     yes        source-gen ready (Phase 5 full)
+intel     intel:ocl     no        source-gen ready (Phase 5 full)
+
+$ sw_vers | grep ProductVersion; uname -m; clang++ --version | head -1
+ProductVersion:		26.6.2
+Machine: arm64
+Apple clang version 21.0.0 (clang-2100.1.1.101)
+
+# Toolchain facts (verified 2026-10-27, not assumed):
+Xcode.app present: yes (but no Xcode SDK — Metal/Foundation link from the CommandLineTools SDK)
+xcrun --sdk macosx --show-sdk-path: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+Metal.framework linked by CMake: METAL_FRAMEWORK:FILEPATH=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework
+Foundation.framework linked by CMake: FOUNDATION_FRAMEWORK:FILEPATH=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Foundation.framework
+CMAKE_BUILD_TYPE:STRING=Release
+CMAKE_OSX_DEPLOYMENT_TARGET: CMAKE_OSX_DEPLOYMENT_TARGET:UNINITIALIZED=11.0
+# Metal runtime JIT: MTLCreateSystemDefaultDevice + newLibraryWithSource (no metal compiler, no meta-cpp needed)

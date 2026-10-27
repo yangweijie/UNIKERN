@@ -42,6 +42,9 @@ struct Options {
   std::string vendor = "amd";  // run/verify execution target (Phase 9)
   int dims[3] = {0, 0, 0};  // dims[0] > 0 => override the demo tree dims
   bool selfcheck = false;
+  // calibrate only: force the R7.3 link-bandwidth derivation on a scenario-A
+  // (unified memory) HCS despite the honesty gate in cmd_calibrate.
+  bool allow_unified_calibrate = false;
 };
 
 // Ledger factory: .jsonl -> file ledger, anything else -> SQLite ledger.
@@ -77,7 +80,7 @@ bool parse_options(int argc, char** argv, Options* o) {
       o->selfcheck = true;
     } else if (a == "--vendor" && i + 1 < argc) {
       o->vendor = argv[++i];
-      if (o->vendor != "amd" && o->vendor != "intel") return false;
+      if (o->vendor != "amd" && o->vendor != "intel" && o->vendor != "apple") return false;
     }
   }
   if (o->dims[0] || o->dims[1] || o->dims[2]) {
@@ -231,7 +234,7 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   Options o;
   const char* usage =
       "usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] "
-      "[--dims M N K] [--vendor amd|intel]\n";
+      "[--dims M N K] [--vendor amd|intel|apple]\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
     std::cerr << usage;
     return 2;
@@ -259,7 +262,7 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   // availability probe decides whether this host can run it; an unavailable
   // backend fails the run with its own honest diagnostic instead of
   // substituting another vendor (R10). The ledger flow below is identical
-  // for both vendors (R6.3: only a verified PASS commits).
+  // for all vendors (R6.3: only a verified PASS commits).
   RunOutcome r;
   const char* backend_name = nullptr;
   if (o.vendor == "intel") {
@@ -269,6 +272,13 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
     }
     r = run_ocl(kernel, sol, *hcs, tree, o.workdir);
     backend_name = "intel:ocl";
+  } else if (o.vendor == "apple") {
+    std::string kernel;
+    for (auto& b : make_backends()) {
+      if (b->vendor() == Vendor::Apple) kernel = b->generate(sol, *hcs, tree);
+    }
+    r = run_metal(kernel, sol, *hcs, tree, o.workdir);
+    backend_name = "apple:metal";
   } else {
     std::string program;
     for (auto& b : make_backends()) {
@@ -317,12 +327,15 @@ static int cmd_calibrate(int argc, char** argv) {
   Options o;
   std::string out_path;
   const char* usage =
-      "usage: unikern calibrate --hcs <file.json> --ledger <l> [--out f.json]\n";
+      "usage: unikern calibrate --hcs <file.json> --ledger <l> [--out f.json]\n"
+      "  scenario-A (unified memory) HCS: refused unless --allow-unified-calibrate\n"
+      "  is passed explicitly (see R7.3 honesty gate).\n";
   for (int i = 0; i < argc; ++i) {
     const std::string a = argv[i];
     if (a == "--hcs" && i + 1 < argc) o.hcs_path = argv[++i];
     else if (a == "--ledger" && i + 1 < argc) o.ledger = argv[++i];
     else if (a == "--out" && i + 1 < argc) out_path = argv[++i];
+    else if (a == "--allow-unified-calibrate") o.allow_unified_calibrate = true;
   }
   if (o.hcs_path.empty()) {
     std::cerr << usage;
@@ -330,6 +343,22 @@ static int cmd_calibrate(int argc, char** argv) {
   }
   auto hcs = load_hcs(o.hcs_path);
   if (!hcs) return 2;
+  // R7.3 honesty gate: calibration derives link bandwidth from
+  // measured_ms − kernel_ms, which is only the host<->device copy time under
+  // scenario B. On a unified-memory target (scenario A) the buffers alias host
+  // memory (zero-copy), so the difference is host-side dispatch overhead, and
+  // a calibrated link_bw_gbps would be a precise-but-meaningless number that
+  // silently misrepresents the memory system. Refuse by default; require an
+  // explicit flag acknowledging the semantics.
+  if (hcs->unified_memory && !o.allow_unified_calibrate) {
+    std::cerr << "CALIBRATE SKIP: scenario A (unified memory, zero-copy) — "
+              << "measured_ms−kernel_ms is host dispatch overhead, not link copy\n"
+              << "              time; calibrating link_bw_gbps from it is a\n"
+              << "              precise-but-meaningless number. link_bw_gbps is a\n"
+              << "              scenario-B constant (unused by unified-path solves).\n"
+              << "              Re-run with --allow-unified-calibrate to force it.\n";
+    return 3;
+  }
   auto ledger = make_ledger(o.ledger);
   const std::string fp = hcs_fingerprint(*hcs);
   const std::vector<MeasuredRow> rows = ledger->measured_rows(fp);
@@ -402,8 +431,8 @@ int main(int argc, char** argv) {
     std::cerr << "unikern (MVP skeleton)\n"
               << "  solve --hcs f.json [--ledger f] [--emit dir] [--dims M N K] [--selfcheck]\n"
               << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]"
-                 " [--vendor amd|intel]\n"
-              << "  verify --hcs f.json [--workdir dir] [--dims M N K] [--vendor amd|intel]"
+                 " [--vendor amd|intel|apple]\n"
+              << "  verify --hcs f.json [--workdir dir] [--dims M N K] [--vendor amd|intel|apple]"
                  "  (= run, no ledger write)\n"
               << "  calibrate --hcs f.json --ledger l [--out f.json]  (R7.3: measured -> link bw)\n"
               << "  hcs <f.json> | backends | ledger\n"

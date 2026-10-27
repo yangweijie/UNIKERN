@@ -211,3 +211,57 @@
 - 真机证据：docs/evidence/phase9/（环境/ocloc/solve_emit/verify/run/hit/calibrate/
   calibrated-run/backends/ctest/acceptance 转录 + emit/uk_intel.cl 与 aot 产物，
   -f 入库）；acceptance-mvp.md v5
+
+## Phase 10 Apple 真机验证闭合（2026-10-27，G4 Apple 半闭合 → G4 全闭合）
+- 运行环境：**Apple M4 / macOS 26.6.2 arm64**，Apple clang 21（CommandLineTools SDK）。
+  Xcode.app 在位但**无 Xcode SDK**（`xcrun --sdk macosx --show-sdk-path` 落到
+  `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk`）——Metal/Foundation 均链接自 CLT SDK
+- **无需 Xcode、无需 metal 编译器、无需 metal-cpp 头**：`MTLDevice newLibraryWithSource`
+  即运行时 JIT 编译 MSL，`newFunctionWithName` + `newRenderPipelineState`/compute pipeline
+  即可执行——Apple 后端因此从"仅源生成"升为"真编译真执行"
+- 设备事实经 MTLDevice API 实测：`name=Apple M4`、`hasUnifiedMemory=1`、
+  `maxThreadsPerThreadgroup.width=1024`（`src/runner_metal.mm:65-66`）；**本 SDK 无 CU 数量 API**，
+  HCS 的 `compute_units=40` 是声明值，不冒充实测
+- **边界（本轮如实标注，未扩范围去实现）**：runner 的 resident 预算取
+  `hcs.tier_bytes("unified")`（`src/runner_metal.mm:113`，即 34359738368 B = 32 GiB 的 HCS 声明值），
+  **没有**与 Metal 的 `recommendedMaxWorkingSetSize`（Metal 对单设备可驻留工作集的实际上限，
+  通常低于物理容量）交叉校验。因此"payload ≤ 0.85×unified"是相对声明容量成立，
+  不是相对 Metal 驻留上限成立——本机负载远小于该阈值，本次读数不受影响，但这是一条
+  已知的口径缺口（记入 task_plan 的 G6，与"HCS 声明值 vs API 实测"这一类问题同根）
+- 场景 A（统一内存）执行语义：`MTLResourceStorageModeShared` 零拷贝，无显式 H2D/D2H 路径，
+  因此 e2e 计量的**不是**链路拷贝；`kernel_ms` 取 `GPUStartTime/GPUEndTime`，
+  管线为 `newLibraryWithSource` → `newFunctionWithName` → `newComputePipelineStateWithFunction`
+- **R7.3 校准在场景 A 语义不适用（新增诚实门控）**：`calibrate` 用
+  `measured_ms − kernel_ms` 反推 `link_bw_gbps`，而该差值在零拷贝下是主机端队列提交/调度开销。
+  重采两轮的"精确伪影"分别得 9.097 与 5.986 GB/s（同一份账本口径差 1.5 倍），
+  正是它不是带宽测量的直接证据 → 默认 `CALIBRATE SKIP`（rc=3），
+  仅 `--allow-unified-calibrate` 显式强制。**门控正确性有实测背书**：强制校准把
+  link 600→9.097、version 1→2 后 `PREDICTED demo c_ms 5.28611 → 5.28611` 逐位不变
+  （`src/solver.cpp:75` 仅在非 Unified 路径取链路项）
+- **ε 口径**：`epsilon_rel = |C−T|/T` 是**比值**不是百分数（`src/main.cpp:311-312`）。
+  512³ 首轮 `predicted 0.0103244 / measured 1.27091 → ε_rel=122.097`，同键 HIT 轮
+  `measured 0.838425 → ε_rel=80.2078`；量级来自 HCS 声明峰值 26000 GFLOPS（Apple 自报 SoC 峰）
+  对实达内核吞吐 2·512³/0.494375ms ≈ 0.54 TFLOPS 的缺口——模型常数精度（L4 roofline 标定范围），
+  非运行器缺陷。同机同尺寸抖动约 1.5 倍，故不据单轮读数下趋势结论
+- **文档数字必须是入库读数的可解析引用**（本轮收尾抓到的三类缺陷）：
+  acceptance 引用的 `ε_rel=99.6471`、README 引用的 `5.18 GB/s`、task_plan 引用的
+  `1.029/99.6` 均出自未入库的一次性读数，与转录不符 → 全量重采后按当前转录替换，
+  并在文档头声明重采事实与口径
+- **.gitignore 声称≠事实**：phase10/README 曾写"`build-apple/` 整体被 .gitignore 忽略"，
+  实际 `git status` 里它是未跟踪项；已补 `build-apple/`、`uk_run/`、`probe/uk_metal_probe`
+  （探针源码入库、编译产物不入库）
+- **新增 CLI 参数须被测试证明它移动了**：`--allow-unified-calibrate` 起初只有真机转录、
+  零单测约束 → acceptance 补 R7.3 四臂（经真实 `unikern` 二进制，argv[0] 同目录定位），
+  含顺序判别臂（rc=3 在"门控拒绝"与"空账本"两种原因下不可分，须断言消息）与
+  场景 B 特异性对照臂；摘掉门控后臂 1 转红 → 该门控有回归位
+- 踩坑（POSIX/Windows 分叉）：`std::system` 在 POSIX 返回 **wait 状态**，`exit(3)` 读回 768，
+  断言 rc 须 `WIFEXITED/WEXITSTATUS` 归一化；既有 crash-tx 臂只断言 `rc != 0` 故未暴露。
+  Windows 分支沿用 cmd.exe 外层引号写法（本文件既有先例），本轮未在 Windows 主机复跑
+- 历史结论保留不改写：本节上方 Phase 5/9 的"Metal 工具链仅 macOS，本机只能做源生成
+  stub""Apple 真机需用户 Mac"为当时（Windows 主机）探测记录，已被本节推翻
+- 遗留边界（如实）：Apple/Intel 流式（场景 B 显式双缓冲）不实现，resident-only 诚实拒绝；
+  R8.5 缺页迁移监测器属真机长测项（G1 KML 文本解析、G5 属 V1/长测）；
+  Apple 有效计算率的 roofline 标定属模型精度范围
+- 真机证据：docs/evidence/phase10/（environment/emit/verify/run/hit-run/calibrate/
+  calibrate-forced/ctest/gate-arm-probe 转录 + emit/uk_apple.metal 构件本体 + README）；
+  acceptance-mvp.md v6.1

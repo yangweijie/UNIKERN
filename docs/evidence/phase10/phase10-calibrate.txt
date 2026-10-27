@@ -1,0 +1,7 @@
+$ ./build-apple/unikern calibrate --hcs samples/hcs_apple.json --ledger /tmp/uk_apple_p10.sqlite3
+CALIBRATE SKIP: scenario A (unified memory, zero-copy) — measured_ms−kernel_ms is host dispatch overhead, not link copy
+              time; calibrating link_bw_gbps from it is a
+              precise-but-meaningless number. link_bw_gbps is a
+              scenario-B constant (unused by unified-path solves).
+              Re-run with --allow-unified-calibrate to force it.
+rc=3

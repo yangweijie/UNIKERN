@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(unikern C CXX)  # C is needed for the SQLite amalgamation
+project(unikern C CXX OBJCXX)  # C: SQLite; OBJCXX: Metal runner (macOS)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,13 +32,35 @@ else()
   target_compile_options(sqlite3 PRIVATE -w)
 endif()
 
+# Phase 10 (G4 Apple half): Metal runner. The Metal.framework runtime
+# provides its own JIT compiler (newLibraryWithSource), so no Xcode or
+# metal-cpp headers are needed — just the SDK's Metal.framework. On
+# non-macOS platforms UK_HAS_METAL stays undefined and the runner
+# compiles to an honest stub.
+if(APPLE)
+  find_library(METAL_FRAMEWORK Metal)
+  if(METAL_FRAMEWORK)
+    message(STATUS "Metal framework found: ${METAL_FRAMEWORK}")
+    set(UK_HAS_METAL TRUE)
+  else()
+    message(STATUS "Metal framework NOT found: apple:metal runner compiles to honest stub")
+    set(UK_HAS_METAL FALSE)
+  endif()
+else()
+  set(UK_HAS_METAL FALSE)
+endif()
+
 # Phase 9 (G4 Intel half): OpenCL runner. The Khronos CL headers are vendored
 # in third_party/CL (see its README); the import library comes from an Intel
 # oneAPI install or a system OpenCL dev package. When no import library is
 # found, src/runner_ocl.cpp compiles to an honest stub (UK_HAS_OCL undefined)
 # reporting the gap — the build never silently degrades (R10).
-find_path(OPENCL_INCLUDE_DIR CL/cl.h PATHS third_party NO_DEFAULT_PATH)
-find_library(OPENCL_LIBRARY
+# Only enable on Windows (Intel oneAPI); macOS has its own OpenCL.framework
+# but the vendored headers target the Windows/Intel toolchain.
+set(UK_HAS_OCL FALSE)
+if(WIN32)
+  find_path(OPENCL_INCLUDE_DIR CL/cl.h PATHS third_party NO_DEFAULT_PATH)
+  find_library(OPENCL_LIBRARY
   NAMES OpenCL
   PATHS
     "C:/Program Files (x86)/Intel/oneAPI/2026.1/lib"
@@ -56,6 +78,7 @@ else()
   message(STATUS "OpenCL NOT found: intel:ocl runner compiles to honest stub")
   set(UK_HAS_OCL FALSE)
 endif()
+endif()  # WIN32
 
 # Core library: KML / HCS / solver / backends / runner / ledgers
 add_library(unikern_core STATIC
@@ -67,6 +90,7 @@ add_library(unikern_core STATIC
   src/codegen_other.cpp
   src/runner.cpp
   src/runner_ocl.cpp
+  src/runner_metal.mm
   src/runtime.cpp
   src/sqlite_ledger.cpp
 )
@@ -76,6 +100,12 @@ if(UK_HAS_OCL)
   target_include_directories(unikern_core PRIVATE ${OPENCL_INCLUDE_DIR})
   target_compile_definitions(unikern_core PRIVATE UK_HAS_OCL)
   target_link_libraries(unikern_core PRIVATE ${OPENCL_LIBRARY})
+endif()
+if(UK_HAS_METAL)
+  target_compile_definitions(unikern_core PRIVATE UK_HAS_METAL)
+  find_library(FOUNDATION_FRAMEWORK Foundation)
+  target_link_libraries(unikern_core PUBLIC ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+  target_compile_options(unikern_core PRIVATE -fobjc-arc)
 endif()
 
 # CLI entry
@@ -95,6 +125,8 @@ add_test(NAME smoke COMMAND unikern_smoke)
 # (real-device items live in docs/acceptance-mvp.md, not here).
 add_executable(unikern_acceptance tests/acceptance.cpp)
 target_link_libraries(unikern_acceptance PRIVATE unikern_core)
+# The R7.3 gate arms shell out to the real CLI, so it must exist by test time.
+add_dependencies(unikern_acceptance unikern)
 # Same as smoke: the crash-tx child opens SQLite directly.
 target_include_directories(unikern_acceptance PRIVATE third_party/sqlite)
 # R10 mirror: the acceptance test includes the vendored CL headers (declarations

@@ -1,0 +1,52 @@
+$ ctest --test-dir build-apple --output-on-failure     # 门控已接回（当前树）
+Test project /Volumes/data/git/c/UNIKERN/build-apple
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.02 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    0.55 sec
+
+100% tests passed, 0 tests failed out of 2
+$ ./build-apple/unikern_acceptance | tail -5
+[R7] crash mid-transaction leaves no half row OK
+[CAL] file-ledger formats + measured->link-bw median + version bump + export round-trip OK
+[R7.3] scenario-A calibrate gate: refusal / flag passes the gate / flag calibrates / scenario-B unaffected OK
+[R8] scenario A/B placement records explicit + distinct OK
+ACCEPTANCE PASS
+
+# ---- 带弹性探针（arm probe）：把门控摘掉，测试必须转红 ----
+# 复现方法：把 src/main.cpp 里 cmd_calibrate 的门控条件
+#   if (hcs->unified_memory && !o.allow_unified_calibrate) {
+# 改成
+#   if (false && hcs->unified_memory && !o.allow_unified_calibrate) {
+# 然后 ninja -C build-apple && ./build-apple/unikern_acceptance；跑完立刻改回。
+$ ninja -C build-apple 2>&1 | tail -2
+[1/2] Building CXX object CMakeFiles/unikern.dir/src/main.cpp.o
+[2/2] Linking CXX executable unikern
+$ ./build-apple/unikern_acceptance | tail -2
+[CAL] file-ledger formats + measured->link-bw median + version bump + export round-trip OK
+Assertion failed: (cap.find("CALIBRATE SKIP: scenario A") != std::string::npos), function main, file acceptance.cpp, line 715.
+
+# 结论：门控四臂里第 1 臂（场景 A 无旗标 → 拒绝）确实由门控本身决定，
+# 摘掉即红，不是"恒绿装饰"。
+
+# ---- 两条如实记录的口径事实 ----
+# 1) rc 单独不具判别力：门控摘掉后第 1 臂仍是 rc=3（只是原因变成
+#    "no measured rows"）。因此第 1 臂断言的是**消息**（scenario A），
+#    并另设第 2 臂（同输入加旗标 → rc=3 但消息换成 no measured rows、
+#    且不含 scenario A）作为顺序判别器，证明拒绝来自门控而非空账本。
+# 2) POSIX system() 返回的是 wait 状态不是退出码：exit(3) 读回 768。
+#    门控臂按 WIFEXITED/WEXITSTATUS 归一化后才断言 rc==3
+#    （既有 crash-tx 臂只断言 rc != 0，所以此前未暴露该坑）。
+#    Windows 分支沿用本文件 crash-tx 已验证的 cmd.exe 外层引号写法。
+
+# ---- 门控接回并按 restore 后重建的产物复核（确定性字段）----
+$ md5 -q build-apple/unikern
+81f8acd751d6a16bba172685b8c8da4f
+$ ./build-apple/unikern verify --hcs samples/hcs_apple.json --vendor apple --dims 512 512 512 | grep UNIKERN_RESULT
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.911287 kernel_ms=0.584250 mode=resident payload_mb=3.000000 perf=512x512x512
+$ ./build-apple/unikern calibrate --hcs samples/hcs_apple.json --ledger /tmp/uk_apple_p10.sqlite3 ; echo rc=$?
+rc=3
+# 口径说明：上方 verify/run/hit/calibrate 各转录产自 20:27–20:28 那一次构建；
+# 该构建与本节的复核构建之间，main.cpp 只经历过"摘门控 → 原样接回"的一次往返
+# （源码状态相同），故本节复核的是**确定性字段**（verify=PASS、max_rel=0、门控 rc=3）；
+# 毫秒级读数按设计逐次浮动，不复现也不替换已入库的那一轮读数。

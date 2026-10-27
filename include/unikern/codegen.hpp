@@ -45,6 +45,22 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
                    const Hcs& hcs, const KmlTree& tree,
                    const std::string& workdir);
 
+// Apple Metal: execute the generated MSL kernel IN-PROCESS against a real
+// Apple GPU via Metal.framework's runtime JIT compiler (newLibraryWithSource).
+// Same semantics as run_ocl: 256^3 differential verify + timing + UNIKERN_RESULT.
+// Scenario A (unified memory): zero-copy via MTLResourceStorageModeShared.
+// Resident-only (MVP); refuses when payload exceeds 0.85 * unified_bytes (R10).
+// Requires UK_HAS_METAL at build time (macOS); without it the stub reports
+// the gap instead of pretending.
+RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
+                     const Hcs& hcs, const KmlTree& tree,
+                     const std::string& workdir);
+
+// Apple Metal availability probe: true when a Metal device is available
+// (MTLCreateSystemDefaultDevice returns non-null). Compiles to false when
+// UK_HAS_METAL is undefined (not macOS or Metal framework unavailable).
+bool metal_available();
+
 // Intel OpenCL availability probe: true when a platform with an Intel GPU
 // device is visible through the OpenCL ICD loader (replaces the
 // OCL_ICD_VENDORS env heuristic, Phase 9). Compiles to false when the build

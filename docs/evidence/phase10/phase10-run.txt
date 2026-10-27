@@ -1,0 +1,10 @@
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor apple --dims 512 512 512 --ledger /tmp/uk_apple_p10.sqlite3
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=1.270913 kernel_ms=0.494375 mode=resident payload_mb=3.000000 perf=512x512x512
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.27091
+-- log tail --
+UK_DEVICE name=Apple M4
+UK_DEVICE_UNIFIED host_unified=1
+UK_DEVICE_MAXTHREADS max_threads=1024
+UK_RUNNER plan perf=512x512x512 tile=96x96 unified_bytes=34359738368 payload_mb=3.000000 warm=2 iters=10
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=1.270913 kernel_ms=0.494375 mode=resident payload_mb=3.000000 perf=512x512x512
+LEDGER COMMIT predicted_ms=0.0103244 measured_ms=1.27091 epsilon_abs=1.26059 epsilon_rel=122.097

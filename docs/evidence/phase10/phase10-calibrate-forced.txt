@@ -1,0 +1,20 @@
+$ ./build-apple/unikern calibrate --hcs samples/hcs_apple.json --ledger /tmp/uk_apple_p10.sqlite3 --allow-unified-calibrate
+{
+  "vendor": "apple",
+  "device": "Apple M-series (unified)",
+  "unified_memory": true,
+  "link_bw_gbps": 9.0969655842402428,
+  "flops_gflops": 26000,
+  "compute_units": 40,
+  "toolchain": "metal-3.x",
+  "constants_version": 2,
+  "confidence": "official",
+  "tiers": [
+    { "name": "unified", "bytes": 34359738368, "bw_gbps": 400, "confidence": "official" },
+    { "name": "nvme", "bytes": 1000204886016, "bw_gbps": 6, "confidence": "measured" }
+  ]
+}
+CALIBRATED link_bw_gbps 600 -> 9.09697 constants_version 1 -> 2
+usable_rows=1 median_link_bw=9.096966GB/s [gemm:fp32:512x512x512 bytes=3145728 copy_ms=0.3458 eff_bw=9.09697GB/s; ]
+PREDICTED demo c_ms 5.28611 -> 5.28611
+rc=0

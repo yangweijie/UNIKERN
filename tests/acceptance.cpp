@@ -1,8 +1,8 @@
 // Phase 8 acceptance tests — R1-R10, every CPU-testable item, one binary.
 // (R6/R8 real-device execution is NOT faked here: it is collected with real
-// `unikern run` commands and recorded in docs/acceptance-mvp.md. The AMD
-// RX 6600M and Intel Arc B390 real-device items live in the matrix; Apple
-// remains blocked pending the user's Mac.)
+// `unikern run` commands and recorded in docs/acceptance-mvp.md, with command
+// transcripts in docs/evidence/phase8 (AMD RX 6600M), phase9 (Intel Arc B390)
+// and phase10 (Apple M4) — all three vendors verified on real hardware.)
 //
 // Coverage map (requirement -> section in this file):
 //   R1.2  illegal KML type names rejected at the front end; note: the MVP has
@@ -28,6 +28,9 @@
 //   R7.1/2/3/4  SQLite ledger: round-trip, hit serves the recorded off-grid
 //         solution with from_ledger=true, measured_ms persisted (direct SQL),
 //         key isolation, and crash-mid-transaction leaves no half row.
+//   R7.3 gate  the scenario-A (unified memory) calibrate refusal is exercised
+//         through the real `unikern` binary: refusal message, flag passing the
+//         gate, flag actually calibrating, and a scenario-B specificity control.
 //   R8.1/6  scenario A placement record names unified memory + zero-copy,
 //         scenario B names vram+ram+nvme + pinned_copy + shard/prefetch;
 //         the two records are explicit and distinct. (Real-device streaming
@@ -43,14 +46,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
 #include "sqlite3.h"
 #include "unikern/codegen.hpp"
 #include "unikern/components.hpp"
+
+#ifndef _WIN32
+#include <sys/wait.h>  // WIFEXITED/WEXITSTATUS for the R7.3 gate arms
+#endif
 
 #ifdef _WIN32
 // CL headers are vendored (third_party/CL) — declarations only, no linking:
@@ -503,9 +512,17 @@ int main(int argc, char** argv) {
     }
     // Windows cmd /c strips the first and last quote when it sees more than
     // two quotes, hence the extra outer pair (same workaround as smoke.cpp).
+    // On POSIX (sh), no extra wrapping needed; use absolute path so the
+    // child resolves even if the test runs from a different cwd.
+    std::filesystem::path self = argv[0];
+    if (!self.is_absolute()) self = std::filesystem::absolute(self);
     const std::string inner =
-        std::string("\"") + argv[0] + "\" crash-tx \"" + crash_db + "\"";
+        std::string("\"") + self.generic_string() + "\" crash-tx \"" + crash_db + "\"";
+#ifdef _WIN32
     const int rc = std::system(("\"" + inner + "\"").c_str());
+#else
+    const int rc = std::system(inner.c_str());
+#endif
     assert(rc != 0);
     {
       std::ifstream marker(std::string(crash_db) + ".marker");
@@ -625,6 +642,129 @@ int main(int argc, char** argv) {
     assert(hcs_fingerprint(*h1) == hcs_fingerprint(*h3));
     std::cout << "[CAL] file-ledger formats + measured->link-bw median + "
               << "version bump + export round-trip OK\n";
+  }
+
+  // -------- R7.3 scenario-A honesty gate: unified HCS refuses calibration ---
+  {
+    // The gate is CLI behaviour (rc + message), so every arm drives the real
+    // `unikern` binary — a copy of the condition in this file would test the
+    // copy, not the shipped path. Paths are resolved from argv[0] so the arms
+    // run from any cwd; the quoting matches the crash-tx child above (cmd.exe
+    // strips one quote level once it sees more than two quotes).
+    namespace fs = std::filesystem;
+    fs::path self = argv[0];
+    if (!self.is_absolute()) self = fs::absolute(self);
+    fs::path cli = self.parent_path() / "unikern";
+#ifdef _WIN32
+    cli += ".exe";
+#endif
+    assert(fs::exists(cli));
+    const std::string cli_s = cli.generic_string();
+
+    const fs::path dir = fs::temp_directory_path() / "unikern_calgate";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+
+    auto write_case = [&](const Hcs& h, const std::string& tag) {
+      const std::string hcs_path = (dir / tag).string() + ".json";
+      const std::string led_path = (dir / tag).string() + ".jsonl";
+      { std::ofstream f(hcs_path, std::ios::binary); f << hcs_export(h); }
+      // One measured row under this HCS's own fingerprint, with an exactly
+      // known copy term: gemm:fp32:512x512x512 -> bytes = 3 * 512^2 * 4
+      // = 3145728, copy_ms = measured 1.0 - kernel 0.5 = 0.5 ms ->
+      // 3145728 B / 0.0005 s = 6.291456 GB/s.
+      { std::ofstream f(led_path, std::ios::binary);
+        f << "gemm:fp32:512x512x512|" << hcs_fingerprint(h)
+          << "|thA\t0.5\t1.0\t0.5\t128\t128\tp\n"; }
+      return std::make_pair(hcs_path, led_path);
+    };
+    auto spawn = [&](const std::string& args, const std::string& cap) {
+      const std::string inner = "\"" + cli_s + "\" " + args +
+                                " > \"" + cap + "\" 2>&1";
+#ifdef _WIN32
+      return std::system(("\"" + inner + "\"").c_str());
+#else
+      // POSIX system() yields the wait status, not the exit code: an exit(3)
+      // reads back as 768. The CLI documents rc per exit code, so normalise.
+      const int raw = std::system(inner.c_str());
+      return WIFEXITED(raw) ? WEXITSTATUS(raw) : raw;
+#endif
+    };
+    auto slurp = [](const std::string& p) {
+      std::ifstream f(p, std::ios::binary);
+      return std::string{std::istreambuf_iterator<char>(f),
+                         std::istreambuf_iterator<char>()};
+    };
+
+    const Hcs uni = unified_hcs(400);                        // scenario A
+    const Hcs dis = discrete_hcs(int64_t(8) << 30, 512);     // scenario B
+    const auto ua = write_case(uni, "uni");
+    const auto db = write_case(dis, "dis");
+    const std::string empty_led = (dir / "empty.jsonl").string();
+
+    // Arm 1: scenario A, no flag -> refused by the gate before the ledger is
+    // read, so even an empty ledger yields the scenario-A message, and no
+    // output HCS is written.
+    const std::string out1 = (dir / "arm1.json").string();
+    {
+      const int rc = spawn("calibrate --hcs \"" + ua.first + "\" --ledger \""
+                           + empty_led + "\" --out \"" + out1 + "\"",
+                           (dir / "arm1.txt").string());
+      const std::string cap = slurp((dir / "arm1.txt").string());
+      assert(rc == 3);
+      assert(cap.find("CALIBRATE SKIP: scenario A") != std::string::npos);
+      assert(!fs::exists(out1));
+    }
+    // Arm 2 (ordering discriminator): same inputs plus the explicit flag ->
+    // still rc=3, but now the message is the empty-ledger one. This is what
+    // proves arm 1's rc=3 came from the gate and not from missing rows.
+    {
+      const int rc = spawn("calibrate --hcs \"" + ua.first + "\" --ledger \""
+                           + empty_led + "\" --allow-unified-calibrate",
+                           (dir / "arm2.txt").string());
+      const std::string cap = slurp((dir / "arm2.txt").string());
+      assert(rc == 3);
+      assert(cap.find("CALIBRATE SKIP: scenario A") == std::string::npos);
+      assert(cap.find("no measured rows") != std::string::npos);
+    }
+    // Arm 3: scenario A with the flag and a real measured row -> calibration
+    // runs and adopts the derived constant (the flag is not a no-op).
+    const std::string out3 = (dir / "arm3.json").string();
+    {
+      const int rc = spawn("calibrate --hcs \"" + ua.first + "\" --ledger \""
+                           + ua.second + "\" --out \"" + out3
+                           + "\" --allow-unified-calibrate",
+                           (dir / "arm3.txt").string());
+      const std::string cap = slurp((dir / "arm3.txt").string());
+      assert(rc == 0);
+      assert(cap.find("CALIBRATED link_bw_gbps 600 -> 6.29146") !=
+             std::string::npos);
+      const auto cal = hcs_import(slurp(out3));
+      assert(cal.has_value());
+      assert(cal->link_bw_gbps > 6.2914 && cal->link_bw_gbps < 6.2915);
+      assert(cal->constants_version == 2);  // 1 -> 2, provenance bumped
+      assert(cal->unified_memory);          // calibration keeps the scenario
+    }
+    // Arm 4 (specificity control): scenario B, no flag -> not refused; the
+    // gate must not swallow the link-bandwidth path AMD/Intel calibration
+    // depends on. Same expected constant as arm 3, different declared one.
+    const std::string out4 = (dir / "arm4.json").string();
+    {
+      const int rc = spawn("calibrate --hcs \"" + db.first + "\" --ledger \""
+                           + db.second + "\" --out \"" + out4 + "\"",
+                           (dir / "arm4.txt").string());
+      const std::string cap = slurp((dir / "arm4.txt").string());
+      assert(rc == 0);
+      assert(cap.find("CALIBRATE SKIP: scenario A") == std::string::npos);
+      assert(cap.find("CALIBRATED link_bw_gbps 32 -> 6.29146") !=
+             std::string::npos);
+      const auto cal = hcs_import(slurp(out4));
+      assert(cal.has_value() && !cal->unified_memory);
+      assert(cal->link_bw_gbps > 6.2914 && cal->link_bw_gbps < 6.2915);
+    }
+    fs::remove_all(dir);
+    std::cout << "[R7.3] scenario-A calibrate gate: refusal / flag passes the "
+                 "gate / flag calibrates / scenario-B unaffected OK\n";
   }
 
   // ---------------- R8: explicit placement records (R8.1, R8.6) ------------

@@ -35,9 +35,9 @@ std::string banner(const char* lang, const char* r8_note, const Solution& sol,
     << "//   and the kernel is generated to assume exactly that placement, so\n"
     << "//   source and record stay consistent; a different placement requires a\n"
     << "//   re-solve, never a silent tier change.\n"
-    << "// R8 honesty: this execution path cannot be verified on the build host\n"
-    << "//   (no Metal / Intel toolchain here — findings.md Phase 5), so the MVP\n"
-    << "//   emits kernel source only and no execution/streaming implementation.\n";
+    << "// R8 honesty: resident-mode execution is implemented in-process and\n"
+    << "//   verified on real devices (Intel: docs/evidence/phase9/, Apple:\n"
+    << "//   docs/evidence/phase10/). Streaming execution remains milestone 1.\n";
   return o.str();
 }
 }  // namespace

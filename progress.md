@@ -152,3 +152,48 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
 - 目标状态：task_plan 全部 9 阶段 complete，check-complete 口径（全部阶段 complete +
   无 in_progress）通过；遗留边界如实标注：Apple Metal 真机（需用户 Mac）、Intel 流式
   双缓冲（不实现）
+
+## Session 2026-10-27（Phase 10 — Apple 真机验证，G4 全闭合）
+- [x] 环境事实核实（Apple M4 / macOS 26.6.2 arm64 / Apple clang 21）：Xcode.app 在位但**无 Xcode SDK**，
+  `xcrun --sdk macosx --show-sdk-path` → CommandLineTools SDK；Metal/Foundation 均链接自 CLT SDK；
+  **Metal 运行时 JIT**（`newLibraryWithSource`）无需 `metal` 编译器与 meta-cpp → Apple 后端从
+  "仅源生成"升为"真编译真执行"
+- [x] 子项 a sanity：`probe/uk_metal_probe.mm` 枚举设备（Apple M4 / hasUnifiedMemory / maxThreads 1024）
+  + JIT 编译 MSL + 256³ 对拍 PASS
+- [x] 子项 b/c/d：`src/runner_metal.mm`（进程内 ObjC++ runner，与 HIP/OCL 同构契约）+
+  `BackendApple::available()` 改运行时 `metal_available()` + `--vendor apple` 端到端 +
+  CMake OBJCXX/`-fobjc-arc`/find_library + acceptance crash-tx 子进程跨平台化（绝对路径 + POSIX 分支）
+- [x] 子项 e 真机闭环：verify PASS max_rel=0 → run LEDGER COMMIT（ε 实算）→ 同键 HIT →
+  calibrate **场景 A 诚实门控**（默认 rc=3 SKIP；`--allow-unified-calibrate` 显式强制），
+  并用"强制后 `PREDICTED demo c_ms` 逐位不变"反证该常数在统一内存路径上确实惰性
+- [x] 子项 f 收尾：docs/evidence/phase10/ 转录入库 + acceptance-mvp.md v6（Apple 行 ⛔→✅，
+  ⛔ 符号退役）+ codegen R8 honesty 横幅改为"resident 已真机验证"
+- [x] 子项 g 收尾复核（本轮，发现三类如实缺陷并修）：
+  1. **文档数字与入库转录不符**（acceptance `ε_rel=99.6471`、README `5.18 GB/s`、
+     task_plan `1.029/99.6` 皆出自未入库一次性读数）→ 真机链路全量重采 10 份转录 +
+     `emit/uk_apple.metal` 构件本体入库，文档只引用当前转录读数（ε_abs=1.26059 /
+     ε_rel=122.097，HIT 轮 0.8281/80.2078），并在文档头声明重采与 ε_rel 比值口径；
+     另发现"强制校准伪影"读数本身在 5.986↔9.097 GB/s 间抖 1.5 倍，反过来印证门控理由
+  2. **新门控零单测约束**（`--allow-unified-calibrate` 仅有真机转录）→ acceptance 补 R7.3
+     **四臂经真实 `unikern` 二进制**：拒绝消息 / 加旗标过门（顺序判别器）/ 加旗标真校准
+     （已知实测行 → link 恰为 6.291456 GB/s、version 1→2）/ 场景 B 对照（32→6.29146，
+     门控不吞 AMD/Intel 路径）；**摘掉门控后臂 1 转红**（转录 phase10-gate-arm-probe.txt），
+     故该门控有回归位；顺带修 POSIX `system()` 返回 wait 状态（exit(3)→768）的断言坑（E15）
+  3. **.gitignore 声称≠事实**：README 写"build-apple/ 已忽略"而实际未忽略 → 补
+     `build-apple/`、`uk_run/`、`probe/uk_metal_probe`（源码入库、产物不入库）
+- [x] 新边界如实入册（不在本轮顺手实现）：**G6** — Metal runner 的 resident 预算取 HCS
+  声明的 32 GiB（`src/runner_metal.mm:113`），未与 `recommendedMaxWorkingSetSize` 交叉校验；
+  本机 payload 3 MB 远低于两者，读数与结论不受影响，但"0.85×容量"目前只对声明容量成立
+- [x] ctest 2/2 全绿（acceptance 0.55s，含新增四臂）；findings/task_plan 落定
+
+## Phase 10 闭合记录（2026-10-27）
+- G4 全闭合：AMD（Phase 8）+ Intel（Phase 9）+ Apple（Phase 10）三厂商真机执行与对拍均完成；
+  证据 docs/evidence/phase10/（10 份命令转录 + 生成构件 + README + 带弹性探针）
+- acceptance-mvp.md v6.1；task_plan/progress/findings 全部落定；.gitignore 补齐
+- ctest 2/2 全绿（Release，Apple 主机）；R7.3 场景 A 门控具备回归位（摘门控即红）
+- 目标状态：task_plan 全部 10 阶段 complete。遗留边界如实标注：G1 KML 文本解析（V1）、
+  G5 R8.5 缺页迁移监测（真机长测）、Intel/Apple 显式流式双缓冲（不实现，横幅声明）、
+  **G6 Apple resident 预算未与 Metal 工作集上限交叉校验（新记录，未实现）**、
+  ε 残留的 roofline 常数标定（模型精度范围）
+- 平台边界如实标注：R7.3 四臂在 macOS 实跑；Windows 分支沿用同文件既有 cmd.exe 引号写法，
+  本轮未在 Windows 主机复跑

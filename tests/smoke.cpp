@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -235,11 +236,18 @@ int main(int argc, char** argv) {
       assert(ledger->size() == 0);
     }
     // Windows cmd /c strips the first and last quote when it sees more than
+    // On Windows, cmd.exe strips one level of quotes; the inner string needs
     // two quotes, so the whole command gets one extra outer pair (the classic
-    // system() quoting workaround).
-    const std::string inner = std::string("\"") + argv[0] + "\" crash-tx \"" +
-                              crash_db + "\"";
+    // system() quoting workaround). On POSIX (sh), no extra wrapping needed.
+    std::filesystem::path self = argv[0];
+    if (!self.is_absolute()) self = std::filesystem::absolute(self);
+    const std::string inner = std::string("\"") + self.generic_string() +
+                              "\" crash-tx \"" + crash_db + "\"";
+#ifdef _WIN32
     const int rc = std::system(("\"" + inner + "\"").c_str());
+#else
+    const int rc = std::system(inner.c_str());
+#endif
     assert(rc != 0);  // child died via _Exit(9) or the spawn failed loudly
     {  // marker proves the child really ran the uncommitted transaction
       std::ifstream marker(std::string(crash_db) + ".marker");

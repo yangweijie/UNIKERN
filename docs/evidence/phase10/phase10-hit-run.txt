@@ -1,0 +1,12 @@
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor apple --dims 512 512 512 --ledger /tmp/uk_apple_p10.sqlite3   # 再次执行（同键）
+LEDGER HIT  c_cached_ms=0.0103244  tile=128x128  (from ledger)
+placement=unified_memory (scenario A, zero-copy, bw=400GB/s)
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.838425 kernel_ms=0.492625 mode=resident payload_mb=3.000000 perf=512x512x512
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.838425
+-- log tail --
+UK_DEVICE name=Apple M4
+UK_DEVICE_UNIFIED host_unified=1
+UK_DEVICE_MAXTHREADS max_threads=1024
+UK_RUNNER plan perf=512x512x512 tile=96x96 unified_bytes=34359738368 payload_mb=3.000000 warm=2 iters=10
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.838425 kernel_ms=0.492625 mode=resident payload_mb=3.000000 perf=512x512x512
+LEDGER COMMIT predicted_ms=0.0103244 measured_ms=0.838425 epsilon_abs=0.8281 epsilon_rel=80.2078
