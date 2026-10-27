@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
-project(unikern C CXX OBJCXX)  # C: SQLite; OBJCXX: Metal runner (macOS)
+project(unikern C CXX)  # C: SQLite. OBJCXX (Metal runner) is Apple-only and is
+# enabled via enable_language() in the APPLE branch below — MinGW has no
+# Objective-C++ compiler, and an unconditional OBJCXX in project() breaks
+# Windows configuration outright (E17).
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,6 +41,7 @@ endif()
 # non-macOS platforms UK_HAS_METAL stays undefined and the runner
 # compiles to an honest stub.
 if(APPLE)
+  enable_language(OBJCXX)  # Metal runner is Objective-C++; MinGW cannot build it
   find_library(METAL_FRAMEWORK Metal)
   if(METAL_FRAMEWORK)
     message(STATUS "Metal framework found: ${METAL_FRAMEWORK}")
@@ -81,7 +85,7 @@ endif()
 endif()  # WIN32
 
 # Core library: KML / HCS / solver / backends / runner / ledgers
-add_library(unikern_core STATIC
+set(UK_CORE_SRCS
   src/json_flat.cpp
   src/kml.cpp
   src/kml_front.cpp
@@ -93,10 +97,15 @@ add_library(unikern_core STATIC
   src/codegen_other.cpp
   src/runner.cpp
   src/runner_ocl.cpp
-  src/runner_metal.mm
   src/runtime.cpp
   src/sqlite_ledger.cpp
 )
+if(APPLE)
+  list(APPEND UK_CORE_SRCS src/runner_metal.mm)  # Objective-C++: Apple only
+else()
+  list(APPEND UK_CORE_SRCS src/runner_metal_stub.cpp)  # honest gap (E17)
+endif()
+add_library(unikern_core STATIC ${UK_CORE_SRCS})
 target_include_directories(unikern_core PUBLIC include)
 target_link_libraries(unikern_core PRIVATE sqlite3)
 if(UK_HAS_OCL)
