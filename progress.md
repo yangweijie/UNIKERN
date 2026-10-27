@@ -305,3 +305,25 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
 - G1 执行半边的 **Intel** 侧闭合（生成+能力面+runner 分派；编译级验证，运行待真机）
 - 只剩 **AMD 的 HIP 程序**：本机无 hipcc，连语法都验不了 → 需 ROCm 主机，留 Phase 15
 - Phase 13 的两条旧结论（Intel 也拒 conv/reduce；OpenCL 仍 gemm-only）已据实标记取代
+
+## Session 2026-10-28（Phase 15 验收收尾 + Phase 16 驻留守卫落账，v12）
+（前序：Phase 15 本体见提交 46e117b——conv/reduce 的 HIP 程序 + RX 6600M 真机闭环；
+Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真机成果落进验收矩阵与规划文件。）
+- [x] 复核重采（当前二进制 md5 `e554574a…`，`cmake --build build` → `ninja: no work to do.`，
+  与 HEAD 同源）：`backends`（amd=yes / apple=no / intel=no）、`solve --emit` 三源行数
+  （conv 253 / reduce 217 / gemm 425 = 首轮各 +34/35 行即 Phase 16 守卫；`uk_resident` 计数各 2）、
+  三算子真机 run×（COMMIT+HIT，fresh ledger）——六轮全 verify=PASS max_rel=0 且
+  UNIKERN_RESULT 尾 **migrations=0**（COMMIT ε_rel conv 68.0154 / reduce 0.354586 /
+  gemm 3.43836；HIT 轮 67.4707 / 1.10948 / 3.41299）、`ctest --test-dir build
+  --output-on-failure` 2/2 绿
+- [x] 证据入库：`docs/evidence/phase15/phase15-recheck-v12.txt`（全量转录，二进制 md5 同录）+
+  README 补 v12 复现命令表；首轮 phase15/phase16 转录保留不覆盖，旧引用仍可解析对照（E14）
+- [x] acceptance-mvp.md **v12**：头部版本注记；R6 行补 migrations=0 复采；R8 行 R8.5 句改写
+  （驻留守卫已实现并真机验证，长测如实保留开放）；**G1 行改写为全闭合**（AMD 执行半边
+  v11 已闭合，v12 复采确认）；**G5 行改写**（守卫实现 + migrations=0 真机 + 拒绝分支
+  exit=5 + 长测开放）；新增"Phase 15 验收收尾 / G5 驻留守卫补遗"段
+- [x] 规划文件：task_plan.md Current Phase 改写为**本机可做项已清零** + 剩余开放缺口清单
+  （Intel conv/reduce 真机运行、G5 长测、R10.2 F 约束合流 V1、conv/reduce 调优与浮点次序
+  鲁棒性）；缺口闭合表新增 G5 行（closed，长测开放）；Phase 15 子任务表补 f 行（v12 复采）；
+  findings.md 补 Phase 16/复采事实段
+- [x] ctest 全绿后 `git add` 具体文件提交

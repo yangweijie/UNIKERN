@@ -408,3 +408,31 @@
   同录；真机 run 的六条转录（3 op × COMMIT/HIT）都在 md5 锚定的当前二进制下重采。
 - 仍缺：Intel conv/reduce 真机运行、conv/reduce 调优与浮点次序鲁棒性、R10.2 的 F 约束
   合流（V1）、G5 R8.5 驻留守卫长测。
+
+## Phase 16 G5/R8.5 驻留守卫 + Phase 15 验收收尾复采（2026-10-28，v12）
+- **守卫结构**：`emit_residency_guard85()` 向 HIP 三程序（gemm/conv/reduce）发射守卫——
+  `hipMalloc` 与 `hipPointerGetAttributes` 驻留断言折叠进单个 `uk_mmalloc()`（分配与检查
+  不可分离，新增裸 `hipMalloc(&` 直调点即被 `[R8.5]` 断言抓出）；非设备驻留
+  （managed/host）→ `UNIKERN_ERROR what=oversubscription ptr=<名> type=<n>` 退 5
+  （普通 HIP 失败仍是退 4，两种失败在退出码上分得开）
+- **设备事实修正（与 Phase 9/10 同类）**：任务口径的 `attributes.memoryType` 在 ROCm 7.1
+  不存在——首跑 hipcc 真编译即拒（`no member named 'memoryType'`）；实测
+  `hip_runtime_api.h:276-284` 字段名为 **`type`**（Device=2/Host=1/Managed=3）。
+  "设备事实经 API 实测，不照抄标签"再次生效
+- **migrations token 的诚实语义**：`RunOutcome.migrations`（-1=本后端不报告）；RUN 行只在
+  后端实际报告时打印——Metal/OpenCL 进程内 runner 不打印，不冒充实测值
+- **拒绝分支的验证路径选择**：生成程序自身的 hipMalloc 路径在本机硬件上到不了
+  非设备驻留（这正是 migrations=0 的 happy path），改用 hipHostMalloc 的 host 指针
+  代位非设备驻留条件——`what=oversubscription ptr=hipHostMalloc h type=1` + exit=5；
+  happy path（hipMalloc 指针）rc=0（`probe/phase16_residency_refuse.cpp`）
+- **复采口径（v12 验收收尾）**：当前二进制（md5 `e554574a…`，与 HEAD 同源）上重采
+  backends（amd=yes/apple=no/intel=no）、`solve --emit` 三源行数（conv 253/reduce 217/
+  gemm 425 = 首轮各 +34/35 行，即守卫并入三程序；`uk_resident` 计数各 2）、三算子
+  run×COMMIT+HIT（六轮全 verify=PASS max_rel=0 且尾 migrations=0）、ctest 2/2 绿
+  ——转录 `docs/evidence/phase15/phase15-recheck-v12.txt`，README 补复现命令表
+- **文档引用纪律（E14 复用）**：v12 的全部数字只出自本次入库转录；首轮 phase15/phase16
+  转录保留不覆盖，acceptance v11 引用的旧读数仍可解析对照。ε_rel 同量级波动
+  （conv 67–72 / reduce 0.35–1.11 / gemm 3.41–3.46）如实注明"不构成趋势结论"
+- **本机可做项清零后的剩余开放缺口**：Intel conv/reduce 真机运行（需 Intel 机器，
+  backends 实测 intel=no）、G5 长测（迁移率统计与超阈重求解）、R10.2 F 约束合流（V1）、
+  conv/reduce 调优与浮点次序鲁棒性

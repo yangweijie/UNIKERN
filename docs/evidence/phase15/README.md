@@ -36,3 +36,26 @@ unikern_acceptance.exe `980cc3ca6c88f8d04aa57bad471908b9`；ROCm 7.1 hipcc / HIP
   无 UNIKERN_RESULT、无 LEDGER COMMIT；macOS 上 apple 可用，故该臂为 _WIN32-only）。
 - **out-of-band 编译证明的是"可编译"**，真机 run 才证明"可运行"——两者都在本转录里，
   但别把前者读成后者。
+
+## v12 复核重采（2026-10-28 验收收尾 session，`phase15-recheck-v12.txt`）
+
+Phase 16 驻留守卫（ea76c2f）落盘后的**当前二进制**上全量重采；本节是复现命令表，
+每条命令的输出都在转录里逐字可对（E14 纪律：文档只引用入库读数）。二进制锚换为
+`e554574a9c618f2676fd460651fedc8a`（守卫在场），acceptance 锚 `1c0f86208e61deeff0404fca551847a4`。
+
+| 步骤 | 复现命令 | 转录里的读数 |
+|------|----------|--------------|
+| 构建 | `cmake --build build` | `ninja: no work to do.`（与 HEAD 同源） |
+| backends | `./build/unikern.exe backends` | `amd yes / apple no / intel no`（本机无 Intel 设备，如实标注） |
+| emit（conv） | `solve --hcs samples/hcs_amd.json --kml samples/conv.kml --ledger uk_run/p15v12/emit_conv.jsonl --emit uk_run/p15v12/emit_conv` | 三 COVER 齐 covered；`uk_amd.cpp lines=253` |
+| emit（reduce） | `solve --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --ledger uk_run/p15v12/emit_reduce.jsonl --emit uk_run/p15v12/emit_reduce` | `uk_amd.cpp lines=217` |
+| emit（gemm） | `solve --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger uk_run/p15v12/emit_gemm.jsonl --emit uk_run/p15v12/emit_gemm` | `uk_amd.cpp lines=425` |
+| 行数确认 | `wc -l`（三份 uk_amd.cpp）+ `grep -c uk_resident …` | 253/217/425 = 首轮 219/183/390 各 +34/35 行（守卫并入三程序）；每份 `uk_resident` 计数 2 |
+| conv run ×2 | `run --hcs samples/hcs_amd.json --kml samples/conv.kml --ledger uk_run/p15v12/conv.sqlite3`（同键跑两次） | COMMIT ε_rel=68.0154 → HIT 轮 67.4707；UNIKERN_RESULT 尾 `migrations=0` |
+| reduce run ×2 | `run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --ledger uk_run/p15v12/reduce.sqlite3`（同键跑两次） | COMMIT ε_rel=0.354586 → HIT 轮 1.10948；`migrations=0` |
+| gemm run ×2（回归） | `run --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger uk_run/p15v12/gemm.sqlite3`（同键跑两次） | COMMIT ε_rel=3.43836 → HIT 轮 3.41299；`migrations=0` |
+| ctest | `ctest --test-dir build --output-on-failure` | 2/2 全绿（0.72 s） |
+
+口径注记：首轮读数与 phase15（无守卫）/phase16（HIT 轮）转录同量级（conv 67–72、
+reduce 0.35–1.11、gemm 3.41–3.46），真机数字有波动，结论只依赖 PASS/FAIL、
+migrations=0 与 COMMIT→HIT 结构，不依赖单点绝对值。
