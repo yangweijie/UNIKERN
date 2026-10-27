@@ -42,6 +42,62 @@ std::string banner(const char* lang, const char* r8_note, const Solution& sol,
   return o.str();
 }
 
+// --- Phase 13 (Apple first): conv and reduce MSL kernels -------------------
+// Deliberately straightforward: one thread per output (conv) / strided partial
+// sums plus a final pass (reduce). The point of this phase is an executable,
+// differentially verified kernel for every declared op — not a tuned one; the
+// roofline report keeps predicting whatever the solver chose.
+std::string conv_msl_kernel() {
+  std::ostringstream o;
+  o << "kernel void uk_conv(device const float* X [[buffer(0)]],\n"
+    << "                    device const float* Wt [[buffer(1)]],\n"
+    << "                    device float* Y [[buffer(2)]],\n"
+    << "                    constant int& H [[buffer(3)]],\n"
+    << "                    constant int& W [[buffer(4)]],\n"
+    << "                    constant int& C [[buffer(5)]],\n"
+    << "                    constant int& Kh [[buffer(6)]],\n"
+    << "                    constant int& Kw [[buffer(7)]],\n"
+    << "                    constant int& Oc [[buffer(8)]],\n"
+    << "                    uint3 gid [[thread_position_in_grid]]) {\n"
+    << "  const int Ho = H - Kh + 1, Wo = W - Kw + 1;\n"
+    << "  const int wo = int(gid.x), ho = int(gid.y), oc = int(gid.z);\n"
+    << "  if (wo >= Wo || ho >= Ho || oc >= Oc) return;\n"
+    << "  float acc = 0.f;\n"
+    << "  for (int c = 0; c < C; ++c)\n"
+    << "    for (int kh = 0; kh < Kh; ++kh)\n"
+    << "      for (int kw = 0; kw < Kw; ++kw) {\n"
+    << "        const float xv = X[((ho + kh) * W + (wo + kw)) * C + c];\n"
+    << "        const float wv = Wt[((oc * Kh + kh) * Kw + kw) * C + c];\n"
+    << "        acc += xv * wv;\n"
+    << "      }\n"
+    << "  Y[(oc * Ho + ho) * Wo + wo] = acc;\n"
+    << "}\n";
+  return o.str();
+}
+
+std::string reduce_msl_kernels() {
+  std::ostringstream o;
+  o << "// Pass 1: strided partial sums, one per thread of the launch.\n"
+    << "kernel void uk_reduce_part(device const float* X [[buffer(0)]],\n"
+    << "                           device float* P [[buffer(1)]],\n"
+    << "                           constant int& n [[buffer(2)]],\n"
+    << "                           uint tid [[thread_position_in_grid]],\n"
+    << "                           uint nthreads [[threads_per_grid]]) {\n"
+    << "  float s = 0.f;\n"
+    << "  for (int i = int(tid); i < n; i += int(nthreads)) s += X[i];\n"
+    << "  P[tid] = s;\n"
+    << "}\n\n"
+    << "// Pass 2: fold the partials in index order (single thread, deterministic).\n"
+    << "kernel void uk_reduce_sum(device const float* P [[buffer(0)]],\n"
+    << "                          device float* Y [[buffer(1)]],\n"
+    << "                          constant int& np [[buffer(2)]]) {\n"
+    << "  float s = 0.f;\n"
+    << "  for (int i = 0; i < np; ++i) s += P[i];\n"
+    << "  Y[0] = s;\n"
+    << "}\n";
+  return o.str();
+}
+
 std::string refusal_source(const char* lang, const Hcs& hcs, const std::string& gap) {
   std::ostringstream o;
   o << "// unikern generated — REFUSAL: no kernel emitted\n"
@@ -57,7 +113,7 @@ std::string refusal_source(const char* lang, const Hcs& hcs, const std::string& 
 }  // namespace
 
 std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
-  const std::string gap = op_support_gap(tree);
+  const std::string gap = msl_op_gap(tree);
   if (!gap.empty()) return refusal_source("Metal Shading Language", hcs, gap);
   const TileInfo ti = info_for(tree, sol);
   std::ostringstream o;
@@ -66,8 +122,10 @@ std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
               " unified memory.",
               sol, hcs, ti)
     << "#include <metal_stdlib>\n"
-    << "using namespace metal;\n\n"
-    << "constant int TM = " << ti.tm << ";\n"
+    << "using namespace metal;\n\n";
+  if (tree.op == OpKind::Conv) return o.str() + conv_msl_kernel();
+  if (tree.op == OpKind::Reduction) return o.str() + reduce_msl_kernels();
+  o << "constant int TM = " << ti.tm << ";\n"
     << "constant int TN = " << ti.tn << ";\n"
     << "constant int TK = 16;\n"
     << "constant int RPT = " << ti.rpt << ";\n"

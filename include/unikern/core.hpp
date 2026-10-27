@@ -106,4 +106,14 @@ std::string op_signature(const KmlTree& tree);  // e.g. "gemm:fp32:4096x4096x409
 struct Workload { int64_t ops = 0; int64_t bytes = 0; };
 Workload workload_of(const KmlTree& tree);
 
+// Scalar CPU references for conv/reduce differential verification (R6). They
+// live in the core library so the runner and the tests compare against ONE
+// implementation of "the truth", not two copies that can drift.
+//   conv: X[H][W][C], Wt[Oc][Kh][Kw][C], Y[Oc][Ho][Wo] with Ho=H-Kh+1,
+//         Wo=W-Kw+1 (valid padding) — the implicit-GEMM view workload_of uses.
+void cpu_conv(const float* x, const float* wt, float* y, int H, int W, int C,
+              int Kh, int Kw, int Oc);
+//   reduce: y[0] = x[0] + ... + x[n-1], accumulated in fp32 in index order.
+void cpu_reduce(const float* x, float* y, int64_t n);
+
 }  // namespace unikern

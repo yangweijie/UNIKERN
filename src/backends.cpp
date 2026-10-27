@@ -38,6 +38,9 @@ public:
   std::string generate(const Solution& sol, const Hcs& hcs, const KmlTree& tree) const override {
     return msl_kernel_source(sol, hcs, tree);
   }
+  std::string capability_gap(const KmlTree& tree) const override {
+    return msl_op_gap(tree);  // Phase 13: gemm + conv + reduce
+  }
 };
 
 class BackendIntel : public IBackend {
@@ -51,12 +54,12 @@ public:
 };
 
 std::vector<BackendCoverage> primitive_coverage(const KmlTree& tree) {
-  // The reason comes from the generators' own predicate, not a parallel table:
+  // The reason comes from each backend's own predicate, not a parallel table:
   // a coverage report that disagrees with what generate() does is worse than
-  // no report at all.
-  const std::string gap = op_support_gap(tree);
+  // no report at all. Since Phase 13 the answer is genuinely per backend.
   std::vector<BackendCoverage> out;
   for (const auto& b : make_backends()) {
+    const std::string gap = b->capability_gap(tree);
     BackendCoverage c;
     c.backend = b->name();
     c.primitive_covered = gap.empty();
@@ -67,6 +70,12 @@ std::vector<BackendCoverage> primitive_coverage(const KmlTree& tree) {
     out.push_back(c);
   }
   return out;
+}
+
+bool any_backend_covers(const KmlTree& tree) {
+  for (const auto& b : make_backends())
+    if (b->capability_gap(tree).empty()) return true;
+  return false;
 }
 
 std::vector<std::unique_ptr<IBackend>> make_backends() {

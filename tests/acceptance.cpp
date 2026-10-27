@@ -1036,10 +1036,14 @@ int main(int argc, char** argv) {
     assert(hip_red.find("uk_gemm") == std::string::npos);
     const std::string msl_red = msl_kernel_source(rsol, h, red);
     const std::string ocl_red = ocl_kernel_source(rsol, h, red);
-    assert(msl_red.find("kernel void") == std::string::npos &&
-           msl_red.find("gemm only") != std::string::npos);
+    // Phase 13: the capability answer is per backend now. HIP/OCL still have no
+    // reduce kernel and say so; Metal has one and must not emit a gemm instead.
     assert(ocl_red.find("__kernel") == std::string::npos &&
            ocl_red.find("gemm only") != std::string::npos);
+    assert(msl_red.find("uk_reduce_part") != std::string::npos &&
+           msl_red.find("uk_reduce_sum") != std::string::npos);
+    assert(msl_red.find("gemm only") == std::string::npos);
+    assert(msl_red.find("uk_gemm") == std::string::npos);  // no silent swap
 
     // CLI arms: the refusal happens before any ledger work, so the poisoned-row
     // path (a gemm measurement filed as reduce) is unreachable rather than
@@ -1064,15 +1068,23 @@ int main(int argc, char** argv) {
       assert(!fs::exists(led));                                 // nothing committed
     }
     {
-      const std::string emit_dir = (dir / "emit_refused").string();
+      // Phase 13: emission is refused only when NO backend covers the tree, so
+      // a reduce declaration now writes a real MSL kernel plus honest refusal
+      // files for the two gemm-only backends — heterogeneously, but truthfully.
+      const std::string emit_dir = (dir / "emit_hetero").string();
       const std::string cap_path = (dir / "arm_emit.txt").string();
       const int rc = spawn_cli("solve --hcs \"" + hcs_path + "\" --op reduce"
                                " --dims 1048576 0 0 --ledger \"" + led +
                                "\" --emit \"" + emit_dir + "\"", cap_path);
       const std::string cap = slurp(cap_path);
-      assert(rc == 2);
-      assert(cap.find("--emit refuses") != std::string::npos);
-      assert(!fs::exists(emit_dir));  // no gemm sources written
+      assert(rc == 0);
+      assert(cap.find("COVER apple:metal primitive=covered") != std::string::npos);
+      assert(cap.find("COVER amd:hip primitive=unsupported") != std::string::npos);
+      assert(slurp(emit_dir + "/uk_apple.metal").find("uk_reduce_part") !=
+             std::string::npos);
+      assert(slurp(emit_dir + "/uk_amd.cpp").find("op_unsupported") !=
+             std::string::npos);
+      assert(slurp(emit_dir + "/uk_intel.cl").find("gemm only") != std::string::npos);
     }
     {
       // conv has no CLI arity (six dims vs three flags), so it must be rejected
@@ -1109,8 +1121,97 @@ int main(int argc, char** argv) {
              std::string::npos);
     }
     fs::remove_all(dir);
-    std::cout << "[R10.2] non-gemm ops refused at library, artifact and CLI level "
-                 "(no ledger row, no source emitted); gemm path unaffected OK\n";
+    std::cout << "[R10.2] op coverage is per backend: gemm-only backends refuse "
+                 "loudly, Metal generates real conv/reduce kernels; refused runs "
+                 "leave no ledger row; gemm path unaffected OK\n";
+  }
+
+  // -------- R13: conv/reduce references + per-op kernel structure -----------
+  {
+    // The reference implementations are the "truth" the device is compared
+    // against, so they get their own hand-computed checks rather than being
+    // trusted because the runner happens to agree with them.
+    {
+      // 1x1 conv with C=1, Kh=Kw=1 degenerates to out = x * w: 2x2 input.
+      const float x[4] = {1.f, 2.f, 3.f, 4.f};
+      const float w[1] = {0.5f};
+      float y[4] = {0.f, 0.f, 0.f, 0.f};
+      cpu_conv(x, w, y, 2, 2, 1, 1, 1, 1);
+      assert(y[0] == 0.5f && y[1] == 1.f && y[2] == 1.5f && y[3] == 2.f);
+
+      // 3x3 valid conv, C=1, Oc=1 over a 3x3 input: the single output is the
+      // full dot product of input and kernel.
+      const float x3[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+      const float w3[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};  // identity kernel
+      float y3 = 0.f;
+      cpu_conv(x3, w3, &y3, 3, 3, 1, 3, 3, 1);
+      assert(y3 == 15.f);  // trace of the 3x3
+
+      // Multi-channel / multi-output: Oc=2, C=2, 1x1 -> each output is a dot of
+      // the pixel's two channels with its own weights.
+      const float x2[4] = {1.f, 2.f, 3.f, 4.f};  // 2 pixels x 2 channels
+      const float w2[4] = {1.f, 10.f, -1.f, 1.f};  // [oc][kh][kw][c]
+      float y2[4] = {0.f, 0.f, 0.f, 0.f};
+      cpu_conv(x2, w2, y2, 1, 2, 2, 1, 1, 2);  // H=1,W=2,C=2,Kh=Kw=1,Oc=2
+      assert(y2[0] == 21.f && y2[1] == 43.f);   // oc0: 1*1+2*10, 3*1+4*10
+      assert(y2[2] == -1.f + 2.f && y2[3] == -3.f + 4.f);  // oc1
+    }
+    {
+      // reduce: 2^20 values of 2^-6 sum to 16384 exactly in fp32 — the same
+      // property the device verify relies on.
+      const int64_t n = int64_t(1) << 20;
+      std::vector<float> v((size_t)n, 0.015625f);
+      float y = 0.f;
+      cpu_reduce(v.data(), &y, n);
+      assert(y == 16384.f);
+      cpu_reduce(v.data(), &y, 0);  // empty range is 0, not UB
+      assert(y == 0.f);
+    }
+    // Per-op kernel structure: each source carries ITS kernels and no other
+    // op's (the silent-swap guard, at source level).
+    {
+      Hcs h = discrete_hcs(int64_t(8) << 30, 512);
+      KmlTree g;  // gemm
+      KmlTree c;  // conv
+      c.op = OpKind::Conv;
+      const int cd[6] = {8, 8, 4, 3, 3, 8};
+      for (int i = 0; i < 6; ++i) c.dims[i] = cd[i];
+      KmlTree r;  // reduce
+      r.op = OpKind::Reduction;
+      r.dims[0] = 1 << 16;
+      for (int i = 1; i < 6; ++i) r.dims[i] = 0;
+
+      const std::string mg = msl_kernel_source(solve(h, g), h, g);
+      const std::string mc = msl_kernel_source(solve(h, c), h, c);
+      const std::string mr = msl_kernel_source(solve(h, r), h, r);
+      assert(mg.find("kernel void uk_gemm") != std::string::npos &&
+             mg.find("uk_conv") == std::string::npos &&
+             mg.find("uk_reduce") == std::string::npos);
+      assert(mc.find("kernel void uk_conv") != std::string::npos &&
+             mc.find("uk_gemm") == std::string::npos);
+      assert(mr.find("kernel void uk_reduce_part") != std::string::npos &&
+             mr.find("kernel void uk_reduce_sum") != std::string::npos &&
+             mr.find("uk_gemm") == std::string::npos);
+      // All three still carry the R5/R8 provenance banner.
+      for (const auto* src : {&mg, &mc, &mr}) {
+        assert(src->find("R8.1") != std::string::npos &&
+               src->find("R8.6") != std::string::npos &&
+               src->find("fp=") != std::string::npos);
+      }
+      // The two capability answers are deliberately different: the shared
+      // (HIP/OCL) predicate stays gemm-only, MSL covers all three.
+      assert(op_support_gap(g).empty() && !op_support_gap(c).empty() &&
+             !op_support_gap(r).empty());
+      assert(msl_op_gap(g).empty() && msl_op_gap(c).empty() && msl_op_gap(r).empty());
+      // A non-NT layout is refused by both, with the layout named.
+      KmlTree bad = g;
+      bad.layout = "colmajor";
+      assert(op_support_gap(bad).find("layout=colmajor") != std::string::npos);
+      assert(msl_op_gap(bad).find("layout=colmajor") != std::string::npos);
+    }
+    std::cout << "[R13] conv/reduce CPU references exact on hand-computed cases; "
+                 "each MSL source carries only its own kernels; capability split "
+                 "HIO=gemm-only / MSL=three ops OK\n";
   }
 
   // -------- R10.3: per-backend primitive coverage, three axes kept apart -----
@@ -1142,10 +1243,27 @@ int main(int argc, char** argv) {
       }
       assert(matched);  // a coverage row for a backend that does not exist
     }
-    // An uncovered primitive is named, per backend, with the same reason.
+    // Phase 13: the answer is per backend. Metal covers gemm/conv/reduce; the
+    // gemm-only two name the op. This is the leg that would have silently
+    // passed a global "everything unsupported" table.
     for (const auto& c : primitive_coverage(red)) {
-      assert(!c.primitive_covered);
-      assert(c.reason.find("op=reduce") != std::string::npos);
+      if (c.backend == "apple:metal") {
+        assert(c.primitive_covered && c.reason.empty());
+      } else {
+        assert(!c.primitive_covered);
+        assert(c.reason.find("op=reduce") != std::string::npos);
+      }
+    }
+    KmlTree conv;
+    conv.op = OpKind::Conv;
+    const int cdims[6] = {16, 16, 8, 3, 3, 32};
+    for (int i = 0; i < 6; ++i) conv.dims[i] = cdims[i];
+    for (const auto& c : primitive_coverage(conv)) {
+      if (c.backend == "apple:metal")
+        assert(c.primitive_covered);
+      else
+        assert(!c.primitive_covered &&
+               c.reason.find("op=conv") != std::string::npos);
     }
     std::cout << "[R10.3] coverage report: three backends, primitive/execution/"
                  "toolchain axes distinct and derived from the live objects OK\n";
@@ -1193,9 +1311,14 @@ int main(int argc, char** argv) {
                        "\" --ledger \"" + led + "\"", cap_path) == 0);
       const std::string cap = slurp(cap_path);
       assert(cap.find("SOLVED") != std::string::npos);        // model covers it
+      // Two backends still name the gap; the covered one does not.
       assert(cap.find("primitive=unsupported reason=kernel generation covers "
                      "gemm only; op=reduce") != std::string::npos);
-      assert(cap.find("model-only") != std::string::npos);
+      assert(cap.find("COVER apple:metal primitive=covered") != std::string::npos);
+      // Since Phase 13 a covered declaration prints its sources instead of the
+      // model-only NOTE: the Metal reduce kernel must be in that output.
+      assert(cap.find("uk_reduce_part") != std::string::npos);
+      assert(cap.find("model-only") == std::string::npos);
     }
     {
       // A fresh ledger path: cmd_solve already created `led` for its lookup, so

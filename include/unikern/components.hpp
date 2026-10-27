@@ -23,6 +23,13 @@ struct IBackend {
   // prefetch double buffering) is implemented only in the AMD program, and the
   // other two runners refuse oversubscription loudly rather than degrade.
   virtual bool supports_streaming() const { return false; }
+  // R10.2: what THIS backend can generate for the declared tree. The default
+  // is the shared generators' answer (gemm only); a backend that gains a kernel
+  // family overrides it. CLI gating, runners and the coverage report all read
+  // this one answer, so they cannot disagree about who covers what.
+  virtual std::string capability_gap(const KmlTree& tree) const {
+    return op_support_gap(tree);
+  }
 };
 std::vector<std::unique_ptr<IBackend>> make_backends();
 
@@ -42,6 +49,10 @@ struct BackendCoverage {
   bool toolchain_available = false;
 };
 std::vector<BackendCoverage> primitive_coverage(const KmlTree& tree);
+// True when at least one backend can generate the tree (the `--emit` gate:
+// writing a real kernel for one vendor plus honest refusals for the others is
+// the truth, so emission is allowed as long as somebody covers it).
+bool any_backend_covers(const KmlTree& tree);
 
 // R2-R4: deterministic solve. Pure function of (hcs, tree) => P1.
 Solution solve(const Hcs& hcs, const KmlTree& tree);

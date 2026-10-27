@@ -1,0 +1,61 @@
+
+=== ARM-PROBE msl_supports_three_ops (src/codegen_hip.cpp): leg disabled — something must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+Assertion failed: (msl_red.find("uk_reduce_part") != std::string::npos && msl_red.find("uk_reduce_sum") != std::string::npos), function main, file acceptance.cpp, line 1044.
+--- msl_supports_three_ops restored ---
+
+=== ARM-PROBE apple_capability_override (src/backends.cpp): leg disabled — something must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+Assertion failed: (rc == 0), function main, file acceptance.cpp, line 1080.
+--- apple_capability_override restored ---
+
+=== ARM-PROBE emit_gate_any_backend (src/main.cpp): leg disabled — something must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+Assertion failed: (rc == 0), function main, file acceptance.cpp, line 1080.
+--- emit_gate_any_backend restored ---
+
+=== ARM-PROBE conv_pipeline_name (src/runner_metal.mm): leg disabled — something must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+
+=== conv ===
+  ran=0 verified=0 measured_ms=0
+  (absent) UNIKERN_RESULT
+  UNIKERN_ERROR what=no_function name=uk_gemm
+
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=1.014379 kernel_ms=0.650583 mode=resident payload_mb=16.015629 perf=4194304
+=== reduce ===
+  ran=1 verified=1 measured_ms=1.01438
+  UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=1.014379 kernel_ms=0.650583 mode=resident payload_mb=16.015629 perf=4194304
+  (absent) UNIKERN_ERROR
+
+both_pass=0
+(device probe above; a leg that fires is visible in its own lines)
+--- conv_pipeline_name restored ---
+
+=== ARM-PROBE reduce_threadgroup_bound (src/runner_metal.mm): leg disabled — something must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=2.182200 kernel_ms=1.140500 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+=== conv ===
+  ran=1 verified=1 measured_ms=2.1822
+  UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=2.182200 kernel_ms=1.140500 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+  (absent) UNIKERN_ERROR
+
+UNIKERN_RESULT backend=apple:metal verify=FAIL max_rel=1.000000e+00 measured_ms=0.622104 kernel_ms=0.219833 mode=resident payload_mb=16.015629 perf=4194304
+=== reduce ===
+  ran=1 verified=0 measured_ms=0.622104
+  UNIKERN_RESULT backend=apple:metal verify=FAIL max_rel=1.000000e+00 measured_ms=0.622104 kernel_ms=0.219833 mode=resident payload_mb=16.015629 perf=4194304
+  (absent) UNIKERN_ERROR
+
+both_pass=0
+(device probe above; a leg that fires is visible in its own lines)
+--- reduce_threadgroup_bound restored ---
+
+residual ARM-PROBE legs: none
+[5/5] Linking CXX executable unikern_acceptance
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.90 sec

@@ -26,6 +26,12 @@ std::string op_support_gap(const KmlTree& tree);
 // so the front end and the generators can never disagree from two tables.
 bool codegen_layout_supported(const std::string& layout);
 
+// Per-backend capability, asked of the generator that actually implements it.
+// MSL has kernels for all three op families (Phase 13, Apple first), the HIP
+// program and the OpenCL source are still gemm-only, so they keep the shared
+// op_support_gap() answer. Empty string = this backend can generate the tree.
+std::string msl_op_gap(const KmlTree& tree);
+
 // AMD HIP: complete runnable program (kernel + deterministic init + CPU
 // reference + differential verify + event timing). Self-verifying by design.
 std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);

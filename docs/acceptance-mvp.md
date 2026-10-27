@@ -1,6 +1,6 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8/9/10
 
-- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）；**Phase 9（Intel 段）另用 MSVC 2022 Community（cl.exe 14.44 + vcvarsall 环境）构建，OpenCL 经 oneAPI 2026.1/lib/OpenCL.lib 导入库链接 + third_party/CL 厂商头（18 头，Apache-2.0），构建标志含 -DUK_HAS_OCL**（MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；GCC 风格 -Wall/-Wextra 按编译器翻译）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
@@ -21,16 +21,16 @@
 
 | 需求 | 验收方式 | 关键证据 | 状态 |
 |------|----------|----------|------|
-| R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝；v7 增 `--op` 声明位与 conv arity 拒绝；**v8 增 KML 文本前端（三算子声明、完整违规清单、arity、layout 白名单、children 路径）** | `ctest` acceptance `[R1]`；`[R1.1/2] KML text front end: three op families, round-trip, complete rejection list, arity, layout, children paths OK`；畸形声明 rc=2 且一次列全 4 条违规（`docs/evidence/phase12/phase12-kml-and-device.txt`） | 🟡（R1.1 声明半边 ✅、R1.2 ✅、R1.3 ✅；**conv/reduce 可用的内核生成仍缺**，执行仍被点名拒绝——即 G1 执行半边） |
+| R1 KML 前端与原语树 | 单测：canonical_form 唯一性 + 前端类型名拒绝；v7 增 `--op` 声明位；v8 增 KML 文本前端；**v9 增"声明→Apple 真机执行"闭环** | `[R1.1/2] KML text front end ... OK`；`run --vendor apple --kml samples/kml_conv.json` → `verify=PASS max_rel=0`、`LEDGER COMMIT`；`--vendor amd/intel` 同一份声明 rc=2 且不建账本 | ✅（R1.1 声明与 Apple 执行 ✅、R1.2 ✅、R1.3 ✅；**AMD/Intel 的执行半边**待下一批） |
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
-| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce toolchain=rocm-7.13`；**Intel 构件 uk_intel.cl 经 ocloc AOT 编译（bmg-g21，产出 .bin + .spv）**；**Apple 构件 uk_apple.metal 经 Metal 运行时 JIT 真编译真执行（newLibraryWithSource，见 R6）** | ✅（三后端生成已验；AMD 真编译真执行、Intel ocloc AOT + 进程内执行、Apple JIT 真编译真执行） |
-| R6 差分验证 | 单测：容差函数 verify_fp32 五路径；真机：生成程序自带 CPU 对拍（2⁻⁵）+ CLI run | `[R6] fp32 graded tolerance ... OK`；`verified=PASS max_rel=0`（1024³ 两档、AMD 与 Intel B390 均实测 PASS，max_rel=0 位级一致；**Apple M4 实测 PASS max_rel=0，256³ 对拍位级一致**） | ✅（AMD/Intel/Apple 三真机均 PASS） |
-| R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环；R7.3 场景 A 校准门控四臂；**v8 增 R7.1/G9 键身份臂（op_signature 与 canonical_form 按算子 arity 编码）** | `LEDGER HIT ...`；`[R7] crash ...`；`[CAL] ...`；`CALIBRATED link_bw 32 -> 5.429`；`[R7.3] scenario-A calibrate gate: ... OK`（摘门控即红，`docs/evidence/phase10/phase10-gate-arm-probe.txt`）；`[R7.1] op_signature encodes the op's full arity ... OK`（gemm 键逐位不变、conv 三形状互异） | ✅ |
+| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数；**v9 增 per-op 内核结构臂（每份源只带它自己的 kernel）** | `[R13] each MSL source carries only its own kernels ... OK`；`EMIT apple:metal -> uk_apple.metal lines=40`（conv，含 `uk_conv`）；reduce 源含 `uk_reduce_part`+`uk_reduce_sum`；gemm 源不含 conv/reduce 内核（反之亦然） | ✅（生成侧三厂商三算子；**执行侧 Apple 三算子、AMD/Intel 仅 gemm**） |
+| R6 差分验证 | 单测：容差函数 verify_fp32 五路径 + **v9：conv/reduce 的共享 CPU 参考四组手算用例**；真机：生成程序/runner 自带 CPU 对拍 + CLI run | `[R13] conv/reduce CPU references exact on hand-computed cases ... OK`；`verified=PASS max_rel=0`（AMD/Intel/Apple 的 gemm + **Apple 的 conv/reduce**；reduce 的 verify 数据取 2^-6×2^20，任意次序精确——验结构不验浮点次序鲁棒性，已注明） | ✅（三真机 gemm + Apple conv/reduce；AMD/Intel 的 conv/reduce 待下一批） |
+| R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环；R7.3 场景 A 校准门控四臂；v8 增 R7.1/G9 键身份臂；**v9 增 conv/reduce 实测行端到端** | `[R7.1] op_signature encodes the op's full arity ... OK`；conv `LEDGER COMMIT ε_rel=334.619` → 同键 `LEDGER HIT` → 再 COMMIT `ε_rel=243.931`；reduce `ε_rel=10.9052` / HIT 轮 `8.86814`（`docs/evidence/phase13/phase13-conv-reduce-device.txt`） | ✅ |
 | R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s（AMD）；**Apple M4 场景 A 真机 resident 执行 PASS（零拷贝语义，placement=unified_memory 单测已验）** | 🟡（AMD 流式 ✅；Apple 场景 A resident ✅；**Intel/Apple resident-only，流式不实现**——生成程序横幅声明此边界，payload > 0.85×上限时 runner 如实 `UNIKERN_ERROR what=stream_refused` 拒绝（R10 无静默降级），如实标注） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
-| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends`；v7 增 op 能力面三层拒绝臂；**v8 增 R10.3 覆盖报告三轴（库 + CLI 臂，execution 轴写死即红）** | `[R10] ... vendor-API isolation OK`；`[R10.2] non-gemm ops refused ... OK`；`[R10.3] coverage report: three backends ... OK`；`COVER amd:hip primitive=covered execution=resident+streamed toolchain=absent` 等三行（`docs/evidence/phase12/`） | ✅（R10.1/R10.2/R10.3 均有实现与回归位；**口径注意**：R10.2 的"纳入 F 约束"现表现为生成/执行拒绝 + 报告点名，solve 仍是 (hcs, tree) 纯函数、不知后端，见 Phase 12 补遗） |
+| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends`；v7 增 op 能力面三层拒绝臂；v8 增 R10.3 覆盖报告三轴；**v9 增 per-backend 能力面异构臂（Apple=三算子、HIP/OCL=gemm-only）与异构 emit 臂** | `[R10.2] op coverage is per backend ... OK`；`[R10.3] coverage report ... OK`；`COVER apple:metal primitive=covered` 与 `COVER amd:hip primitive=unsupported reason=kernel generation covers gemm only; op=conv` 同表共存；`solve --emit` 写出 `uk_conv`（Apple）与点名拒绝文件（另两个） | ✅（R10.1/R10.2/R10.3 均有实现与回归位；**R10.2 的 F 约束合流仍属 V1**，口径见 Phase 12 补遗） |
 
 ## 逐项验收
 
@@ -293,12 +293,12 @@ runner 对拍/计时/账本闭环（LEDGER COMMIT/HIT），见 `docs/evidence/ph
 
 | # | 缺口 | 影响 | 去向 |
 |---|------|------|------|
-| G1 | ~~KML 无文本解析器，R1.2 结构校验无用户入口~~ **声明半边已闭合（v8 / Phase 12）**：`kml_import`/`kml_export` + `--kml` + `kml` 子命令 | 三类算子可按 arity 声明、违规清单一次列全、layout 只接受已实现标签；执行半边仍开放 | conv/reduce **可用的内核生成**（下一批）；更复杂的原语树组合语法按 V1 |
+| G1 | ~~KML 无文本解析器，R1.2 结构校验无用户入口~~ **声明半边已闭合（v8 / Phase 12）**：`kml_import`/`kml_export` + `--kml` + `kml` 子命令；**执行半边的 Apple 侧也已闭合（v9 / Phase 13）**：conv/reduce 在 M4 上真机对拍 PASS + 账本闭环 | 三类算子现已"可声明、可求解、可进键、**可在 Apple 真机执行**"；AMD/Intel 的执行半边仍缺 | conv/reduce 的 HIP 程序与 OpenCL 源（下一批）；更复杂的原语树组合语法按 V1 |
 | G2 | ~~`constants_version` 恒 1（stub）~~ **已闭合（v4）** | — | `calibrate` 递增版本号，实测 1→2 |
 | G3 | ~~生成产物头未含 HCS `toolchain` 字段~~ **已闭合（v4）** | — | 产物头 `toolchain=rocm-7.13`（三后端一致） |
 | G4 | ~~Apple 真机执行与对拍；Intel 真机执行与对拍~~ **已闭合（v6）** | ~~R5.2/R6/R8 的对应后端项~~ — | **Intel 半侧 2026-10-27 Phase 9 闭合**（ocloc AOT + 进程内 OpenCL runner 真机验证，见 `docs/evidence/phase9/`）；**Apple 半侧 2026-10-27 Phase 10 闭合**（Metal 运行时 JIT + 进程内 ObjC++ runner 真机验证，见 `docs/evidence/phase10/`）。G4 全闭合。 |
 | G5 | R8.5 运行时缺页迁移率监测器 | 仅显式路径 + 模式自选落地 | 真机长测（AMD 可做，未列入 MVP 单测） |
-| G6 | Apple resident 预算取 HCS 声明容量，未与 Metal `recommendedMaxWorkingSetSize` 交叉校验（`src/runner_metal.mm:110`） | "payload ≤ 0.85×容量"只对声明容量成立；本机 payload 3 MB 远低于两者，读数不受影响 | 需一次真机上限探测臂（Phase 10 收尾如实入册，未顺手实现） |
+| G6 | ~~Apple resident 预算取 HCS 声明容量，未与 Metal `recommendedMaxWorkingSetSize` 交叉校验~~ **已闭合（v9 / Phase 13）** | "payload ≤ 0.85×容量"此前只对声明容量成立——本机实测工作集上限 13631488000 B（12.7 GiB），仅声明容量的 47%，旧口径放过的最大载荷是设备上限的 2.1 倍 | 两道门并列（`0.85×声明容量` 与 `recommendedMaxWorkingSetSize`），各自报自己的名字，不叠乘；UK_DEVICE 行打印实测值；arm A/B/C 见 `docs/evidence/phase13/phase13-g6-working-set.txt`。判别证据是"带内拒绝"，不是"摘掉报警"（摘门会让 20 GB 载荷走到分配阶段） |
 | G7 | ~~非 GEMM 树被静默当作 GEMM 执行并按 `reduce:...` 键回写账本~~ **已闭合（v7 / Phase 11）** | 修复前会污染 R7.3 校准输入；R10.2"绝不静默降级"被破 | `op_support_gap()` + 生成物自拒 + runner 入口自拒 + CLI 门，三层各有"摘掉即红"证明（`docs/evidence/phase11/`）；conv/reduce **可用的**内核生成仍属 G1 |
 | G8 | ~~R10.3"输出每个解在各后端的原语覆盖情况"零实现~~ **已闭合（v8 / Phase 12）** | 修复前只有拒绝消息代偿，"不支持"不是可查产物 | `primitive_coverage()` + `COVER` 行进 solve/run/kml 报告；三轴（primitive / execution / toolchain）分别取自 `op_support_gap()`、`supports_streaming()`、`available()`，无第二张表可漂移；`[R10.3]` 库+CLI 臂守着，把 execution 轴写死即红（`docs/evidence/phase12/phase12-arm-probes.txt` 第 6 腿） |
 | G9 | ~~`op_signature` 只编进 dims[0..2]，conv 两种形状共用一个账本键~~ **已闭合（v8 / Phase 12）** | 修复前不是活故障（conv 在落库前即被 G7 拒绝），但 G1 的 conv 声明一落地就会变活 | 签名与 canonical_form 改按 `kml_arity()` 取维；`[R7.1]` 臂断言 gemm 键逐位不变（已入库证据无需迁移）+ conv 三形状互异 + reduce 未用槽位不泄漏进键或哈希 |
@@ -513,3 +513,31 @@ KML 文本前端 + R10.3 覆盖报告 + G9 键身份（转录在 `docs/evidence/
 - **仍未做（如实）**：conv/reduce 可用的内核生成＝G1 的执行半边；
   更复杂的原语树组合语法；`--kml` 在 AMD/Intel 真机的端到端复跑（本轮只在 Apple 实跑，
   `runner_ocl.cpp` 仍只有 `-fsyntax-only` 编译检查）。
+
+## Phase 13 算子执行面补遗（2026-10-27，v9，Apple 先行）
+
+conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evidence/phase13/`）：
+
+- **能力面按后端拆开**：`IBackend::capability_gap()`（默认沿用共享谓词）——Apple 覆盖
+  gemm/conv/reduce，HIP 程序与 OpenCL 源仍 gemm-only。CLI 的 run 门按**所选后端**判，
+  `--emit` 按"任一后端覆盖"判，覆盖表因此出现异构行（`apple:covered` 与
+  `amd/…unsupported reason=…op=conv` 同表）。R10.2 的"绝不静默"在异构下依然成立：
+  被拒的树在 ledger 任何访问前停下，账本文件不创建。
+- **MSL 内核**：`uk_conv`（implicit-GEMM、valid padding、一线程一输出——直白实现，
+  不是调优实现，ε_rel 334/244 是对它的诚实测量）；`uk_reduce`（pass 1 分段求和，
+  pass 2 单线程按序折叠）。verify 用的 2^-6×2^20=16384 数据在任意次序下 fp32 精确，
+  所以 max_rel=0 证明的是**结构正确**，不是浮点次序鲁棒性——这条写进了源码注释。
+- **共享真值**：`src/reference.cpp` 的 `cpu_conv`/`cpu_reduce` 同时供 runner 与单测使用，
+  并用四组手算用例（1×1 退化、identity kernel 的迹、多通道多输出、空区间）钉住。
+- **G6**：Metal 的新门与容量门**并列不叠乘**；本机实测 `recommendedMaxWorkingSetSize`
+  =13631488000 B（12.7 GiB），而 0.85×声明容量=29.2 GB——旧口径放过的最大载荷是设备上限
+  的 2.1 倍。arm A（落在两界之间）由新门拒绝且容量门沉默，arm B（超容量）仍由容量门拒绝。
+  **判别证据是"带内拒绝"**：直接摘门会让 20 GB 载荷走到分配阶段，那既可能压垮机器，
+  量到的也只是分配失败而非判定。
+- **自捉**：reduce 首跑 `verify=FAIL max_rel=1.0`——pass-1 线程组取了 4096，超过
+  `maxTotalThreadsPerThreadgroup`（1024），Metal 静默不执行，读到全零。修法是组宽
+  `min(p,64)`；另补命令缓冲状态检查作纵深防御，但**这次抓到它的不是状态检查而是 verify**
+  （该失败模式下缓冲仍报 Completed），如实记录以免把两层保护说混。
+- **仍缺（如实）**：AMD（HIP 程序）与 Intel（OpenCL 源）的 conv/reduce 内核；
+  `--kml` 在这两个后端的真机端到端复跑；conv/reduce 的调优（分块/tiling）与浮点次序鲁棒性验证；
+  R10.2 的 F 约束合流（V1）。

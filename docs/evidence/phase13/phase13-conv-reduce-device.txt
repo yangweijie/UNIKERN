@@ -1,0 +1,71 @@
+$ md5 -q ./build-apple/unikern
+2f2471d860327f13692eafc44defd227
+
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor apple --kml samples/kml_conv.json --ledger /tmp/uk_p13.5UBTd9/conv.sqlite3
+rc=0
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=2.072408 kernel_ms=1.319500 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+COVER apple:metal primitive=covered execution=resident-only toolchain=present
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.07241
+UK_RUNNER plan op=conv perf=64x64x32x3x3x64 tile=96x96 unified_bytes=34359738368 max_working_set_bytes=13631488000 payload_mb=1.508789 warm=2 iters=10
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=2.072408 kernel_ms=1.319500 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+LEDGER COMMIT predicted_ms=0.0058075 measured_ms=2.07241 epsilon_abs=2.0666 epsilon_rel=355.85
+
+$ same command again (same key -> LEDGER HIT, then a fresh COMMIT)
+rc=0
+LEDGER HIT  c_cached_ms=0.0058075  tile=128x128  (from ledger)
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.48633
+LEDGER COMMIT predicted_ms=0.0058075 measured_ms=1.48633 epsilon_abs=1.48052 epsilon_rel=254.933
+
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor apple --kml samples/kml_reduce.json --ledger /tmp/uk_p13.5UBTd9/reduce.sqlite3
+rc=0
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.935179 kernel_ms=0.466250 mode=resident payload_mb=16.015629 perf=4194304
+COVER apple:metal primitive=covered execution=resident-only toolchain=present
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.935179
+UK_RUNNER plan op=reduce perf=4194304 tile=96x96 unified_bytes=34359738368 max_working_set_bytes=13631488000 payload_mb=16.015629 warm=2 iters=10
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.935179 kernel_ms=0.466250 mode=resident payload_mb=16.015629 perf=4194304
+LEDGER COMMIT predicted_ms=0.0838861 measured_ms=0.935179 epsilon_abs=0.851293 epsilon_rel=10.1482
+
+$ same command again (same key -> LEDGER HIT, then a fresh COMMIT)
+rc=0
+LEDGER HIT  c_cached_ms=0.0838861  tile=128x128  (from ledger)
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.909538
+LEDGER COMMIT predicted_ms=0.0838861 measured_ms=0.909538 epsilon_abs=0.825652 epsilon_rel=9.84253
+
+# gemm regression: the pre-Phase-13 reading shape must be unchanged
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor apple --kml samples/kml_gemm.json --ledger /tmp/uk_p13.5UBTd9/g.sqlite3
+rc=0
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.675396 kernel_ms=0.296625 mode=resident payload_mb=3.000000 perf=512x512x512
+RUN apple:metal built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.675396
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.675396 kernel_ms=0.296625 mode=resident payload_mb=3.000000 perf=512x512x512
+LEDGER COMMIT predicted_ms=0.0103244 measured_ms=0.675396 epsilon_abs=0.665071 epsilon_rel=64.4172
+
+# the two gemm-only backends still refuse to run a conv/reduce declaration
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor amd --kml samples/kml_conv.json --ledger /tmp/uk_p13.5UBTd9/never_amd_conv.jsonl
+rc=2  ledger_created=no
+UNSUPPORTED: kernel generation covers gemm only; op=conv — run/verify execute nothing and write no ledger row for this tree (R10.2: unsupported interval, never a silent workload swap). [backend=amd:hip]
+
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor amd --kml samples/kml_reduce.json --ledger /tmp/uk_p13.5UBTd9/never_amd_reduce.jsonl
+rc=2  ledger_created=no
+UNSUPPORTED: kernel generation covers gemm only; op=reduce — run/verify execute nothing and write no ledger row for this tree (R10.2: unsupported interval, never a silent workload swap). [backend=amd:hip]
+
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor intel --kml samples/kml_conv.json --ledger /tmp/uk_p13.5UBTd9/never_intel_conv.jsonl
+rc=2  ledger_created=no
+UNSUPPORTED: kernel generation covers gemm only; op=conv — run/verify execute nothing and write no ledger row for this tree (R10.2: unsupported interval, never a silent workload swap). [backend=intel:ocl]
+
+$ ./build-apple/unikern run --hcs samples/hcs_apple.json --vendor intel --kml samples/kml_reduce.json --ledger /tmp/uk_p13.5UBTd9/never_intel_reduce.jsonl
+rc=2  ledger_created=no
+UNSUPPORTED: kernel generation covers gemm only; op=reduce — run/verify execute nothing and write no ledger row for this tree (R10.2: unsupported interval, never a silent workload swap). [backend=intel:ocl]
+
+# heterogeneous emission: one real kernel + two honest refusal files
+$ ./build-apple/unikern solve --hcs samples/hcs_apple.json --kml samples/kml_conv.json --ledger /tmp/uk_p13.5UBTd9/e.jsonl --emit /tmp/uk_p13.5UBTd9/emit
+rc=0
+SOLVED  x* tile=128x128  c_ms=0.0058075  |X|=25  hcs_fp=f01e6704
+COVER amd:hip primitive=unsupported reason=kernel generation covers gemm only; op=conv execution=resident+streamed toolchain=absent
+COVER apple:metal primitive=covered execution=resident-only toolchain=present
+COVER intel:ocl primitive=unsupported reason=kernel generation covers gemm only; op=conv execution=resident-only toolchain=absent
+EMIT amd:hip -> /tmp/uk_p13.5UBTd9/emit/uk_amd.cpp lines=8 (toolchain absent)
+EMIT apple:metal -> /tmp/uk_p13.5UBTd9/emit/uk_apple.metal lines=40
+EMIT intel:ocl -> /tmp/uk_p13.5UBTd9/emit/uk_intel.cl lines=4 (toolchain absent)
+  uk_apple.metal   1 uk_conv
+  uk_amd.cpp       2 gemm only
+  uk_intel.cl      1 gemm only

@@ -252,7 +252,10 @@ static int cmd_solve(int argc, char** argv) {
   const auto declared = load_tree(o);
   if (!declared) return 2;
   KmlTree tree = *declared;
-  const std::string gap = op_support_gap(tree);
+  // Per-backend capability (Phase 13): emission is refused only when NO backend
+  // can generate the tree; otherwise the sources are written as they are —
+  // real kernels where a backend covers the op, honest refusal files elsewhere.
+  const std::string gap = any_backend_covers(tree) ? "" : op_support_gap(tree);
   if (!gap.empty() && !o.emit_dir.empty()) {
     std::cerr << "UNSUPPORTED: " << gap << " — --emit refuses rather than writing a "
                  "gemm program in place of the declared workload (R10.2).\n";
@@ -325,14 +328,25 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   const auto declared = load_tree(o);
   if (!declared) return 2;
   KmlTree tree = *declared;
-  // R10.2: nothing is executed, measured or committed for a workload kernel
-  // generation cannot cover — checking before the ledger keeps a poisoned row
-  // (a gemm measurement filed under another op) out of reach entirely.
-  const std::string gap = op_support_gap(tree);
+  // R10.2: nothing is executed, measured or committed for a workload the
+  // SELECTED backend cannot generate — checking before the ledger keeps a
+  // poisoned row (a gemm measurement filed under another op) out of reach
+  // entirely. Since Phase 13 this is a per-backend answer, not a global one.
+  std::unique_ptr<IBackend> target;
+  for (auto& b : make_backends()) {
+    if ((o.vendor == "intel" && b->vendor() == Vendor::Intel) ||
+        (o.vendor == "apple" && b->vendor() == Vendor::Apple) ||
+        (o.vendor == "amd" && b->vendor() == Vendor::Amd)) {
+      target = std::move(b);
+      break;
+    }
+  }
+  const std::string gap = target ? target->capability_gap(tree) : op_support_gap(tree);
   if (!gap.empty()) {
     std::cerr << "UNSUPPORTED: " << gap << " — run/verify execute nothing and write "
                  "no ledger row for this tree (R10.2: unsupported interval, never a "
-                 "silent workload swap).\n";
+                 "silent workload swap). [backend="
+              << (target ? target->name() : o.vendor) << "]\n";
     return 2;
   }
   const Key key = ledger_key(*hcs, tree);

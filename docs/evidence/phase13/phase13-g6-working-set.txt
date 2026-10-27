@@ -1,0 +1,30 @@
+$ clang++ -std=c++20 -fobjc-arc -Iinclude -x objective-c++ probe/uk_ws_probe.mm -x none build-apple/libunikern_core.a build-apple/libsqlite3.a -framework Metal -framework Foundation -o /tmp/uk_ws_probe
+$ /tmp/uk_ws_probe
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=0.380475 kernel_ms=0.021125 mode=resident payload_mb=0.046875 perf=64x64x64
+=== arm C (64^3, runs) ===
+ran=1 verified=1 measured_ms=0.380475
+UK_DEVICE_MAXWS max_working_set_bytes=13631488000
+UK_RUNNER plan perf=64x64x64 tile=96x96 unified_bytes=34359738368 max_working_set_bytes=13631488000 payload_mb=0.046875 warm=2 iters=10
+log_has_capacity_refusal=0 log_has_ws_refusal=0
+
+declared capacity bytes=34359738368  0.85*cap=29205777612  measured max_ws=13631488000
+arm A dims=42240 payload=21410611200  arm B dims=52320 payload=32848588800
+
+UNIKERN_ERROR what=working_set_refused payload_mb=20418.8 max_working_set_bytes=13631488000
+apple:metal runner is resident-only (MVP) and Metal caps a single command's working set below physical capacity: this payload fits 0.85 * declared unified memory but exceeds the device's recommendedMaxWorkingSetSize (G6/R10: no silent oversubscription).
+=== arm A (between cap and 0.85*capacity -> working-set gate) ===
+ran=0 verified=0 measured_ms=0
+UK_DEVICE_MAXWS max_working_set_bytes=13631488000
+UK_RUNNER plan perf=42240x42240x42240 tile=96x96 unified_bytes=34359738368 max_working_set_bytes=13631488000 payload_mb=20418.750000 warm=1 iters=1
+UK_RUNNER refused: payload > recommendedMaxWorkingSetSize
+log_has_capacity_refusal=0 log_has_ws_refusal=1
+
+UNIKERN_ERROR what=stream_refused payload_mb=31326.9 unified_bytes=34359738368
+apple:metal runner is resident-only (MVP): the timing payload exceeds 0.85 * unified memory and explicit streaming is not implemented for this backend (R10: no silent fallback).
+=== arm B (above 0.85*capacity -> capacity gate) ===
+ran=0 verified=0 measured_ms=0
+UK_DEVICE_MAXWS max_working_set_bytes=13631488000
+UK_RUNNER plan perf=52320x52320x52320 tile=96x96 unified_bytes=34359738368 max_working_set_bytes=13631488000 payload_mb=31326.855469 warm=1 iters=1
+UK_RUNNER refused: payload > 0.85 * unified_bytes (streaming not implemented)
+log_has_capacity_refusal=1 log_has_ws_refusal=0
+

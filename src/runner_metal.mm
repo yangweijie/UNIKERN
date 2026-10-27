@@ -3,9 +3,10 @@
 // compiler (newLibraryWithSource). No Xcode needed — the CommandLineTools
 // SDK provides Metal.framework with its built-in compiler. Semantics mirror
 // the HIP/OCL runners exactly:
-//   - deterministic init (2^-4 multiples, FP32-exact) + 256^3 differential
-//     verify against a scalar CPU reference, tolerance 2^-5 (0.03125);
-//   - timing at the tree dims (16-aligned, floor 32, uncapped);
+//   - deterministic init (2^-4 multiples, FP32-exact) + differential verify
+//     against the shared scalar CPU reference, tolerance 2^-5 (0.03125);
+//   - timing at the declared dims (gemm floors each dim to 16 with a floor of
+//     32; conv/reduce time the declared shape as-is);
 //   - measured_ms = end-to-end per pass (dispatch + waitUntilCompleted on
 //     the CPU clock — the same byte movement the C(x) copy term charges);
 //   - kernel_ms = GPU-side kernel time (GPUStartTime/GPUEndTime delta);
@@ -15,8 +16,13 @@
 // means host/device share memory — no explicit copy path exists. The e2e
 // measurement captures the dispatch + kernel + memory traffic on the shared
 // bus (zero-copy semantics, R8.1).
-// Resident-only (MVP): when the payload exceeds 0.85 * unified_bytes the
-// runner refuses with UNIKERN_ERROR — no silent streaming fallback (R10).
+// Phase 13 (Apple first): all three op families execute here. conv runs the
+// implicit-GEMM view (valid padding, one thread per output); reduce runs two
+// passes (strided partials, then a deterministic fold). gemm is unchanged.
+// Resident-only (MVP), with two separate residency bounds (G6):
+//   0.85 * HCS-declared unified capacity, and the device's own
+//   recommendedMaxWorkingSetSize — whichever binds, says so by name.
+// No silent streaming fallback (R10).
 //
 // UK_HAS_METAL (defined by CMake on macOS): without it this file compiles
 // to an honest stub reporting that Metal was not available at build time.
@@ -30,6 +36,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -64,6 +71,10 @@ void log_device_facts(id<MTLDevice> dev) {
   os << "UK_DEVICE name=" << [dev.name UTF8String] << "\n";
   os << "UK_DEVICE_UNIFIED host_unified=" << (dev.hasUnifiedMemory ? 1 : 0) << "\n";
   os << "UK_DEVICE_MAXTHREADS max_threads=" << dev.maxThreadsPerThreadgroup.width << "\n";
+  // G6: the residency budget Metal actually enforces is this, not physical
+  // capacity. Reported as a measured device fact and used as its own gate.
+  os << "UK_DEVICE_MAXWS max_working_set_bytes="
+     << (unsigned long long)dev.recommendedMaxWorkingSetSize << "\n";
   uk_mt_log += os.str();
 }
 
@@ -84,68 +95,124 @@ void cpu_ref(const std::vector<float>& A, const std::vector<float>& B,
 }
 
 struct TimingPlan {
-  int PM = 0, PN = 0, PK = 0;
+  OpKind op = OpKind::Gemm;
+  int PM = 0, PN = 0, PK = 0;                        // gemm launch dims
+  int H = 0, Wd = 0, C = 0, Kh = 0, Kw = 0, Oc = 0;  // conv dims
+  int64_t L = 0;                                     // reduce length
+  int P = 0;                                         // reduce pass-1 width
   int TM = 0, TN = 0;
   int64_t unified_bytes = 0;
+  int64_t max_ws = 0;  // Metal recommendedMaxWorkingSetSize (0 = not queried)
+  int64_t payload = 0;
   bool vram_unknown = false;
-  bool stream_refuse = false;
+  bool stream_refuse = false;   // payload > 0.85 * declared capacity
+  bool ws_refuse = false;       // payload > the device's working-set cap
   int warm = 2, iters = 10;
   double payload_mb = 0;
 };
 
-TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+// Launch width for reduce pass 1: enough threads to saturate the memory system
+// without making the fold pass long. Fixed, so a run is reproducible.
+int reduce_width(int64_t L) {
+  int64_t w = L < 4096 ? L : 4096;
+  return w < 1 ? 1 : int(w);
+}
+
+TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
+                     int64_t max_ws) {
   TimingPlan p;
+  p.op = tree.op;
+  p.max_ws = max_ws;
   const EmittedTile t = emit_tile_for(tree, sol);
   p.TM = t.tm;
   p.TN = t.tn;
-  // gemm-only: run_metal refuses a non-gemm tree at its entry, so the timing
-  // dims always come from the declared tree (no silent 4096^3 fallback).
   const auto floor16 = [](int64_t v) {
     const int a = int((v / 16) * 16);
     return a < 32 ? 32 : a;
   };
-  p.PM = floor16(tree.dims[0]);
-  p.PN = floor16(tree.dims[1]);
-  p.PK = floor16(tree.dims[2]);
+  switch (tree.op) {
+    case OpKind::Gemm:
+      p.PM = floor16(tree.dims[0]);
+      p.PN = floor16(tree.dims[1]);
+      p.PK = floor16(tree.dims[2]);
+      p.payload = int64_t(p.PM) * p.PK * 4 + int64_t(p.PK) * p.PN * 4 +
+                  int64_t(p.PM) * p.PN * 4;
+      break;
+    case OpKind::Conv: {
+      p.H = tree.dims[0];
+      p.Wd = tree.dims[1];
+      p.C = tree.dims[2];
+      p.Kh = tree.dims[3];
+      p.Kw = tree.dims[4];
+      p.Oc = tree.dims[5];
+      const int Ho = p.H - p.Kh + 1, Wo = p.Wd - p.Kw + 1;
+      p.payload = (int64_t(p.H) * p.Wd * p.C +
+                   int64_t(p.Oc) * p.Kh * p.Kw * p.C +
+                   int64_t(p.Oc) * Ho * Wo) * 4;
+      break;
+    }
+    case OpKind::Reduction:
+      p.L = tree.dims[0];
+      p.P = reduce_width(p.L);
+      p.payload = (p.L + p.P + 1) * 4;
+      break;
+  }
+  p.payload_mb = double(p.payload) / (1024.0 * 1024.0);
   p.unified_bytes = hcs.tier_bytes("unified");
   if (p.unified_bytes <= 0) {
     // HCS carries no unified tier: Apple Silicon always has unified memory,
     // but if the HCS doesn't specify it, we can't decide residency.
     p.vram_unknown = true;
   }
-  const int64_t payload = int64_t(p.PM) * p.PK * 4 + int64_t(p.PK) * p.PN * 4 +
-                          int64_t(p.PM) * p.PN * 4;
-  p.payload_mb = double(payload) / (1024.0 * 1024.0);
   if (p.unified_bytes > 0)
-    p.stream_refuse = payload > int64_t(0.85 * double(p.unified_bytes));
-  const bool big_ws = payload > (2ULL << 30);
+    p.stream_refuse = p.payload > int64_t(0.85 * double(p.unified_bytes));
+  // G6: two separate bounds, each with its own message — multiplying them
+  // (0.85 * 0.75 * capacity) would double-discount and hide which one bit.
+  p.ws_refuse = max_ws > 0 && p.payload > max_ws;
+  const bool big_ws = p.payload > (2ULL << 30);
   p.warm = big_ws ? 1 : 2;
   p.iters = big_ws ? 1 : 10;
   return p;
 }
 
+// The declared workload, as the evidence/perf field prints it. For gemm this is
+// the launch triple the pre-Phase-13 line carried, so published readings stay
+// comparable.
+std::string perf_string(const TimingPlan& p) {
+  std::ostringstream os;
+  switch (p.op) {
+    case OpKind::Gemm: os << p.PM << "x" << p.PN << "x" << p.PK; break;
+    case OpKind::Conv:
+      os << p.H << "x" << p.Wd << "x" << p.C << "x" << p.Kh << "x" << p.Kw << "x"
+         << p.Oc;
+      break;
+    case OpKind::Reduction: os << p.L; break;
+  }
+  return os.str();
+}
+
 
 void note_plan(const TimingPlan& p) {
-  uk_mt_log += "UK_RUNNER plan perf=" + std::to_string(p.PM) + "x" +
-               std::to_string(p.PN) + "x" + std::to_string(p.PK) +
+  uk_mt_log += "UK_RUNNER plan op=" + std::string(to_string(p.op)) +
+               " perf=" + perf_string(p) +
                " tile=" + std::to_string(p.TM) + "x" + std::to_string(p.TN) +
                " unified_bytes=" + std::to_string((long long)p.unified_bytes) +
+               " max_working_set_bytes=" + std::to_string((long long)p.max_ws) +
                " payload_mb=" + std::to_string(p.payload_mb) +
                " warm=" + std::to_string(p.warm) +
                " iters=" + std::to_string(p.iters) + "\n";
 }
 
-// Set the six kernel args (3 buffers + 3 ints) and dispatch the full
-// PM x PN grid. Threadgroup = 16x16 (matching the HIP/OCL kernels).
-void dispatch_full(id<MTLDevice> dev, id<MTLCommandBuffer> cb,
-                   id<MTLComputeCommandEncoder> enc,
-                   id<MTLComputePipelineState> ps,
-                   id<MTLBuffer> dA, id<MTLBuffer> dB, id<MTLBuffer> dC,
-                   int M, int N, int K, const TimingPlan& p) {
+// --- encode helpers: one per op, no commits (callers own the command buffer) --
+// gemm: 3 buffers + 3 ints, full PM x PN grid, 16x16 threadgroups (unchanged
+// from the pre-Phase-13 runner).
+void enc_gemm(id<MTLComputeCommandEncoder> enc, id<MTLComputePipelineState> ps,
+              id<MTLBuffer> A, id<MTLBuffer> B, id<MTLBuffer> C, int M, int N, int K,
+              const TimingPlan& p) {
   [enc setComputePipelineState:ps];
-  [enc setBuffer:dA offset:0 atIndex:0];
-  [enc setBuffer:dB offset:0 atIndex:1];
-  [enc setBuffer:dC offset:0 atIndex:2];
+  [enc setBuffer:A offset:0 atIndex:0];
+  [enc setBuffer:B offset:0 atIndex:1];
+  [enc setBuffer:C offset:0 atIndex:2];
   int mval = M, nval = N, kval = K;
   [enc setBytes:&mval length:sizeof(int) atIndex:3];
   [enc setBytes:&nval length:sizeof(int) atIndex:4];
@@ -155,6 +222,102 @@ void dispatch_full(id<MTLDevice> dev, id<MTLCommandBuffer> cb,
   MTLSize grid = MTLSizeMake(gx * 16, gy * 16, 1);
   MTLSize tgroup = MTLSizeMake(16, 16, 1);
   [enc dispatchThreads:grid threadsPerThreadgroup:tgroup];
+}
+
+// conv: one thread per (wo, ho, oc), 8x8 threadgroups; the kernel bounds-checks.
+void enc_conv(id<MTLComputeCommandEncoder> enc, id<MTLComputePipelineState> ps,
+              id<MTLBuffer> X, id<MTLBuffer> Wt, id<MTLBuffer> Y, int H, int W, int C,
+              int Kh, int Kw, int Oc) {
+  [enc setComputePipelineState:ps];
+  [enc setBuffer:X offset:0 atIndex:0];
+  [enc setBuffer:Wt offset:0 atIndex:1];
+  [enc setBuffer:Y offset:0 atIndex:2];
+  int h = H, w = W, c = C, kh = Kh, kw = Kw, oc = Oc;
+  [enc setBytes:&h length:sizeof(int) atIndex:3];
+  [enc setBytes:&w length:sizeof(int) atIndex:4];
+  [enc setBytes:&c length:sizeof(int) atIndex:5];
+  [enc setBytes:&kh length:sizeof(int) atIndex:6];
+  [enc setBytes:&kw length:sizeof(int) atIndex:7];
+  [enc setBytes:&oc length:sizeof(int) atIndex:8];
+  const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+  MTLSize grid = MTLSizeMake(Wo, Ho, Oc);
+  MTLSize tgroup = MTLSizeMake(8, 8, 1);
+  [enc dispatchThreads:grid threadsPerThreadgroup:tgroup];
+}
+
+// reduce: pass 1 (strided partials, P threads) then pass 2 (one thread folds
+// them in index order) inside the same encoder/command buffer.
+void enc_reduce(id<MTLComputeCommandEncoder> enc,
+                id<MTLComputePipelineState> ps_part,
+                id<MTLComputePipelineState> ps_sum, id<MTLBuffer> X,
+                id<MTLBuffer> Part, id<MTLBuffer> Y, int64_t n, int p) {
+  [enc setComputePipelineState:ps_part];
+  [enc setBuffer:X offset:0 atIndex:0];
+  [enc setBuffer:Part offset:0 atIndex:1];
+  int nval = int(n);
+  [enc setBytes:&nval length:sizeof(int) atIndex:2];
+  // A threadgroup may hold at most maxTotalThreadsPerThreadgroup (1024 on Apple
+  // silicon); asking for 4096 makes the command buffer fail validation, which
+  // would surface as a silent zero rather than an error. 64 per group, p total.
+  const NSUInteger group = p < 64 ? NSUInteger(p) : 64;
+  [enc dispatchThreads:MTLSizeMake(p, 1, 1) threadsPerThreadgroup:MTLSizeMake(group, 1, 1)];
+  [enc setComputePipelineState:ps_sum];
+  [enc setBuffer:Part offset:0 atIndex:0];
+  [enc setBuffer:Y offset:0 atIndex:1];
+  [enc setBytes:&p length:sizeof(int) atIndex:2];
+  [enc dispatchThreads:MTLSizeMake(1, 1, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
+}
+
+// A command buffer that failed validation leaves the output buffers untouched;
+// without this check a broken dispatch reads as a wrong answer (or a silent
+// zero) instead of naming itself (E12 lesson, applied to Metal).
+bool check_cb(id<MTLCommandBuffer> cb, const char* what) {
+  if (cb.status == MTLCommandBufferStatusCompleted) return true;
+  std::ostringstream os;
+  os << "UNIKERN_ERROR what=" << what << "_status status=" << (int)cb.status;
+  if (cb.error) os << " error=" << [[cb.error description] UTF8String];
+  uk_mt_log += os.str() + "\n";
+  uk_mt_fail = true;
+  return false;
+}
+
+// Warm + timed passes over one encode lambda; also reports kernel-only time
+// from a single extra command buffer's GPUStartTime/GPUEndTime.
+struct Timed {
+  double measured_ms = 0;
+  double kernel_ms = 0;
+};
+
+Timed time_passes(id<MTLCommandQueue> queue,
+                  const std::function<void(id<MTLCommandBuffer>)>& encode, int warm,
+                  int iters) {
+  for (int w = 0; w < warm; ++w) {
+    id<MTLCommandBuffer> cb = [queue commandBuffer];
+    encode(cb);
+    [cb commit];
+    [cb waitUntilCompleted];
+    if (!check_cb(cb, "warm")) return Timed{};
+  }
+  Timed t;
+  double total = 0.0;
+  for (int i = 0; i < iters; ++i) {
+    auto t0 = std::chrono::steady_clock::now();
+    id<MTLCommandBuffer> cb = [queue commandBuffer];
+    encode(cb);
+    [cb commit];
+    [cb waitUntilCompleted];
+    if (!check_cb(cb, "timed")) return Timed{};
+    auto t1 = std::chrono::steady_clock::now();
+    total += std::chrono::duration<double, std::milli>(t1 - t0).count();
+  }
+  t.measured_ms = total / double(iters);
+  id<MTLCommandBuffer> kcb = [queue commandBuffer];
+  encode(kcb);
+  [kcb commit];
+  [kcb waitUntilCompleted];
+  if (!check_cb(kcb, "kernel_ref")) return Timed{};
+  t.kernel_ms = (kcb.GPUEndTime - kcb.GPUStartTime) * 1000.0;  // CFTimeInterval
+  return t;
 }
 
 }  // namespace
@@ -167,15 +330,15 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
   uk_mt_log.clear();
   auto finish = [&r]() { r.log = uk_mt_log; return r; };
 
-  // R10.2 first, before anything is written or compiled: a non-gemm tree has no
-  // kernel here, so running it would measure another workload than declared.
-  // Checking at the entry also keeps the refusal source from landing in the
-  // workdir over the previous run's artifact.
-  const std::string op_gap = op_support_gap(tree);
+  // R10.2 first, before anything is written or compiled: a tree without a
+  // kernel here would be measured as another workload than declared. Since
+  // Phase 13 this asks the MSL generator's own predicate (gemm/conv/reduce);
+  // the HIP/OCL side still answers gemm-only.
+  const std::string op_gap = msl_op_gap(tree);
   if (!op_gap.empty()) {
     std::cout << "UNIKERN_ERROR what=op_unsupported reason=" << op_gap << "\n"
-              << "apple:metal executes the generated gemm kernel only; running "
-              << "this tree would measure a different workload than declared "
+              << "apple:metal executes the generated kernels only; running this "
+              << "tree would measure a different workload than declared "
               << "(R10.2: unsupported interval, never a silent swap).\n";
     uk_mt_log += "UK_RUNNER refused: " + op_gap + "\n";
     return finish();
@@ -216,20 +379,32 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
     return finish();
   }
   r.built = true;
-  id<MTLFunction> fn = [lib newFunctionWithName:@"uk_gemm"];
-  if (!fn) {
-    uk_mt_log += "UNIKERN_ERROR what=no_function\n";
-    return finish();
-  }
-  id<MTLComputePipelineState> ps =
-      [dev newComputePipelineStateWithFunction:fn error:&err];
-  if (!ps) {
-    uk_mt_log += "UNIKERN_ERROR what=pipeline\n";
-    if (err) uk_mt_log += [[err description] UTF8String] + std::string("\n");
-    return finish();
-  }
 
-  const TimingPlan plan = make_plan(sol, hcs, tree);
+  auto pipeline = [&](const char* name) -> id<MTLComputePipelineState> {
+    id<MTLFunction> fn = [lib newFunctionWithName:[NSString stringWithUTF8String:name]];
+    if (!fn) {
+      uk_mt_log += std::string("UNIKERN_ERROR what=no_function name=") + name + "\n";
+      return nil;
+    }
+    id<MTLComputePipelineState> ps =
+        [dev newComputePipelineStateWithFunction:fn error:&err];
+    if (!ps) {
+      uk_mt_log += std::string("UNIKERN_ERROR what=pipeline name=") + name + "\n";
+      if (err) uk_mt_log += [[err description] UTF8String] + std::string("\n");
+    }
+    return ps;
+  };
+
+  id<MTLComputePipelineState> ps_main = pipeline(
+      tree.op == OpKind::Conv        ? "uk_conv"
+      : tree.op == OpKind::Reduction ? "uk_reduce_part"
+                                     : "uk_gemm");
+  id<MTLComputePipelineState> ps_sum =
+      tree.op == OpKind::Reduction ? pipeline("uk_reduce_sum") : nil;
+  if (!ps_main || (tree.op == OpKind::Reduction && !ps_sum)) return finish();
+
+  const TimingPlan plan =
+      make_plan(sol, hcs, tree, (int64_t)dev.recommendedMaxWorkingSetSize);
   note_plan(plan);
 
 
@@ -251,104 +426,216 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
                  "not implemented)\n";
     return finish();
   }
+  if (plan.ws_refuse) {
+    std::cout << "UNIKERN_ERROR what=working_set_refused payload_mb="
+              << plan.payload_mb << " max_working_set_bytes=" << plan.max_ws
+              << "\n"
+              << "apple:metal runner is resident-only (MVP) and Metal caps a "
+              << "single command's working set below physical capacity: this "
+              << "payload fits 0.85 * declared unified memory but exceeds the "
+              << "device's recommendedMaxWorkingSetSize (G6/R10: no silent "
+              << "oversubscription).\n";
+    uk_mt_log += "UK_RUNNER refused: payload > recommendedMaxWorkingSetSize\n";
+    return finish();
+  }
 
-  // ---- differential verify: 256^3 vs scalar CPU reference, tolerance 2^-5 ----
+  // ---- differential verify vs the shared scalar CPU reference, tol 2^-5 ------
   {
-    const int VM = 256, VN = 256, VK = 256;
-    std::vector<float> vA((size_t)VM * VK), vB((size_t)VK * VN);
-    std::vector<float> vC((size_t)VM * VN, 0.f), vR((size_t)VM * VN);
-    for (size_t i = 0; i < vA.size(); ++i) vA[i] = initA((int)i);
-    for (size_t i = 0; i < vB.size(); ++i) vB[i] = initB((int)i);
-    cpu_ref(vA, vB, vR, VM, VN, VK);
-
-    id<MTLBuffer> dA = [dev newBufferWithBytes:vA.data()
-                                      length:vA.size() * sizeof(float)
-                                     options:MTLResourceStorageModeShared];
-    id<MTLBuffer> dB = [dev newBufferWithBytes:vB.data()
-                                      length:vB.size() * sizeof(float)
-                                     options:MTLResourceStorageModeShared];
-    id<MTLBuffer> dC = [dev newBufferWithLength:vC.size() * sizeof(float)
-                                     options:MTLResourceStorageModeShared];
-    UK_MT_CK(dA != nil, "buffer verify dA");
-    UK_MT_CK(dB != nil, "buffer verify dB");
-    UK_MT_CK(dC != nil, "buffer verify dC");
-    if (uk_mt_fail) return finish();
-
-    id<MTLCommandBuffer> vcb = [queue commandBuffer];
-    id<MTLComputeCommandEncoder> venc = [vcb computeCommandEncoder];
-    dispatch_full(dev, vcb, venc, ps, dA, dB, dC, VM, VN, VK, plan);
-    [venc endEncoding];
-    [vcb commit];
-    [vcb waitUntilCompleted];
-
-    const float* got = (const float*)[dC contents];
     float max_rel = 0.f;
-    for (size_t i = 0; i < vC.size(); ++i) {
-      float den = std::fabs(vR[i]);
+
+    if (tree.op == OpKind::Gemm) {
+      const int VM = 256, VN = 256, VK = 256;
+      std::vector<float> vA((size_t)VM * VK), vB((size_t)VK * VN);
+      std::vector<float> vC((size_t)VM * VN, 0.f), vR((size_t)VM * VN);
+      for (size_t i = 0; i < vA.size(); ++i) vA[i] = initA((int)i);
+      for (size_t i = 0; i < vB.size(); ++i) vB[i] = initB((int)i);
+      cpu_ref(vA, vB, vR, VM, VN, VK);
+
+      id<MTLBuffer> dA = [dev newBufferWithBytes:vA.data()
+                                        length:vA.size() * sizeof(float)
+                                       options:MTLResourceStorageModeShared];
+      id<MTLBuffer> dB = [dev newBufferWithBytes:vB.data()
+                                        length:vB.size() * sizeof(float)
+                                       options:MTLResourceStorageModeShared];
+      id<MTLBuffer> dC = [dev newBufferWithLength:vC.size() * sizeof(float)
+                                         options:MTLResourceStorageModeShared];
+      UK_MT_CK(dA != nil, "buffer verify dA");
+      UK_MT_CK(dB != nil, "buffer verify dB");
+      UK_MT_CK(dC != nil, "buffer verify dC");
+      if (uk_mt_fail) return finish();
+
+      id<MTLCommandBuffer> vcb = [queue commandBuffer];
+      id<MTLComputeCommandEncoder> venc = [vcb computeCommandEncoder];
+      enc_gemm(venc, ps_main, dA, dB, dC, VM, VN, VK, plan);
+      [venc endEncoding];
+      [vcb commit];
+      [vcb waitUntilCompleted];
+      if (!check_cb(vcb, "verify_gemm")) return finish();
+
+      const float* got = (const float*)[dC contents];
+      for (size_t i = 0; i < vC.size(); ++i) {
+        float den = std::fabs(vR[i]);
+        if (den < 1e-6f) den = 1e-6f;
+        const float rel = std::fabs(got[i] - vR[i]) / den;
+        if (rel > max_rel) max_rel = rel;
+      }
+    } else if (tree.op == OpKind::Conv) {
+      // Small shape with the same structure (valid padding, 3x3, 8 channels).
+      const int VH = 32, VW = 32, VC = 8, VKh = 3, VKw = 3, VOc = 16;
+      const int VoH = VH - VKh + 1, VoW = VW - VKw + 1;
+      std::vector<float> vX((size_t)VH * VW * VC), vWt((size_t)VOc * VKh * VKw * VC);
+      std::vector<float> vY((size_t)VOc * VoH * VoW, 0.f), vR(vY.size());
+      for (size_t i = 0; i < vX.size(); ++i) vX[i] = initA((int)i);
+      for (size_t i = 0; i < vWt.size(); ++i) vWt[i] = initB((int)i);
+      cpu_conv(vX.data(), vWt.data(), vR.data(), VH, VW, VC, VKh, VKw, VOc);
+
+      id<MTLBuffer> dX = [dev newBufferWithBytes:vX.data()
+                                         length:vX.size() * sizeof(float)
+                                        options:MTLResourceStorageModeShared];
+      id<MTLBuffer> dWt = [dev newBufferWithBytes:vWt.data()
+                                           length:vWt.size() * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      id<MTLBuffer> dY = [dev newBufferWithLength:vY.size() * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      UK_MT_CK(dX != nil, "buffer verify dX");
+      UK_MT_CK(dWt != nil, "buffer verify dWt");
+      UK_MT_CK(dY != nil, "buffer verify dY");
+      if (uk_mt_fail) return finish();
+
+      id<MTLCommandBuffer> vcb = [queue commandBuffer];
+      id<MTLComputeCommandEncoder> venc = [vcb computeCommandEncoder];
+      enc_conv(venc, ps_main, dX, dWt, dY, VH, VW, VC, VKh, VKw, VOc);
+      [venc endEncoding];
+      [vcb commit];
+      [vcb waitUntilCompleted];
+      if (!check_cb(vcb, "verify_conv")) return finish();
+
+      const float* got = (const float*)[dY contents];
+      for (size_t i = 0; i < vR.size(); ++i) {
+        float den = std::fabs(vR[i]);
+        if (den < 1e-6f) den = 1e-6f;
+        const float rel = std::fabs(got[i] - vR[i]) / den;
+        if (rel > max_rel) max_rel = rel;
+      }
+    } else {  // Reduction
+      // Values chosen so every partial sum is exact in fp32 (2^-6 each, L=2^20
+      // -> 16384.0): this verifies the reduction's structure, not float-order
+      // robustness — stated here rather than implied by a zero.
+      const int64_t VL = int64_t(1) << 20;
+      const int VP = reduce_width(VL);
+      std::vector<float> vX((size_t)VL, 0.015625f);
+      std::vector<float> vR(1, 0.f);
+      cpu_reduce(vX.data(), vR.data(), VL);
+
+      id<MTLBuffer> dX = [dev newBufferWithBytes:vX.data()
+                                         length:vX.size() * sizeof(float)
+                                        options:MTLResourceStorageModeShared];
+      id<MTLBuffer> dP = [dev newBufferWithLength:(size_t)VP * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      id<MTLBuffer> dY = [dev newBufferWithLength:sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      UK_MT_CK(dX != nil, "buffer verify dX");
+      UK_MT_CK(dP != nil, "buffer verify dP");
+      UK_MT_CK(dY != nil, "buffer verify dY");
+      if (uk_mt_fail) return finish();
+
+      id<MTLCommandBuffer> vcb = [queue commandBuffer];
+      id<MTLComputeCommandEncoder> venc = [vcb computeCommandEncoder];
+      enc_reduce(venc, ps_main, ps_sum, dX, dP, dY, VL, VP);
+      [venc endEncoding];
+      [vcb commit];
+      [vcb waitUntilCompleted];
+      if (!check_cb(vcb, "verify_reduce")) return finish();
+
+      const float got = *(const float*)[dY contents];
+      float den = std::fabs(vR[0]);
       if (den < 1e-6f) den = 1e-6f;
-      const float rel = std::fabs(got[i] - vR[i]) / den;
-      if (rel > max_rel) max_rel = rel;
+      max_rel = std::fabs(got - vR[0]) / den;
     }
+
     r.verified = max_rel <= 0.03125f;
     r.max_rel = max_rel;
   }
 
-
   // ---- timing: resident, e2e basis ----
   {
-    std::vector<float> tA((size_t)plan.PM * plan.PK, 0.5f);
-    std::vector<float> tB((size_t)plan.PK * plan.PN, 0.25f);
-    std::vector<float> tC((size_t)plan.PM * plan.PN, 0.f);
-
-    id<MTLBuffer> tdA = [dev newBufferWithBytes:tA.data()
-                                     length:tA.size() * sizeof(float)
-                                    options:MTLResourceStorageModeShared];
-    id<MTLBuffer> tdB = [dev newBufferWithBytes:tB.data()
-                                     length:tB.size() * sizeof(float)
-                                    options:MTLResourceStorageModeShared];
-    id<MTLBuffer> tdC = [dev newBufferWithLength:tC.size() * sizeof(float)
-                                     options:MTLResourceStorageModeShared];
-    UK_MT_CK(tdA != nil, "buffer timing dA");
-    UK_MT_CK(tdB != nil, "buffer timing dB");
-    UK_MT_CK(tdC != nil, "buffer timing dC");
-    if (uk_mt_fail) return finish();
-
-    // Warm passes: the full dispatch sequence.
-    for (int w = 0; w < plan.warm; ++w) {
-      id<MTLCommandBuffer> wcb = [queue commandBuffer];
-      id<MTLComputeCommandEncoder> wenc = [wcb computeCommandEncoder];
-      dispatch_full(dev, wcb, wenc, ps, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
-      [wenc endEncoding];
-      [wcb commit];
-      [wcb waitUntilCompleted];
+    Timed t;
+    if (tree.op == OpKind::Gemm) {
+      std::vector<float> tA((size_t)plan.PM * plan.PK, 0.5f);
+      std::vector<float> tB((size_t)plan.PK * plan.PN, 0.25f);
+      std::vector<float> tC((size_t)plan.PM * plan.PN, 0.f);
+      id<MTLBuffer> tdA = [dev newBufferWithBytes:tA.data()
+                                          length:tA.size() * sizeof(float)
+                                         options:MTLResourceStorageModeShared];
+      id<MTLBuffer> tdB = [dev newBufferWithBytes:tB.data()
+                                          length:tB.size() * sizeof(float)
+                                         options:MTLResourceStorageModeShared];
+      id<MTLBuffer> tdC = [dev newBufferWithLength:tC.size() * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      UK_MT_CK(tdA != nil, "buffer timing dA");
+      UK_MT_CK(tdB != nil, "buffer timing dB");
+      UK_MT_CK(tdC != nil, "buffer timing dC");
+      if (uk_mt_fail) return finish();
+      t = time_passes(
+          queue,
+          [&](id<MTLCommandBuffer> cb) {
+            id<MTLComputeCommandEncoder> e = [cb computeCommandEncoder];
+            enc_gemm(e, ps_main, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
+            [e endEncoding];
+          },
+          plan.warm, plan.iters);
+    } else if (tree.op == OpKind::Conv) {
+      const int Ho = plan.H - plan.Kh + 1, Wo = plan.Wd - plan.Kw + 1;
+      std::vector<float> tX((size_t)plan.H * plan.Wd * plan.C, 0.5f);
+      std::vector<float> tWt((size_t)plan.Oc * plan.Kh * plan.Kw * plan.C, 0.25f);
+      std::vector<float> tY((size_t)plan.Oc * Ho * Wo, 0.f);
+      id<MTLBuffer> tdX = [dev newBufferWithBytes:tX.data()
+                                          length:tX.size() * sizeof(float)
+                                         options:MTLResourceStorageModeShared];
+      id<MTLBuffer> tdWt = [dev newBufferWithBytes:tWt.data()
+                                           length:tWt.size() * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      id<MTLBuffer> tdY = [dev newBufferWithLength:tY.size() * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      UK_MT_CK(tdX != nil, "buffer timing dX");
+      UK_MT_CK(tdWt != nil, "buffer timing dWt");
+      UK_MT_CK(tdY != nil, "buffer timing dY");
+      if (uk_mt_fail) return finish();
+      t = time_passes(
+          queue,
+          [&](id<MTLCommandBuffer> cb) {
+            id<MTLComputeCommandEncoder> e = [cb computeCommandEncoder];
+            enc_conv(e, ps_main, tdX, tdWt, tdY, plan.H, plan.Wd, plan.C, plan.Kh,
+                     plan.Kw, plan.Oc);
+            [e endEncoding];
+          },
+          plan.warm, plan.iters);
+    } else {  // Reduction
+      std::vector<float> tX((size_t)plan.L, 0.5f);
+      std::vector<float> tP((size_t)plan.P, 0.f);
+      std::vector<float> tY(1, 0.f);
+      id<MTLBuffer> tdX = [dev newBufferWithBytes:tX.data()
+                                          length:tX.size() * sizeof(float)
+                                         options:MTLResourceStorageModeShared];
+      id<MTLBuffer> tdP = [dev newBufferWithLength:tP.size() * sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      id<MTLBuffer> tdY = [dev newBufferWithLength:sizeof(float)
+                                          options:MTLResourceStorageModeShared];
+      UK_MT_CK(tdX != nil, "buffer timing dX");
+      UK_MT_CK(tdP != nil, "buffer timing dP");
+      UK_MT_CK(tdY != nil, "buffer timing dY");
+      if (uk_mt_fail) return finish();
+      t = time_passes(
+          queue,
+          [&](id<MTLCommandBuffer> cb) {
+            id<MTLComputeCommandEncoder> e = [cb computeCommandEncoder];
+            enc_reduce(e, ps_main, ps_sum, tdX, tdP, tdY, plan.L, plan.P);
+            [e endEncoding];
+          },
+          plan.warm, plan.iters);
     }
-
-    // Timed passes: CPU-clock e2e per pass (dispatch + waitUntilCompleted).
-    // On Apple Silicon's unified memory the "copy" is implicit (shared bus),
-    // so this captures the true end-to-end cost the C(x) model charges.
-    double total_ms = 0.0;
-    for (int i = 0; i < plan.iters; ++i) {
-      auto t0 = std::chrono::steady_clock::now();
-      id<MTLCommandBuffer> tcb = [queue commandBuffer];
-      id<MTLComputeCommandEncoder> tenc = [tcb computeCommandEncoder];
-      dispatch_full(dev, tcb, tenc, ps, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
-      [tenc endEncoding];
-      [tcb commit];
-      [tcb waitUntilCompleted];
-      auto t1 = std::chrono::steady_clock::now();
-      total_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
-    }
-    r.measured_ms = total_ms / double(plan.iters);
-
-    // Kernel-only reference: GPU-side time via GPUStartTime/GPUEndTime.
-    id<MTLCommandBuffer> kcb = [queue commandBuffer];
-    id<MTLComputeCommandEncoder> kenc = [kcb computeCommandEncoder];
-    dispatch_full(dev, kcb, kenc, ps, tdA, tdB, tdC, plan.PM, plan.PN, plan.PK, plan);
-    [kenc endEncoding];
-    [kcb commit];
-    [kcb waitUntilCompleted];
-    double gpu_ms = kcb.GPUEndTime - kcb.GPUStartTime;
-    r.kernel_ms = gpu_ms * 1000.0;  // CFTimeInterval is seconds
+    r.measured_ms = t.measured_ms;
+    r.kernel_ms = t.kernel_ms;
   }
 
   // ---- result contract (identical shape to the HIP/OCL program's line) ----
@@ -361,7 +648,7 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
       << " kernel_ms=" << r.kernel_ms
       << " mode=resident"
       << " payload_mb=" << plan.payload_mb
-      << " perf=" << plan.PM << "x" << plan.PN << "x" << plan.PK << "\n";
+      << " perf=" << perf_string(plan) << "\n";
   std::cout << res.str();
   uk_mt_log += res.str();
   return finish();

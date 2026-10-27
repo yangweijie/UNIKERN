@@ -5,11 +5,9 @@
 "KML→求解→生成→验证→Ledger"闭环，交付可构建的 C++20 CLI 与组件，并逐阶段替换 stub。
 
 ## Current Phase
-Phase 12 闭合（G1 声明半边 + G8 覆盖报告 + G9 键身份；2026-10-27）
-—— Phase 0-12 全部 complete；剩余开放缺口：G1 执行半边（conv/reduce 可用的内核生成）、
-G5（R8.5 长测）、G6（Metal 工作集上限）
-—— Phase 0-11 已 complete；本阶段后剩余开放缺口：G5（长测）、G6（Metal 工作集上限）、
-G1 的执行半边（conv/reduce 可用的内核生成，留 Phase 13）
+Phase 13 闭合（Apple 先行的 conv/reduce 执行面 + G6；2026-10-27）
+—— Phase 0-13 全部 complete；剩余开放缺口：G1 执行半边仅余 **AMD/Intel**（conv/reduce 内核），
+G5（R8.5 缺页迁移监测，长测）、R10.2 的 F 约束合流（V1）、`--kml` 在 AMD/Intel 真机的端到端复跑
 
 ## Phases
 | # | Phase | Status |
@@ -27,6 +25,16 @@ G1 的执行半边（conv/reduce 可用的内核生成，留 Phase 13）
 | 10 | Apple 真机验证（G4 Apple 半闭合）：Metal 执行 runner + 差分验证 + 账本闭环 + 运行时 JIT 编译证据 | **complete（2026-10-27；本机 Apple M4 + Metal 4 运行时 JIT（newLibraryWithSource，无需 Xcode）；256³ 对拍 max_rel=0、512³ LEDGER COMMIT（ε 实算）、HIT、calibrate 场景 A 诚实门控；G4 全闭合）** |
 | 11 | G7 闭合：非 GEMM 算子的能力面显式化（谓词 + 生成物自拒 + runner 入口自拒 + CLI 门），拒绝不得静默替换负载 | **complete（2026-10-27；三层各自"摘掉即红"已录，A/B 缺陷重放入库；--op gemm/reduce 声明面第一片，conv 按 arity 在 parse 拒绝；证据 docs/evidence/phase11/）** |
 | 12 | 算子面闭合：G1 KML 文本前端（三类算子的 tile/layout/原语树声明 + R1.2 完整结构化拒绝）与 G8 R10.3 每后端原语覆盖报告，顺带 G9 账本键 arity 身份 | **complete（2026-10-27；三算子可声明、可解、可进键；由 KML 声明驱动的 512³ Apple 真机 COMMIT/HIT 入库；六条新腿逐一摘除即红；conv/reduce **可用的内核生成**仍缺＝G1 执行半边）** |
+| 13 | 算子执行面（**先 Apple**）：conv/reduce 的 MSL 内核生成 + 进程内真机对拍/计时/账本闭环；G6 Metal 工作集上限交叉校验 | **complete（2026-10-27；conv/reduce 在 M4 上 verify=PASS max_rel=0 → COMMIT → 同键 HIT；gemm 回归不变；G6 实测 12.7 GiB 上限并入第二道门；AMD/Intel 的 conv/reduce 仍为下一批）** |
+
+### Phase 13 子任务（先 Apple，2026-10-27 起）
+| 子项 | 状态 |
+|------|------|
+| a. G6：`recommendedMaxWorkingSetSize` 作为独立上限（与 0.85×HCS 声明容量**并列**两道门，不叠乘），并在 UK_DEVICE 行打印实测值 | complete（实测 13631488000 B；旧口径允许到 0.85×34359738368=29205777612 B，是设备上限的 2.1 倍；arm A 落在两界之间被新门拒绝且容量门沉默，arm B 仍由容量门拒绝——判别证据是"带内拒绝"而非"摘掉报警"，理由见 phase13/README） |
+| b. 能力面按后端拆分：`IBackend::capability_gap()`（默认沿用全局谓词），Apple 覆盖为 gemm/conv/reduce；CLI run 按所选后端判、`--emit` 按"任一后端覆盖"判；覆盖表随之呈现异构行 | complete（HIP/OCL 谓词与产物未变；异构产出实测：`uk_apple.metal` 含 uk_conv，另两份是点名拒绝；`[R10.2]/[R10.3]` 臂改写为异构期望） |
+| c. MSL：`uk_conv`（implicit GEMM，valid padding，一线程一输出）与 `uk_reduce`（两段：分段求和 + 终归约）；CPU 参考实现进核心库供 runner 与单测共用 | complete（`src/reference.cpp` 的 cpu_conv/cpu_reduce 为唯一真值，acceptance 用四组手算用例校验；reduce verify 数据刻意取 2^-6×2^20=16384，任意次序精确——验的是结构不是浮点次序鲁棒性，已写入注释） |
+| d. runner_metal 泛化：按算子建 plan（launch 尺寸/载荷/verify 尺寸）、按算子取 kernel 名与 dispatch、`perf=` 打印算子声明的维（gemm 行为保持不变） | complete（plan 增 op/conv 六维/L/P；三条 enc_* 与 time_passes 复用；命令缓冲状态检查作为纵深防御；**自捉**：reduce 首跑 verify=FAIL max_rel=1.0，根因是 pass-1 线程组 4096 超过 maxTotalThreadsPerThreadgroup=1024 被 Metal 静默不执行——抓到它的是 verify 不是状态检查，已如实记录） |
+| e. 验收：acceptance 增能力面异构臂 + CPU 参考正确性臂；真机 verify=PASS → COMMIT → HIT；`probe/` 带弹性探针；证据 docs/evidence/phase13/ + 文档 + commit | complete（新增 `[R13]` 段；五腿逐一摘除即红：MSL 覆盖 `:1044`、Apple per-backend 覆盖 `:1080`、`--emit` 任一覆盖 `:1080`、conv 管线名（设备探针 no_function name=uk_gemm）、reduce 线程组上界（设备探针 verify=FAIL）；conv/reduce COMMIT ε_rel 334.6/10.9 与 HIT 轮 243.9/8.87） |
 
 ### Phase 12 子任务（KML 文本前端 + 覆盖报告，2026-10-27）
 | 子项 | 状态 |
@@ -93,7 +101,7 @@ G1 的执行半边（conv/reduce 可用的内核生成，留 Phase 13）
 | G3 产物头无 toolchain | **closed**：三后端产物头 `toolchain=<hcs.toolchain>` |
 | G1 KML 文本解析 | **声明半边闭合（Phase 12）**：`kml_import`/`kml_export` + `--kml` + `kml` 子命令，三算子按 arity 校验、违规清单一次列全、layout 只接受已实现标签。**执行半边仍开放**：conv/reduce 尚无可用内核生成，执行仍由 Phase 11 三层拒绝点名拦着 |
 | G4 真机验证 | **已全闭合**：Intel 半侧（Phase 9，2026-10-27，ocloc AOT + 进程内 OpenCL runner 真机验证，证据 docs/evidence/phase9/）+ Apple 半侧（Phase 10，2026-10-27，Metal 运行时 JIT + 进程内 ObjC++ runner，证据 docs/evidence/phase10/） |
-| G6 Apple resident 预算口径（Phase 10 收尾新发现，如实入册） | **保留（记录，未实现）**：`src/runner_metal.mm:110` 的 resident 拒绝阈值取 `hcs.tier_bytes("unified")`（HCS 声明的 32 GiB），未与 Metal `recommendedMaxWorkingSetSize`（实际可驻留工作集上限，通常更小）交叉校验。本机 payload 3 MB 远低于两者，本次读数与结论不受影响；但"payload ≤ 0.85×容量"目前只对**声明容量**成立。属"HCS 声明值 vs API 实测"同类缺口，闭合它需要新增一次真机上限探测臂（不在 Phase 10 范围内，故不顺手实现） |
+| G6 Apple resident 预算口径（Phase 10 收尾新发现） | **closed（Phase 13）**：Metal `recommendedMaxWorkingSetSize` 作为独立上限并入第二道门（与 0.85×HCS 声明容量并列、不叠乘），UK_DEVICE 行打印实测值（本机 13631488000 B = 12.7 GiB，仅为 0.85×声明容量的 47%）；arm A/B/C 三条臂见 docs/evidence/phase13/phase13-g6-working-set.txt。**判别证据是"带内拒绝"**：直接摘门会让 20 GB 载荷走到分配阶段，既可能压垮机器、量到的也只是分配失败而非判定 |
 | G7 非 GEMM 算子被静默当作 GEMM 执行/回写（Phase 10 收尾排查发现） | **closed（Phase 11，2026-10-27）**：单一判据 `op_support_gap()` + 生成物自拒 + runner 入口自拒 + CLI 门（置于 ledger 读写之前）；acceptance R10.2 臂与真机探针逐层"摘掉即红"，A/B 缺陷重放见 `docs/evidence/phase11/phase11-defect-replay.txt`。仍未做（属 G1 范围）：conv/reduce 的**可用**内核生成——本轮只把"不支持"变成显式的 |
 | G8 R10.3 每后端原语覆盖输出无人认领（Phase 11 排查发现） | **closed（Phase 12）**：`primitive_coverage()` + `COVER` 行进 solve/run/kml 报告，三轴（primitive / execution / toolchain）分别取自 `op_support_gap()`、后端对象的 `supports_streaming()` 与 `available()`，无第二张表可漂移；`[R10.3]` 库+CLI 臂守着，摘掉 execution 轴即红（`phase12-arm-probes.txt` 第 6 腿）。**注意**：R10.2 的"纳入 F 约束"目前形态是*生成/执行拒绝 + 报告点名*，solve 仍是 (hcs, tree) 纯函数、不知后端——差异已写入 phase12/README.md 以免误读 |
 | G9 `op_signature` 只编进 dims[0..2]（Phase 12 规划期发现） | **closed（Phase 12）**：签名与 canonical_form 改按 `kml_arity()` 取维。gemm 键逐位不变（`[R7.1]` 断言 `gemm:fp32:4096x4096x4096`），故 Phase 8/9/10 已入库证据无需迁移；reduce 的 canonical 由 `L,0,0` 变 `L`，而 reduce 从未有过已入库实测行（Phase 11 起它在落库前即被拒），无历史产物受影响。附带收益：结构体默认维不再可能泄漏进键 |

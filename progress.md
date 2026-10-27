@@ -258,3 +258,31 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   交叉校验）；R10.2 的 F 约束合流属 V1（口径已在文档写明）
 - ctest 2/2 绿（Apple 主机，acceptance 含三段新臂）；平台边界：`--kml` 端到端只在 Apple 实跑，
   AMD/Intel 真机与 Windows/ROCm 复跑待做，`runner_ocl.cpp` 仍只有语法级检查
+
+## Session 2026-10-27（Phase 13 — conv/reduce 执行面（Apple 先行）+ G6）
+- [x] G6：`recommendedMaxWorkingSetSize` 作为**并列**上限（不与 0.85×声明容量叠乘），
+  UK_DEVICE 行打印实测值；本机 12.7 GiB vs 旧门放行的 27.3 GB（差 2.1 倍）。
+  三条带内臂见 `docs/evidence/phase13/phase13-g6-working-set.txt`；不给"摘门"探针，
+  理由（会让 20 GB 载荷走到分配阶段）写进了 README
+- [x] 能力面 per-backend：`IBackend::capability_gap()`（默认共享谓词、Apple 覆盖三算子）；
+  CLI run 按所选后端判、`--emit` 按任一覆盖判；覆盖表出现异构行
+- [x] MSL：`uk_conv`（implicit GEMM/valid padding）与 `uk_reduce`（两段）；
+  `src/reference.cpp` 提供 cpu_conv/cpu_reduce 作唯一真值
+- [x] runner_metal 泛化：plan 按算子（gemm 三维 / conv 六维 / reduce L+P）、三条 enc_* 与
+  time_passes、perf 按算子声明打印；**自捉** reduce 首跑 FAIL：pass-1 线程组 4096 超上限
+  被 Metal 静默不执行（读到全零）→ 组宽 min(p,64)，并补命令缓冲状态检查作纵深防御
+  （但抓到问题的是 verify，不是状态检查——如实记录）
+- [x] 真机闭环：conv 64×64×32×3×3×64 与 reduce L=4194304 均 verify=PASS max_rel=0 →
+  COMMIT（ε_rel 334.6 / 10.9）→ 同键 HIT → 再 COMMIT（243.9 / 8.87）；gemm 回归不变；
+  AMD/Intel 对同一份声明 rc=2 且账本文件不创建；`solve --emit` 异构产出实测
+- [x] acceptance 新增 `[R13]`（参考实现手算 + per-op 内核结构 + 能力面拆分），改写
+  `[R10.2]/[R10.3]` 为异构期望；`probe/phase13_arm_probes.py` 五腿逐一摘除即红
+  （:1044 / :1080 / :1080 / 设备 no_function / 设备 verify=FAIL），残留 0 + ctest 2/2 绿
+
+## Phase 13 闭合记录（2026-10-27）
+- G6 closed（Metal 工作集上限并入第二道门，实测值入证据）；G1 的 **Apple 执行半边** closed
+  （conv/reduce 真机对拍 + 账本闭环）；R10 覆盖报告出现异构行并被臂约束
+- 仍开放：G1 的 **AMD/Intel 执行半边**（conv/reduce 的 HIP/OCL 内核）、这两家的 `--kml`
+  真机复跑、G5（R8.5 长测）、R10.2 的 F 约束合流（V1）、conv/reduce 调优与浮点次序鲁棒性
+- ctest 2/2 绿（Apple 主机）；平台边界：conv/reduce 只在 Apple 真机跑过，
+  `runner_ocl.cpp` 仍仅 `-fsyntax-only`
