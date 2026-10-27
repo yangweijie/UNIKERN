@@ -301,7 +301,7 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   `probe/phase14_arm_probes.py` 三腿逐一摘除即红（:1042 / :1303 / :1249），残留 0、ctest 绿
 - [x] Apple 三算子回归仍 PASS（gemm/conv/reduce 全 verify=PASS max_rel=0）
 
-## Phase 14 闭合记录（2026-10-28）
+## Phase 14 闭合记录（2026-10-28，提交 dc4af98）
 - G1 执行半边的 **Intel** 侧闭合（生成+能力面+runner 分派；编译级验证，运行待真机）
 - 只剩 **AMD 的 HIP 程序**：本机无 hipcc，连语法都验不了 → 需 ROCm 主机，留 Phase 15
 - Phase 13 的两条旧结论（Intel 也拒 conv/reduce；OpenCL 仍 gemm-only）已据实标记取代
