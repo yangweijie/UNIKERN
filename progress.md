@@ -65,6 +65,7 @@
 Phase 0-9 全部完成（Phase 9 = Intel 真机验证，G4 Intel 半闭合：ocloc AOT + 进程内
 OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/evidence/phase9/）。
 剩余真机项：Apple Metal 执行（需用户 Mac）；Intel 流式双缓冲（Phase 9 明确不实现，诚实标注）。
+
 ## Session 2026-10-27（Phase 8 独立复核修复，v2）
 - [x] 独立复核 5 项全数属实，逐条处理：
   - [x] 「verify_fp32 由 smoke 覆盖」不实（grep tests/ 零命中）→ acceptance.cpp
@@ -144,3 +145,10 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
 - [x] 子项 h 收尾：docs/evidence/phase9/ 11 文件转录入库（emit/uk_intel.cl 与
   aot 产物 add -f 入库）+ acceptance-mvp.md v5 + task_plan/progress/findings
   更新
+## Phase 9 闭合记录（2026-10-27，提交 92d17a2）
+- G4 Intel 半侧完成：ocloc AOT + 进程内 OpenCL runner 真机验证（对拍/账本闭环/校准，
+  ε 如实报告），证据 docs/evidence/phase9/；acceptance-mvp.md v5；task_plan/progress/findings 落定
+- ctest 2/2 全绿（Release，含 R10 Intel 镜像）；工作区干净
+- 目标状态：task_plan 全部 9 阶段 complete，check-complete 口径（全部阶段 complete +
+  无 in_progress）通过；遗留边界如实标注：Apple Metal 真机（需用户 Mac）、Intel 流式
+  双缓冲（不实现）
