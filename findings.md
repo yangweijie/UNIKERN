@@ -146,3 +146,15 @@
   （streamed e2e < 串行 kernel_ms）三次复跑全部成立（40.5<63.7 / 22.9<27.6 / 55.4<71.4）
 - 真机数据波动大（同负载 e2e 22.9s→40.5s→55.4s）：后台负载未受控的桌面环境，
   结论只依赖不变式与 PASS/FAIL，不依赖单点绝对值
+
+## 校准闭环事实（v4，2026-10-27）
+- 样例 HCS 互联标称 32 GB/s，RX 6600M 实测有效值 **5.43 GB/s**（12.58MB/
+  2.32ms 拷贝段）——差 5.9 倍，正是校准前 ε_rel≈4.8 的全部来源
+- 校准口径：eff_bw = compulsory_bytes / (measured_e2e − kernel_only)，
+  多行取确定性中位数（偶数行取两中均值）；只吃 kernel_ms>0 的行
+- 校准后 1024³：predicted 2.415ms vs measured 2.707ms → **ε_rel=0.12**
+- 设计约束：solve 保持 (hcs,tree) 纯函数（P1）——账本状态只在 calibration
+  （构造新 HCS 文件，constants_version+1）时进入系统；指纹不含
+  toolchain/constants_version（同一硬件一个指纹）
+- 工程教训复用：hcs_export 首版用默认 6 位精度写浮点 → 导出再导入值不等，
+  被单测当场抓住（同 E4）→ 任何序列化浮点的出口一律 max_digits10
