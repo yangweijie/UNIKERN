@@ -436,3 +436,30 @@
 - **本机可做项清零后的剩余开放缺口**：Intel conv/reduce 真机运行（需 Intel 机器，
   backends 实测 intel=no）、G5 长测（迁移率统计与超阈重求解）、R10.2 F 约束合流（V1）、
   conv/reduce 调优与浮点次序鲁棒性
+
+## v12.1 独立复核修订（2026-10-28）
+- **版本注记只声明"更新了哪些行"不等于"其余行免检"**：汇总矩阵 R1 行与 R1 详段是 v8/v9
+  旧文（"AMD/Intel 执行半边待下一批"、"`--vendor amd/intel` rc=2 且不建账本"），v11/v12
+  只改了 R5/R6/R8/R10 与缺口表，R1 行漏更 → 与 G1 全闭合结论直接矛盾。复核员的对照方法
+  值得复用：把每条矩阵行的状态注记与缺口表/G 闭合结论对账，凡"待下一批"字样都要找它的
+  "下一批"是否已发生。已据实改判：AMD 真机 COMMIT→HIT（引 v12 复采转录）、Intel 编译级
+  待真机；旧 rc=2 读数标注为 Phase 12 能力拒绝时代（当时为真，被 v11 翻转取代）
+- **失败消息是"随构建而异的变量"，不是常量**：Phase 14 补遗原文引用的
+  「no Intel GPU platform/device found」实际出自 Mac 侧构建（`build-apple/unikern`，
+  UK_HAS_OCL 已定义；源码 `src/runner_ocl.cpp:434`），转录
+  `phase14-ocl-and-regression.txt:47-52` 只捕获 rc=1 与 ledger_created=no（log tail 位置
+  是解释性注释）。Windows MinGW 构建（UK_HAS_OCL 未定义）同命令实测报
+  「OpenCL runner stub: no OpenCL import library was found at build time …」rc=1。
+  承重事实（rc=1、solution 零落库）跨构建一致；文档引用消息字串必须注明出处构建
+- **自捉：`unikern ledger <path>` 静默忽略路径参数**（`src/main.cpp:604` 硬编码
+  kDefaultLedger——G7 同类静默，grep tests/evidence 零依赖确认无回归面）→ 改为
+  `make_ledger(argc >= 3 ? argv[2] : kDefaultLedger)`，重验两后端均报 0（intel 失败 run
+  未写任何行）；二进制 md5 变为 `9759d55a74e90acd11017d4d6b67a09a`（run/solve 代码路径
+  未动，v12 复采转录仍锚 e554574a 有效）
+- **"不建账本"的精确语义（本次实测辨析）**：失败的 run 是否创建账本**文件**随后端而异——
+  `.jsonl` 不创建（Phase 12/14 读数口径）；`.sqlite3` 由只读查找创建空库（`solutions`
+  表零行）。两种后端下承重事实相同：**solution 零落库**（R6.3）。文档应写"零落库"而非
+  一刀切的"不建账本"
+- 工作区卫生：三件已入库的 Phase 9 ocloc AOT 证据产物（`build/phase9-emit/` 的
+  uk_intel.cl + aot/*.bin/*.spv，R5.2 Intel 真编译证据本体）被工作区误删且删除未提交，
+  已 `git restore` 恢复（HEAD 84b2438 校验和一致）

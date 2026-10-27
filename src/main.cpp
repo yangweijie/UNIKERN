@@ -601,7 +601,10 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[1], "verify")) return cmd_run(argc - 2, argv + 2, false);
     if (!std::strcmp(argv[1], "calibrate")) return cmd_calibrate(argc - 2, argv + 2);
     if (!std::strcmp(argv[1], "ledger")) {
-      std::cout << "ledger entries: " << make_ledger(kDefaultLedger)->size()
+      // The path argument must be honored (v12.1 self-catch: it was silently
+      // hardcoded to kDefaultLedger, the same silent-ignore class as G7).
+      std::cout << "ledger entries: "
+                << make_ledger(argc >= 3 ? argv[2] : kDefaultLedger)->size()
                 << "\n";
       return 0;
     }

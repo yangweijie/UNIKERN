@@ -327,3 +327,16 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
   鲁棒性）；缺口闭合表新增 G5 行（closed，长测开放）；Phase 15 子任务表补 f 行（v12 复采）；
   findings.md 补 Phase 16/复采事实段
 - [x] ctest 全绿后 `git add` 具体文件提交
+
+## Session 2026-10-28 续（v12.1 独立复核修订）
+- [x] 复核三条全处理：① 汇总矩阵 R1 行 + R1 详段（v8/v9 旧文与 G1 全闭合矛盾）据实改判
+  ——AMD 声明执行真机 COMMIT→HIT（引 v12 复采转录）、Intel `COVER covered`+`RUN FAILED`
+  rc=1 零落库（本机新二进制实测），旧 rc=2 读数标注为 Phase 12 时代；② Phase 14 补遗的
+  失败消息改注出处（Mac 侧构建 + `src/runner_ocl.cpp:434`，转录只捕获 rc=1/零落库），
+  补 Windows 构建实测消息；③ Phase 9 ocloc AOT 三件产物 `git restore` 恢复
+- [x] 自捉修复：`unikern ledger <path>` 静默忽略路径参数（`src/main.cpp:604` 硬编码
+  kDefaultLedger）→ 尊重参数；重验 `ledger uk_run/v13/intel_conv.sqlite3` → 0（intel
+  失败 run 零落库）、jsonl 同 0；二进制 md5 → `9759d55a74e90acd11017d4d6b67a09a`
+- [x] 实测辨析"不建账本"语义：.jsonl 失败 run 不建文件；.sqlite3 建空库（零 solution 行）
+  ——文档改写为"solution 零落库"（R6.3 承重事实）
+- [x] ctest 全绿后 git add 具体文件提交
