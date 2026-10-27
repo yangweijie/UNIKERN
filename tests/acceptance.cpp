@@ -300,8 +300,9 @@ int main(int argc, char** argv) {
       assert(again.first.has_value());
       assert(canonical_form(*again.first) == canonical_form(*pr.first));
       // A declared tree never carries a capability gap it did not state.
-      assert(op_support_gap(*pr.first).empty() ==
-             (pr.first->op == OpKind::Gemm));
+      // Phase 15: the HIP predicate covers conv/reduce too, so every op
+      // family is now covered on the shared (layout-only) interval.
+      assert(op_support_gap(*pr.first).empty());
     }
 
     // R1.2 completeness: one file, four distinct violations, all reported.
@@ -1024,20 +1025,27 @@ int main(int argc, char** argv) {
     red.dims[0] = 1 << 20;
     for (int i = 1; i < 6; ++i) red.dims[i] = 0;  // a reduce carries one length
     conv.op = OpKind::Conv;
+    // Phase 15: all three backends cover all three ops; the shared predicate's
+    // only remaining refusal is the layout axis (asserted in [R13]/[R15]).
     assert(op_support_gap(gemm).empty());
-    assert(op_support_gap(red).find("op=reduce") != std::string::npos);
-    assert(op_support_gap(conv).find("op=conv") != std::string::npos);
+    assert(op_support_gap(red).empty());
+    assert(op_support_gap(conv).empty());
 
-    // The artifacts refuse on their own, so a caller that bypasses the CLI gate
-    // still cannot receive a gemm program filed under another workload.
+    // The artifacts still refuse on their own where a generator has no kernel:
+    // a caller that bypasses the CLI gate cannot receive a gemm program filed
+    // under another workload. Phase 15: the HIP program now has real reduce
+    // kernels — the silent-swap guard moves down to per-source structure.
     const Solution rsol = solve(h, red);
     const std::string hip_red = hip_runnable_program(rsol, h, red);
-    assert(hip_red.find("op_unsupported") != std::string::npos);
-    assert(hip_red.find("uk_gemm") == std::string::npos);
+    assert(hip_red.find("__global__ void uk_reduce_part") != std::string::npos &&
+           hip_red.find("__global__ void uk_reduce_sum") != std::string::npos);
+    assert(hip_red.find("uk_gemm") == std::string::npos &&
+           hip_red.find("uk_conv") == std::string::npos);
+    assert(hip_red.find("op_unsupported") == std::string::npos);
     const std::string msl_red = msl_kernel_source(rsol, h, red);
     const std::string ocl_red = ocl_kernel_source(rsol, h, red);
-    // Phase 13/14: the capability answer is per backend. HIP has no conv/reduce
-    // kernel and says so; Metal and OpenCL have them and must not emit a gemm.
+    // Phase 13/14/15: the capability answer is per backend and all three now
+    // cover reduce — each source carries its own kernels, never a gemm swap.
     assert(ocl_red.find("__kernel void uk_reduce_part") != std::string::npos &&
            ocl_red.find("__kernel void uk_reduce_sum") != std::string::npos);
     assert(ocl_red.find("gemm only") == std::string::npos);
@@ -1058,21 +1066,30 @@ int main(int argc, char** argv) {
     const std::string led = (dir / "led.jsonl").string();
 
     {
+      // Phase 15: the amd gate no longer refuses reduce (HIP has real kernels),
+      // so the refusal arm moves to the remaining honest failure of an
+      // uncovered-or-unavailable target: --vendor apple on Windows has no
+      // Metal toolchain (asserted in [R10]) and must fail the run with its own
+      // diagnostic — nothing measured, nothing committed (R6.3/R10). On macOS
+      // apple:metal IS available, so this arm is Windows-only (a macOS run
+      // here would be a real device execution, which the CPU matrix avoids).
+#ifdef _WIN32
       const std::string cap_path = (dir / "arm_run.txt").string();
-      const int rc = spawn_cli("run --hcs \"" + hcs_path + "\" --op reduce"
-                               " --dims 1048576 0 0 --ledger \"" + led + "\"",
+      const int rc = spawn_cli("run --hcs \"" + hcs_path + "\" --vendor apple"
+                               " --op reduce --dims 1048576 0 0 --ledger \"" +
+                                   led + "\"",
                                cap_path);
       const std::string cap = slurp(cap_path);
-      assert(rc == 2);
-      assert(cap.find("UNSUPPORTED") != std::string::npos &&
-             cap.find("op=reduce") != std::string::npos);
+      assert(rc == 1);  // RUN FAILED class, not the old rc=2 capability gate
+      assert(cap.find("RUN FAILED") != std::string::npos);
       assert(cap.find("UNIKERN_RESULT") == std::string::npos);  // nothing ran
-      assert(!fs::exists(led));                                 // nothing committed
+      assert(cap.find("LEDGER COMMIT") == std::string::npos);   // nothing committed
+#endif
     }
     {
-      // Phase 13: emission is refused only when NO backend covers the tree, so
-      // a reduce declaration now writes a real MSL kernel plus honest refusal
-      // files for the two gemm-only backends — heterogeneously, but truthfully.
+      // Phase 13: emission is refused only when NO backend covers the tree.
+      // Since Phase 15 every backend covers reduce, so --emit writes three
+      // real kernel sources — each carrying only its own op's kernels.
       const std::string emit_dir = (dir / "emit_hetero").string();
       const std::string cap_path = (dir / "arm_emit.txt").string();
       const int rc = spawn_cli("solve --hcs \"" + hcs_path + "\" --op reduce"
@@ -1081,13 +1098,17 @@ int main(int argc, char** argv) {
       const std::string cap = slurp(cap_path);
       assert(rc == 0);
       assert(cap.find("COVER apple:metal primitive=covered") != std::string::npos);
-      assert(cap.find("COVER amd:hip primitive=unsupported") != std::string::npos);
+      // Phase 15: the HIP row flipped from unsupported to covered.
+      assert(cap.find("COVER amd:hip primitive=covered") != std::string::npos);
+      assert(cap.find("COVER intel:ocl primitive=covered") != std::string::npos);
       assert(slurp(emit_dir + "/uk_apple.metal").find("uk_reduce_part") !=
              std::string::npos);
-      assert(slurp(emit_dir + "/uk_amd.cpp").find("op_unsupported") !=
-             std::string::npos);
-      // Phase 14: the OpenCL source is a real kernel too; only HIP refuses.
       assert(slurp(emit_dir + "/uk_intel.cl").find("uk_reduce_part") !=
+             std::string::npos);
+      // The HIP program is a real reduce program too (no more refusal file).
+      assert(slurp(emit_dir + "/uk_amd.cpp").find("uk_reduce_part") !=
+             std::string::npos);
+      assert(slurp(emit_dir + "/uk_amd.cpp").find("op_unsupported") ==
              std::string::npos);
     }
     {
@@ -1125,9 +1146,10 @@ int main(int argc, char** argv) {
              std::string::npos);
     }
     fs::remove_all(dir);
-    std::cout << "[R10.2] op coverage is per backend: HIP refuses loudly, Metal and "
-                 "OpenCL generate real conv/reduce kernels; refused runs leave no "
-                 "ledger row; gemm path unaffected OK\n";
+    std::cout << "[R10.2] op coverage is per backend: all three vendors generate "
+                 "real conv/reduce kernels (Phase 15); each artifact carries only "
+                 "its own kernels; failed/unavailable runs commit nothing; gemm "
+                 "path unaffected OK\n";
   }
 
   // -------- R13: conv/reduce references + per-op kernel structure -----------
@@ -1202,10 +1224,11 @@ int main(int argc, char** argv) {
                src->find("R8.6") != std::string::npos &&
                src->find("fp=") != std::string::npos);
       }
-      // The two capability answers are deliberately different: the shared
-      // (HIP/OCL) predicate stays gemm-only, MSL covers all three.
-      assert(op_support_gap(g).empty() && !op_support_gap(c).empty() &&
-             !op_support_gap(r).empty());
+      // The capability answers: since Phase 15 all three predicates (HIP
+      // included) cover the three op families — the layout axis is the only
+      // shared refusal, asserted below.
+      assert(op_support_gap(g).empty() && op_support_gap(c).empty() &&
+             op_support_gap(r).empty());
       assert(msl_op_gap(g).empty() && msl_op_gap(c).empty() && msl_op_gap(r).empty());
       assert(ocl_op_gap(g).empty() && ocl_op_gap(c).empty() && ocl_op_gap(r).empty());
       // A non-NT layout is refused by both, with the layout named.
@@ -1216,8 +1239,8 @@ int main(int argc, char** argv) {
       assert(ocl_op_gap(bad).find("layout=colmajor") != std::string::npos);
     }
     std::cout << "[R13] conv/reduce CPU references exact on hand-computed cases; "
-                 "each source carries only its own kernels; capability split "
-                 "HIP=gemm-only / MSL+OCL=three ops OK\n";
+                 "each source carries only its own kernels; capability covered "
+                 "for three ops on all backends (layout the only refusal) OK\n";
   }
 
   // -------- R14: per-op OpenCL source structure ------------------------------
@@ -1262,6 +1285,79 @@ int main(int argc, char** argv) {
                  "runtime needs the Intel host) OK\n";
   }
 
+  // -------- R15: per-op HIP program structure + three-op capability ---------
+  {
+    // The HIP program is the last execution half of G1 (Phase 15): conv and
+    // reduce now get their own self-verifying programs. What this arm can
+    // prove without a device: the emitted program carries exactly the declared
+    // op's kernels and nothing of the others, the R5/R8 provenance head is
+    // intact, and the timing dims come from the declared tree (the gemm
+    // program's silent 4096 default must not return through a side door).
+    // Real-device execution is the acceptance-matrix item (docs/evidence/
+    // phase15/), not here.
+    Hcs h = discrete_hcs(int64_t(8) << 30, 512);
+    KmlTree g;  // gemm 4096^3
+    KmlTree c;  // conv
+    c.op = OpKind::Conv;
+    const int cd[6] = {8, 8, 4, 3, 3, 8};
+    for (int i = 0; i < 6; ++i) c.dims[i] = cd[i];
+    KmlTree r;  // reduce
+    r.op = OpKind::Reduction;
+    r.dims[0] = 1 << 16;
+    for (int i = 1; i < 6; ++i) r.dims[i] = 0;
+
+    const std::string hg = hip_runnable_program(solve(h, g), h, g);
+    const std::string hc = hip_runnable_program(solve(h, c), h, c);
+    const std::string hr = hip_runnable_program(solve(h, r), h, r);
+    // Per-op structure: each program carries ONLY its own kernels (the
+    // silent-swap guard at HIP source level, mirroring [R13]/[R14]).
+    assert(hg.find("__global__ void uk_gemm") != std::string::npos &&
+           hg.find("uk_conv") == std::string::npos &&
+           hg.find("uk_reduce") == std::string::npos);
+    assert(hc.find("__global__ void uk_conv") != std::string::npos &&
+           hc.find("uk_gemm") == std::string::npos &&
+           hc.find("uk_reduce") == std::string::npos);
+    assert(hr.find("__global__ void uk_reduce_part") != std::string::npos &&
+           hr.find("__global__ void uk_reduce_sum") != std::string::npos &&
+           hr.find("uk_gemm") == std::string::npos &&
+           hr.find("uk_conv") == std::string::npos);
+    // A covered op must not ship the refusal artifact either (the Phase 11
+    // self-refusal now yields for conv/reduce by construction).
+    assert(hc.find("op_unsupported") == std::string::npos &&
+           hr.find("op_unsupported") == std::string::npos);
+    // R5/R8 provenance head + result contract, same fields as the gemm
+    // program: fingerprint, toolchain, constants version, placement record,
+    // and the backend=amd UNIKERN_RESULT line.
+    const std::string fp12 = hcs_fingerprint(h).substr(0, 12);
+    for (const auto* src : {&hg, &hc, &hr}) {
+      assert(src->find("unikern generated") != std::string::npos &&
+             src->find("fp=" + fp12) != std::string::npos &&
+             src->find("toolchain=rocm-7.13") != std::string::npos &&
+             src->find("constants_v=1") != std::string::npos &&
+             src->find("placement:") != std::string::npos &&
+             src->find("UNIKERN_RESULT backend=amd") != std::string::npos);
+    }
+    // The timing dims are the declared tree's (no 4096 default revival): the
+    // conv program carries the six dims, the reduce program its length and
+    // pass-1 width (min(L,4096) rounded up to the 256-thread block multiple).
+    assert(hc.find("const int H = 8, W = 8, C = 4, Kh = 3, Kw = 3, Oc = 8;") !=
+           std::string::npos);
+    assert(hr.find("const int L = 65536;") != std::string::npos &&
+           hr.find("const int UK_REDUCE_WIDTH = 4096;") != std::string::npos);
+    // Capability: the HIP predicate covers all three ops; the layout axis is
+    // the only shared refusal left and still names the layout.
+    assert(op_support_gap(g).empty() && op_support_gap(c).empty() &&
+           op_support_gap(r).empty());
+    KmlTree bad = g;
+    bad.layout = "colmajor";
+    assert(op_support_gap(bad).find("layout=colmajor") != std::string::npos);
+    assert(hip_runnable_program(solve(h, bad), h, bad)
+               .find("UNIKERN_ERROR what=op_unsupported") != std::string::npos);
+    std::cout << "[R15] HIP sources per op: conv/reduce programs carry only their "
+                 "own kernels, provenance head intact, capability covers three "
+                 "ops with layout the only refusal OK\n";
+  }
+
   // -------- R10.3: per-backend primitive coverage, three axes kept apart -----
   {
     KmlTree gemm, red;
@@ -1291,27 +1387,20 @@ int main(int argc, char** argv) {
       }
       assert(matched);  // a coverage row for a backend that does not exist
     }
-    // Phase 13: the answer is per backend. Metal covers gemm/conv/reduce; the
-    // gemm-only two name the op. This is the leg that would have silently
-    // passed a global "everything unsupported" table.
+    // Phase 13/14/15: the answer is per backend. Since Phase 15 every backend
+    // covers reduce/conv — the coverage table says so uniformly, and the
+    // toolchain axis (checked per row above) is what still differs per host.
     for (const auto& c : primitive_coverage(red)) {
-      if (c.backend == "amd:hip") {
-        assert(!c.primitive_covered);
-        assert(c.reason.find("op=reduce") != std::string::npos);
-      } else {
-        // Phase 14: Metal and OpenCL both cover reduce.
-        assert(c.primitive_covered && c.reason.empty());
-      }
+      assert(c.primitive_covered && c.reason.empty());
+      assert(c.backend == "amd:hip" || c.backend == "apple:metal" ||
+             c.backend == "intel:ocl");
     }
     KmlTree conv;
     conv.op = OpKind::Conv;
     const int cdims[6] = {16, 16, 8, 3, 3, 32};
     for (int i = 0; i < 6; ++i) conv.dims[i] = cdims[i];
     for (const auto& c : primitive_coverage(conv)) {
-      if (c.backend == "amd:hip")
-        assert(!c.primitive_covered && c.reason.find("op=conv") != std::string::npos);
-      else
-        assert(c.primitive_covered);
+      assert(c.primitive_covered && c.reason.empty());
     }
     std::cout << "[R10.3] coverage report: three backends, primitive/execution/"
                  "toolchain axes distinct and derived from the live objects OK\n";
@@ -1359,23 +1448,36 @@ int main(int argc, char** argv) {
                        "\" --ledger \"" + led + "\"", cap_path) == 0);
       const std::string cap = slurp(cap_path);
       assert(cap.find("SOLVED") != std::string::npos);        // model covers it
-      // Two backends still name the gap; the covered one does not.
-      assert(cap.find("primitive=unsupported reason=kernel generation covers "
-                     "gemm only; op=reduce") != std::string::npos);
+      // Phase 15: no backend names a gap for reduce any more — the
+      // unsupported-reason line is gone from the report entirely.
+      assert(cap.find("primitive=unsupported") == std::string::npos);
+      assert(cap.find("COVER amd:hip primitive=covered") != std::string::npos);
       assert(cap.find("COVER apple:metal primitive=covered") != std::string::npos);
-      // Since Phase 13 a covered declaration prints its sources instead of the
-      // model-only NOTE: the Metal reduce kernel must be in that output.
+      assert(cap.find("COVER intel:ocl primitive=covered") != std::string::npos);
+      // A covered declaration prints its sources instead of the model-only
+      // NOTE: all three vendors' reduce kernels must be in that output.
       assert(cap.find("uk_reduce_part") != std::string::npos);
+      assert(cap.find("__global__ void uk_reduce_part") != std::string::npos);
       assert(cap.find("model-only") == std::string::npos);
     }
     {
-      // A fresh ledger path: cmd_solve already created `led` for its lookup, so
-      // only an untouched path proves the refused run wrote nothing.
+      // Phase 15: the amd run path no longer refuses reduce, so the refused-run
+      // arm moves to the unavailable target (Windows: apple:metal has no
+      // toolchain). The failure happens AFTER the ledger was opened, so the
+      // honest assertions are the rc class and the absence of a result line or
+      // commit — not the file's non-existence.
       const std::string led2 = (dir / "led_run.jsonl").string();
+#ifdef _WIN32
       const std::string cap_path = (dir / "run_refused.txt").string();
-      assert(spawn_cli("run --hcs \"" + hcs_path + "\" --vendor amd --kml \"" +
-                       k_red + "\" --ledger \"" + led2 + "\"", cap_path) == 2);
-      assert(!fs::exists(led2));  // gate precedes the ledger open at all
+      const int rc = spawn_cli("run --hcs \"" + hcs_path + "\" --vendor apple"
+                               " --kml \"" + k_red + "\" --ledger \"" + led2 +
+                               "\"", cap_path);
+      const std::string cap = slurp(cap_path);
+      assert(rc == 1);  // RUN FAILED class
+      assert(cap.find("RUN FAILED") != std::string::npos);
+      assert(cap.find("UNIKERN_RESULT") == std::string::npos);
+      assert(cap.find("LEDGER COMMIT") == std::string::npos);
+#endif
     }
     {
       const std::string emit_dir = (dir / "emit").string();

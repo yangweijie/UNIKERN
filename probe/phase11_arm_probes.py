@@ -8,20 +8,26 @@ import sys
 ROOT = "/Volumes/data/git/c/UNIKERN"
 
 PATCHES = {
+    # Anchor syncs (fail-closed convention, Phase 12): the predicate leg
+    # originally neutered the Phase 11 op-refusal in op_support_gap(); since
+    # Phase 15 every op family is covered and the predicate's only refusal is
+    # the layout axis, so the neutered form now proves the layout arm
+    # ([R13]/[R15]) is load-bearing. The cli_gate anchor follows main.cpp's
+    # Phase 13 per-backend answer.
     "predicate": (
         "src/codegen_hip.cpp",
         'std::string op_support_gap(const KmlTree& tree) {\n'
-        '  if (tree.op != OpKind::Gemm)',
+        '  if (!codegen_layout_supported(tree.layout))',
         'std::string op_support_gap(const KmlTree& tree) {\n'
         '  if (true) return "";  // ARM-PROBE: predicate neutered\n'
-        '  if (tree.op != OpKind::Gemm)',
+        '  if (!codegen_layout_supported(tree.layout))',
     ),
     "cli_gate": (
         "src/main.cpp",
-        '  const std::string gap = op_support_gap(tree);\n'
+        '  const std::string gap = target ? target->capability_gap(tree) : op_support_gap(tree);\n'
         '  if (!gap.empty()) {\n'
         '    std::cerr << "UNSUPPORTED: " << gap << " — run/verify execute nothing',
-        '  const std::string gap = op_support_gap(tree);\n'
+        '  const std::string gap = target ? target->capability_gap(tree) : op_support_gap(tree);\n'
         '  if (false && !gap.empty()) {  // ARM-PROBE: CLI run gate disabled\n'
         '    std::cerr << "UNSUPPORTED: " << gap << " — run/verify execute nothing',
     ),

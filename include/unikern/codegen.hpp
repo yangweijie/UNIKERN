@@ -10,13 +10,14 @@ namespace unikern {
 struct EmittedTile { int tm = 0; int tn = 0; bool clamped = false; };
 EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol);
 
-// R10.2 capability interval for kernel generation: the MVP emits tiled GEMM
-// only. A conv/reduction tree reaching a GEMM code path would be executed as
-// some other workload than the one declared — the silent degradation R10
-// forbids, and one that poisons the ledger with a measurement of the wrong
-// work. Returns an empty string when the tree can be generated, otherwise a
-// reason naming the unsupported field; every generate/execute entry point
-// consults it.
+// R10.2 capability interval for kernel generation. Since Phase 15 every op
+// family (gemm / conv / reduce) has a HIP program, so the shared predicate's
+// remaining unsupported interval is the layout axis: a tree whose layout the
+// emitted kernels do not implement would be executed with different indexing
+// semantics than declared — the silent degradation R10 forbids, and one that
+// poisons the ledger with a measurement of the wrong work. Returns an empty
+// string when the tree can be generated, otherwise a reason naming the
+// unsupported field; every generate/execute entry point consults it.
 std::string op_support_gap(const KmlTree& tree);
 
 // Layout tags the emitted kernels actually implement: "NT" is the tag under
@@ -27,9 +28,9 @@ std::string op_support_gap(const KmlTree& tree);
 bool codegen_layout_supported(const std::string& layout);
 
 // Per-backend capability, asked of the generator that actually implements it.
-// MSL has kernels for all three op families (Phase 13, Apple first), the HIP
-// program and the OpenCL source are still gemm-only, so they keep the shared
-// op_support_gap() answer. Empty string = this backend can generate the tree.
+// All three backends cover all three op families (Phase 13 MSL, Phase 14
+// OpenCL, Phase 15 HIP); the layout axis is the only shared refusal.
+// Empty string = this backend can generate the tree.
 std::string msl_op_gap(const KmlTree& tree);
 // Same question for the OpenCL source (Phase 14: gemm/conv/reduce).
 std::string ocl_op_gap(const KmlTree& tree);

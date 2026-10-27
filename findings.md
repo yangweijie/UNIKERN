@@ -381,3 +381,30 @@
   （现在只有 AMD）；②"OpenCL 源仍 gemm-only"（现在不是）。旧转录保留、标注取代，新读数在
   `docs/evidence/phase14/phase14-ocl-and-regression.txt`
 - 仍缺：AMD 的 HIP 程序（无 hipcc，连语法都验不了）、Intel 真机运行、调优与浮点次序鲁棒性
+
+## Phase 15 AMD 收尾：conv/reduce 的 HIP 程序 + 真机闭环（2026-10-28，G1 执行半边闭合）
+- **"逐位不变"要选对对照口径**：fresh-solve 对 fresh-solve 才是 gemm 程序同一性的正确比较；
+  ledger-HIT 重建的解**不携带 shard 参数**（SQLite 行只存 tm/tn），会让 R8 横幅多出
+  "(defaults: solution carried no shard params)" 后缀——这是账本形状的既有属性
+  （`hip_runnable_program` 的 `defaulted` 分支，Phase 7 起），不是本轮代码生成差异。
+  首次对照就踩了它：第二次 emit 命中账本后 diff 出一行差异，换成新账本后 diff 为空。
+- **生成程序分派的结构**：`hip_runnable_program` 只做 layout 拒绝 + 按算子转发；
+  conv/reduce/gemm 三个 builder 各自独立，gemm body 原样搬运。每份程序自带 CPU 参考
+  （语义对齐 reference.cpp，不含核心库头，独立过 hipcc）；R5/R8 横幅六字段
+  （hcs/fp/toolchain/constants_v/op 行/placement）三份同构。
+- **reduce pass-1 宽度与 Metal/OpenCL 的差异**：OCL runner 启动恰好 P=min(L,4096) 个
+  work-item（内核无越界）；HIP 用 256 线程块启动 ceil(P/256)×256 个线程，宽度向上取整到
+  块倍数、内核加 `tid >= nP` 卫语句——多出的线程写零部分和，折叠吸收。verify 形状
+  （2^-6×2^20=16384）对任意宽度都精确，两后端在账本相关的形状上 P 同为 4096。
+- **HIP conv 计时网格**：blk(8,8,1) × grd(ceil(Wo/8), ceil(Ho/8), Oc)；gridDim.y/z 上限
+  65535（RDNA），程序在 launch 前显式拒绝 `grid_too_large` 而不是让 launch 报错兜底——
+  这是 conv 特有的显式预检（gemm 程序没有，它的网格按 tile 分块天然小）。
+- **[R10.2] 的 op 拒绝臂没有消失而是换了诚实形态**：HIP covered 后 `--vendor amd` 的
+  reduce run 会真跑设备（ctest 不能干这个），臂改成 `--vendor apple`（Windows 无 Metal
+  工具链）→ rc=1 RUN FAILED、无 UNIKERN_RESULT、无 LEDGER COMMIT；macOS 上 apple 可用，
+  故 _WIN32-only。rc=2 能力拒绝路径在 CLI 上已不可达（layout 在 parse 就被前端拒）——
+  "门让位"是有意的，不是回归。
+- **转录纪律同 Phase 11**：arm-probe 重编译后二进制 md5 会变，转录与 `binary-md5.txt`
+  同录；真机 run 的六条转录（3 op × COMMIT/HIT）都在 md5 锚定的当前二进制下重采。
+- 仍缺：Intel conv/reduce 真机运行、conv/reduce 调优与浮点次序鲁棒性、R10.2 的 F 约束
+  合流（V1）、G5 R8.5 驻留守卫长测。

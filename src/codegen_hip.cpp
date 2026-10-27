@@ -17,12 +17,27 @@
 //    event-chained buffer reuse so copies overlap compute; shard and
 //    prefetch parameters are emitted from sol.best.shard_mb / prefetch_d;
 //  - a big workspace (payload > 2 GiB) runs 1 warmup + 1 timed pass.
+//
+// Phase 15 (G1 execution half, AMD): the program is dispatched per op.
+// conv emits uk_conv (implicit GEMM, valid padding, one thread per output,
+// six dims H W C Kh Kw Oc) and reduce emits uk_reduce_part + uk_reduce_sum
+// (two-pass reduction), each as its own independent program with the CPU
+// reference embedded (semantics of reference.cpp — the core library is NOT
+// included, a generated program compiles standalone against hipcc). Every
+// program carries only its own op's kernels (R10.2 no-silent-swap at source
+// level) and the same R5/R8 provenance head. The gemm program is unchanged
+// byte for byte.
 #include <sstream>
 
 #include "unikern/codegen.hpp"
 #include "unikern/components.hpp"
 
 namespace unikern {
+
+// Per-op program builders (defined below; hip_runnable_program dispatches).
+std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
+std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
+std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
 
 EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol) {
   auto clamp16 = [](int v, int lo, int hi) {
@@ -51,19 +66,17 @@ std::string ocl_op_gap(const KmlTree& tree) {
 }
 
 std::string op_support_gap(const KmlTree& tree) {
-  if (tree.op != OpKind::Gemm)
-    return std::string("kernel generation covers gemm only; op=") + to_string(tree.op);
   if (!codegen_layout_supported(tree.layout))
     return "kernel generation implements layout=NT only; layout=" + tree.layout;
-  return "";
+  return "";  // gemm, conv and reduce all have HIP programs (Phase 15)
 }
 
 std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
   const std::string gap = op_support_gap(tree);
   if (!gap.empty()) {
     // The artifact refuses on its own: even a caller that bypasses the CLI
-    // gate cannot obtain a gemm measurement for a workload it declared as
-    // something else (R10.2 — unsupported interval, never a silent swap).
+    // gate cannot obtain a kernel for a layout the generators do not
+    // implement (R10.2 — unsupported interval, never a silent substitution).
     std::ostringstream o;
     o << "// unikern generated — REFUSAL: no kernel emitted\n"
       << "// hcs=" << hcs.vendor << "/" << hcs.device
@@ -71,7 +84,7 @@ std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlT
       << " toolchain=" << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain)
       << " constants_v=" << sol.constants_version << "\n"
       << "// " << gap << " — the capability interval is marked unsupported"
-      << " instead of executing a gemm in its place (R10.2)\n"
+      << " instead of executing an unimplemented layout (R10.2)\n"
       << "#include <iostream>\n"
       << "int main() {\n"
       << "  std::cerr << \"UNIKERN_ERROR what=op_unsupported reason=" << gap
@@ -80,13 +93,459 @@ std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlT
       << "}\n";
     return o.str();
   }
+  if (tree.op == OpKind::Conv) return hip_conv_program(sol, hcs, tree);
+  if (tree.op == OpKind::Reduction) return hip_reduce_program(sol, hcs, tree);
+  return hip_gemm_program(sol, hcs, tree);
+}
+
+namespace {
+
+// The declaration head every HIP program carries (R5.3 fingerprint +
+// toolchain + constants version, R8.6 placement record). Per-op lines are
+// appended by each program builder.
+void emit_head(std::ostringstream& o, const Solution& sol, const Hcs& hcs,
+               const char* op_line) {
+  o << "// unikern generated — AMD HIP / RDNA (independent generation, R5.1)" << '\n'
+    << "// hcs=" << hcs.vendor << "/" << hcs.device
+    << " fp=" << hcs_fingerprint(hcs).substr(0, 12)
+    << " toolchain=" << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain)
+    << " constants_v=" << sol.constants_version << '\n'
+    << op_line
+    << "// placement: " << sol.placement_record << '\n'
+    << "// R8: conv/reduce programs are resident-only in this MVP: a timing" << '\n'
+    << "// payload above 0.85 * vram_bytes refuses (UNIKERN_ERROR, exit 4)" << '\n'
+    << "// instead of a silent streaming fallback — the R8.2/R8.3" << '\n'
+    << "// double-buffered path stays a gemm-program feature (per-op" << '\n'
+    << "// streaming is milestone 1; stated here, not assumed away)." << '\n'
+    << "// R8 timing basis: measured_ms = end-to-end per pass (H2D + kernel +" << '\n'
+    << "// D2H, the same byte movement the C(x) copy term charges); kernel_ms is" << '\n'
+    << "// a kernel-only reference pass (iters launches between two events)." << '\n'
+    << "// R8: payload > 2GiB runs 1 warmup + 1 timed pass, else 2 + 10." << '\n';
+}
+
+// The uk_ok launcher guard shared by the conv and reduce programs (E12: a
+// failed launch must abort loudly instead of leaving zeroed device memory
+// for the comparison to misread as a wrong answer).
+void emit_uk_ok(std::ostringstream& o) {
+  o << "// Every HIP call is checked: a launch that fails must abort with a" << '\n'
+    << "// UNIKERN_ERROR line instead of leaving zeroed device memory for the" << '\n'
+    << "// comparison to silently misread as a wrong answer." << '\n'
+    << "static bool uk_ok(hipError_t e, const char* what) {" << '\n'
+    << "  if (e == hipSuccess) return true;" << '\n'
+    << "  std::cerr << \"UNIKERN_ERROR what=\" << what" << '\n'
+    << "            << \" msg=\" << hipGetErrorString(e) << std::endl;" << '\n'
+    << "  return false;" << '\n'
+    << "}" << '\n' << '\n';
+}
+
+// Honest refusals before any timing allocation (R10: no silent fallback).
+// vram_bytes == 0 means the HCS carries no vram tier, so residency cannot be
+// decided — refused, mirroring the OpenCL runner's vram_unknown answer.
+void emit_residency_guard(std::ostringstream& o) {
+  o << "  if (UK_VRAM_BYTES == 0ULL) {" << '\n'
+    << "    std::cerr << \"UNIKERN_ERROR what=vram_unknown\"" << '\n'
+    << "              << \" (no vram tier in the HCS: residency cannot be \"" << '\n'
+    << "              << \"decided; R10 refuses instead of guessing)\" << std::endl;" << '\n'
+    << "    return 4;" << '\n'
+    << "  }" << '\n'
+    << "  if (UK_PAYLOAD_BYTES > UK_STREAM_FRAC * (double)UK_VRAM_BYTES) {" << '\n'
+    << "    std::cerr << \"UNIKERN_ERROR what=stream_refused payload_bytes=\"" << '\n'
+    << "              << UK_PAYLOAD_BYTES << \" vram_bytes=\" << UK_VRAM_BYTES" << '\n'
+    << "              << \" (conv/reduce programs are resident-only in this MVP;\"" << '\n'
+    << "              << \" the timing payload exceeds 0.85 * vram; R10: no\"" << '\n'
+    << "              << \" silent fallback)\" << std::endl;" << '\n'
+    << "    return 4;" << '\n'
+    << "  }" << '\n';
+}
+
+}  // namespace
+
+// ---------------------------------------------------------------------------
+// conv: uk_conv — implicit GEMM view of a valid-padding 2D convolution, one
+// thread per output element. Independent program: deterministic init + the
+// scalar CPU reference embedded (same loop order as reference.cpp) +
+// differential verify (32x32x8 input, 3x3 kernel, 16 output channels — the
+// verify structure the Metal and OpenCL runners use) + e2e/kernel event
+// timing at the declared dims.
+// ---------------------------------------------------------------------------
+std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  const int H = tree.dims[0], W = tree.dims[1], C = tree.dims[2];
+  const int Kh = tree.dims[3], Kw = tree.dims[4], Oc = tree.dims[5];
+  const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+  const int64_t vram_bytes = hcs.tier_bytes("vram");
+
+  std::ostringstream head;
+  head << "// op=conv dims=" << H << "x" << W << "x" << C << "x" << Kh << "x"
+       << Kw << "x" << Oc << " (valid padding, one thread per output; the" << '\n'
+    << "//   solved block tile does not parameterize this kernel)" << '\n';
+  std::ostringstream o;
+  emit_head(o, sol, hcs, head.str().c_str());
+  o << "#include <hip/hip_runtime.h>" << '\n'
+    << "#include <cmath>" << '\n'
+    << "#include <iomanip>" << '\n'
+    << "#include <iostream>" << '\n'
+    << "#include <vector>" << '\n' << '\n'
+    << "__global__ void uk_conv(const float* __restrict__ X," << '\n'
+    << "                        const float* __restrict__ Wt," << '\n'
+    << "                        float* __restrict__ Y, int H, int W, int C," << '\n'
+    << "                        int Kh, int Kw, int Oc) {" << '\n'
+    << "  const int Ho = H - Kh + 1, Wo = W - Kw + 1;" << '\n'
+    << "  const int wo = blockIdx.x * blockDim.x + threadIdx.x;" << '\n'
+    << "  const int ho = blockIdx.y * blockDim.y + threadIdx.y;" << '\n'
+    << "  const int oc = blockIdx.z * blockDim.z + threadIdx.z;" << '\n'
+    << "  if (wo >= Wo || ho >= Ho || oc >= Oc) return;" << '\n'
+    << "  float acc = 0.f;" << '\n'
+    << "  for (int c = 0; c < C; ++c)" << '\n'
+    << "    for (int kh = 0; kh < Kh; ++kh)" << '\n'
+    << "      for (int kw = 0; kw < Kw; ++kw) {" << '\n'
+    << "        const float xv = X[((size_t)(ho + kh) * W + (wo + kw)) * C + c];" << '\n'
+    << "        const float wv = Wt[((size_t)(oc * Kh + kh) * Kw + kw) * C + c];" << '\n'
+    << "        acc += xv * wv;" << '\n'
+    << "      }" << '\n'
+    << "  Y[((size_t)oc * Ho + ho) * Wo + wo] = acc;" << '\n'
+    << "}" << '\n' << '\n'
+    << "// Deterministic init + scalar CPU reference, embedded so the program" << '\n'
+    << "// is independent (no core-library include). Same loop order and" << '\n'
+    << "// indexing as the shared unikern::cpu_conv — X[H][W][C]," << '\n'
+    << "// Wt[Oc][Kh][Kw][C], Y[Oc][Ho][Wo], valid padding." << '\n'
+    << "static float initA(int idx) { return ((idx % 17) - 8) * 0.0625f; }" << '\n'
+    << "static float initB(int idx) { return ((idx % 13) - 6) * 0.0625f; }" << '\n' << '\n'
+    << "static void cpu_conv_ref(const std::vector<float>& X," << '\n'
+    << "                         const std::vector<float>& Wt," << '\n'
+    << "                         std::vector<float>& Y, int H, int W, int C," << '\n'
+    << "                         int Kh, int Kw, int Oc) {" << '\n'
+    << "  const int Ho = H - Kh + 1, Wo = W - Kw + 1;" << '\n'
+    << "  for (int oc = 0; oc < Oc; ++oc)" << '\n'
+    << "    for (int ho = 0; ho < Ho; ++ho)" << '\n'
+    << "      for (int wo = 0; wo < Wo; ++wo) {" << '\n'
+    << "        float acc = 0.f;" << '\n'
+    << "        for (int c = 0; c < C; ++c)" << '\n'
+    << "          for (int kh = 0; kh < Kh; ++kh)" << '\n'
+    << "            for (int kw = 0; kw < Kw; ++kw) {" << '\n'
+    << "              const float xv = X[((size_t)(ho + kh) * W + (wo + kw)) * C + c];" << '\n'
+    << "              const float wv = Wt[((size_t)(oc * Kh + kh) * Kw + kw) * C + c];" << '\n'
+    << "              acc += xv * wv;" << '\n'
+    << "            }" << '\n'
+    << "        Y[((size_t)oc * Ho + ho) * Wo + wo] = acc;" << '\n'
+    << "      }" << '\n'
+    << "}" << '\n' << '\n';
+  emit_uk_ok(o);
+  o << "int main() {" << '\n'
+    << "  int rc = 0;" << '\n'
+    << "  float max_rel = 0.f;" << '\n'
+    << "  // Differential verify: 32x32x8 input, 3x3 kernel, 16 output channels" << '\n'
+    << "  // (the verify structure the Metal and OpenCL runners use). The" << '\n'
+    << "  // 2^-4-multiple init keeps every FP32 partial sum exact, so max_rel=0" << '\n'
+    << "  // is achievable and a wrong kernel cannot hide inside the 2^-5" << '\n'
+    << "  // tolerance." << '\n'
+    << "  {" << '\n'
+    << "    const int VH = 32, VW = 32, VC = 8, VKh = 3, VKw = 3, VOc = 16;" << '\n'
+    << "    const int VoH = VH - VKh + 1, VoW = VW - VKw + 1;" << '\n'
+    << "    std::vector<float> X((size_t)VH * VW * VC);" << '\n'
+    << "    std::vector<float> Wt((size_t)VOc * VKh * VKw * VC);" << '\n'
+    << "    std::vector<float> Y((size_t)VOc * VoH * VoW, 0.f), R(Y.size());" << '\n'
+    << "    for (size_t i = 0; i < X.size(); ++i) X[i] = initA((int)i);" << '\n'
+    << "    for (size_t i = 0; i < Wt.size(); ++i) Wt[i] = initB((int)i);" << '\n'
+    << "    cpu_conv_ref(X, Wt, R, VH, VW, VC, VKh, VKw, VOc);" << '\n'
+    << "    float *dX, *dWt, *dY;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc vX\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dWt, Wt.size() * sizeof(float)), \"hipMalloc vWt\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dY, Y.size() * sizeof(float)), \"hipMalloc vY\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy vX\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy vWt\")) return 4;" << '\n'
+    << "    const dim3 blk(8, 8, 1);" << '\n'
+    << "    const dim3 grd((VoW + 7) / 8, (VoH + 7) / 8, VOc);" << '\n'
+    << "    uk_conv<<<grd, blk>>>(dX, dWt, dY, VH, VW, VC, VKh, VKw, VOc);" << '\n'
+    << "    if (!uk_ok(hipGetLastError(), \"launch verify\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipDeviceSynchronize(), \"sync verify\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(Y.data(), dY, Y.size() * sizeof(float), hipMemcpyDeviceToHost), \"hipMemcpy vY\")) return 4;" << '\n'
+    << "    for (size_t i = 0; i < Y.size(); ++i) {" << '\n'
+    << "      float den = std::fabs(R[i]);" << '\n'
+    << "      if (den < 1e-6f) den = 1e-6f;" << '\n'
+    << "      float rel = std::fabs(Y[i] - R[i]) / den;" << '\n'
+    << "      if (rel > max_rel) max_rel = rel;" << '\n'
+    << "    }" << '\n'
+    << "    if (max_rel > 0.03125f) rc = 1;" << '\n'
+    << "    hipFree(dX); hipFree(dWt); hipFree(dY);" << '\n'
+    << "  }" << '\n'
+    << "  // Timing at the declared dims (the verify shape is fixed; the timing" << '\n'
+    << "  // workload is what the tree declared)." << '\n'
+    << "  const int H = " << H << ", W = " << W << ", C = " << C
+    << ", Kh = " << Kh << ", Kw = " << Kw << ", Oc = " << Oc << ";" << '\n'
+    << "  const int Ho = H - Kh + 1, Wo = W - Kw + 1;" << '\n'
+    << "  const unsigned long long UK_VRAM_BYTES = " << vram_bytes << "ULL;" << '\n'
+    << "  const double UK_STREAM_FRAC = 0.85;" << '\n'
+    << "  const unsigned long long UK_PAYLOAD_BYTES =" << '\n'
+    << "      (unsigned long long)H * W * C * 4 +" << '\n'
+    << "      (unsigned long long)Oc * Kh * Kw * C * 4 +" << '\n'
+    << "      (unsigned long long)Oc * Ho * Wo * 4;" << '\n';
+  emit_residency_guard(o);
+  o << "  // gridDim.y/z are bounded (65535 on this platform): refuse loudly" << '\n'
+    << "  // instead of launching an invalid configuration." << '\n'
+    << "  if ((Ho + 7) / 8 > 65535 || Oc > 65535) {" << '\n'
+    << "    std::cerr << \"UNIKERN_ERROR what=grid_too_large gy=\" << (Ho + 7) / 8" << '\n'
+    << "              << \" gz=\" << Oc << \" max_z=65535\" << std::endl;" << '\n'
+    << "    return 4;" << '\n'
+    << "  }" << '\n'
+    << "  const bool UK_BIG_WS = UK_PAYLOAD_BYTES > (2ULL << 30);" << '\n'
+    << "  const int warm = UK_BIG_WS ? 1 : 2;" << '\n'
+    << "  const int iters = UK_BIG_WS ? 1 : 10;" << '\n'
+    << "  double ms = 0.0;" << '\n'
+    << "  double kms = 0.0;" << '\n'
+    << "  {" << '\n'
+    << "    std::vector<float> X((size_t)H * W * C, 0.5f);" << '\n'
+    << "    std::vector<float> Wt((size_t)Oc * Kh * Kw * C, 0.25f);" << '\n'
+    << "    std::vector<float> Y((size_t)Oc * Ho * Wo, 0.f);" << '\n'
+    << "    float *dX, *dWt, *dY;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc tX\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dWt, Wt.size() * sizeof(float)), \"hipMalloc tWt\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dY, Y.size() * sizeof(float)), \"hipMalloc tY\")) return 4;" << '\n'
+    << "    hipStream_t st;" << '\n'
+    << "    if (!uk_ok(hipStreamCreate(&st), \"hipStreamCreate t\")) return 4;" << '\n'
+    << "    hipEvent_t t0, t1, k0, k1;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&t0), \"hipEventCreate t0\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&t1), \"hipEventCreate t1\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&k0), \"hipEventCreate k0\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&k1), \"hipEventCreate k1\")) return 4;" << '\n'
+    << "    const dim3 blk(8, 8, 1);" << '\n'
+    << "    const dim3 grd((Wo + 7) / 8, (Ho + 7) / 8, Oc);" << '\n'
+    << "    for (int w = 0; w < warm; ++w) {" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice, st), \"warm h2d tX\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice, st), \"warm h2d tWt\")) return 4;" << '\n'
+    << "      uk_conv<<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc);" << '\n'
+    << "      if (!uk_ok(hipGetLastError(), \"launch warm\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, Y.size() * sizeof(float), hipMemcpyDeviceToHost, st), \"warm d2h tY\")) return 4;" << '\n'
+    << "    }" << '\n'
+    << "    if (!uk_ok(hipStreamSynchronize(st), \"warm sync\")) return 4;" << '\n'
+    << "    double total = 0.0;" << '\n'
+    << "    for (int i = 0; i < iters; ++i) {" << '\n'
+    << "      if (!uk_ok(hipEventRecord(t0, st), \"record t0\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice, st), \"h2d tX\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice, st), \"h2d tWt\")) return 4;" << '\n'
+    << "      uk_conv<<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc);" << '\n'
+    << "      if (!uk_ok(hipGetLastError(), \"launch timed\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, Y.size() * sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipEventRecord(t1, st), \"record t1\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipEventSynchronize(t1), \"sync t1\")) return 4;" << '\n'
+    << "      float e = 0.f;" << '\n'
+    << "      if (!uk_ok(hipEventElapsedTime(&e, t0, t1), \"elapsed e2e\")) return 4;" << '\n'
+    << "      total += e;" << '\n'
+    << "    }" << '\n'
+    << "    ms = total / iters;" << '\n'
+    << "    // kernel-only reference on the already-resident operands." << '\n'
+    << "    if (!uk_ok(hipEventRecord(k0, st), \"record k0\")) return 4;" << '\n'
+    << "    for (int i = 0; i < iters; ++i) {" << '\n'
+    << "      uk_conv<<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc);" << '\n'
+    << "      if (!uk_ok(hipGetLastError(), \"launch kref\")) return 4;" << '\n'
+    << "    }" << '\n'
+    << "    if (!uk_ok(hipEventRecord(k1, st), \"record k1\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventSynchronize(k1), \"sync k1\")) return 4;" << '\n'
+    << "    float ke = 0.f;" << '\n'
+    << "    if (!uk_ok(hipEventElapsedTime(&ke, k0, k1), \"elapsed kref\")) return 4;" << '\n'
+    << "    kms = double(ke) / iters;" << '\n'
+    << "    hipEventDestroy(t0); hipEventDestroy(t1);" << '\n'
+    << "    hipEventDestroy(k0); hipEventDestroy(k1);" << '\n'
+    << "    hipStreamDestroy(st);" << '\n'
+    << "    hipFree(dX); hipFree(dWt); hipFree(dY);" << '\n'
+    << "  }" << '\n'
+    << "  const double payload_mb = double(UK_PAYLOAD_BYTES) / (1024.0 * 1024.0);" << '\n'
+    << "  std::cout << \"UNIKERN_RESULT backend=amd verify=\" << (rc == 0 ? \"PASS\" : \"FAIL\")" << '\n'
+    << "            << \" max_rel=\" << std::scientific << std::setprecision(6) << (double)max_rel" << '\n'
+    << "            << std::fixed << std::setprecision(6)" << '\n'
+    << "            << \" measured_ms=\" << ms" << '\n'
+    << "            << \" kernel_ms=\" << kms" << '\n'
+    << "            << \" mode=resident\"" << '\n'
+    << "            << \" payload_mb=\" << payload_mb" << '\n'
+    << "            << \" perf=\" << H << \"x\" << W << \"x\" << C << \"x\" << Kh << \"x\" << Kw" << '\n'
+    << "            << \"x\" << Oc << std::endl;" << '\n'
+    << "  return rc;" << '\n'
+    << "}" << '\n';
+  return o.str();
+}
+
+// ---------------------------------------------------------------------------
+// reduce: uk_reduce_part + uk_reduce_sum — two-pass reduction (strided
+// partial sums, then a single-thread deterministic fold in index order).
+// Independent program: verify data is 2^20 values of 2^-6 (sums to 16384 in
+// any FP32 order — the structure check the Metal and OpenCL verifiers rely
+// on) + e2e/kernel event timing at the declared length.
+// ---------------------------------------------------------------------------
+std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  const int L = tree.dims[0];
+  // Pass-1 launch width (the Metal/OpenCL runners use the same clamp):
+  // min(L, 4096), rounded UP to the 256-thread block multiple. Threads past
+  // the element range contribute exact zero partials, which the fold absorbs.
+  int width = L < 4096 ? L : 4096;
+  if (width < 1) width = 1;
+  width = ((width + 255) / 256) * 256;
+  const int64_t vram_bytes = hcs.tier_bytes("vram");
+
+  std::ostringstream head;
+  head << "// op=reduce length=" << L << " (two-pass reduction: strided partials"
+       << " + single-thread" << '\n'
+    << "//   deterministic fold; the pass-1 width is a launch parameter, not" << '\n'
+    << "//   the solved block tile)" << '\n';
+  std::ostringstream o;
+  emit_head(o, sol, hcs, head.str().c_str());
+  o << "#include <hip/hip_runtime.h>" << '\n'
+    << "#include <cmath>" << '\n'
+    << "#include <iomanip>" << '\n'
+    << "#include <iostream>" << '\n'
+    << "#include <vector>" << '\n' << '\n'
+    << "// Pass 1: strided partial sums, one per thread of the launch. nP is" << '\n'
+    << "// the launch width in threads (>= the partial count it writes)." << '\n'
+    << "__global__ void uk_reduce_part(const float* __restrict__ X," << '\n'
+    << "                              float* __restrict__ P, int n, int nP) {" << '\n'
+    << "  const int tid = blockIdx.x * blockDim.x + threadIdx.x;" << '\n'
+    << "  if (tid >= nP) return;" << '\n'
+    << "  float s = 0.f;" << '\n'
+    << "  for (int i = tid; i < n; i += nP) s += X[i];" << '\n'
+    << "  P[tid] = s;" << '\n'
+    << "}" << '\n' << '\n'
+    << "// Pass 2: fold the partials in index order (single thread," << '\n'
+    << "// deterministic — the same fold the Metal and OpenCL kernels do)." << '\n'
+    << "__global__ void uk_reduce_sum(const float* __restrict__ P," << '\n'
+    << "                             float* __restrict__ Y, int np) {" << '\n'
+    << "  float s = 0.f;" << '\n'
+    << "  for (int i = 0; i < np; ++i) s += P[i];" << '\n'
+    << "  Y[0] = s;" << '\n'
+    << "}" << '\n' << '\n'
+    << "// Deterministic scalar CPU reference, embedded so the program is" << '\n'
+    << "// independent (no core-library include). Same index-order FP32" << '\n'
+    << "// accumulation as the shared unikern::cpu_reduce." << '\n'
+    << "static void cpu_reduce_ref(const std::vector<float>& X, float* y) {" << '\n'
+    << "  float acc = 0.f;" << '\n'
+    << "  for (size_t i = 0; i < X.size(); ++i) acc += X[i];" << '\n'
+    << "  *y = acc;" << '\n'
+    << "}" << '\n' << '\n';
+  emit_uk_ok(o);
+  o << "// One reduce = both passes enqueued in order on the same stream." << '\n'
+    << "static int launch_reduce(const float* dX, float* dP, float* dY, int n," << '\n'
+    << "                         int nP, hipStream_t st) {" << '\n'
+    << "  uk_reduce_part<<<(nP + 255) / 256, 256, 0, st>>>(dX, dP, n, nP);" << '\n'
+    << "  if (!uk_ok(hipGetLastError(), \"launch reduce part\")) return 4;" << '\n'
+    << "  uk_reduce_sum<<<1, 1, 0, st>>>(dP, dY, nP);" << '\n'
+    << "  if (!uk_ok(hipGetLastError(), \"launch reduce sum\")) return 4;" << '\n'
+    << "  return 0;" << '\n'
+    << "}" << '\n' << '\n'
+    << "int main() {" << '\n'
+    << "  int rc = 0;" << '\n'
+    << "  float max_rel = 0.f;" << '\n'
+    << "  // Differential verify: 2^20 values of 2^-6 sum to 16384 in ANY fp32" << '\n'
+    << "  // order, so max_rel=0 here means the two-pass structure is right —" << '\n'
+    << "  // not that float reordering is robust (cancelling data is out of MVP" << '\n'
+    << "  // scope; stated, not implied)." << '\n'
+    << "  {" << '\n'
+    << "    const int VL = 1 << 20;" << '\n'
+    << "    const int VP = 4096;" << '\n'
+    << "    std::vector<float> X((size_t)VL, 0.015625f);" << '\n'
+    << "    std::vector<float> P((size_t)VP, 0.f), Y(1, 0.f);" << '\n'
+    << "    float ref = 0.f;" << '\n'
+    << "    cpu_reduce_ref(X, &ref);" << '\n'
+    << "    float *dX, *dP, *dY;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc vX\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dP, P.size() * sizeof(float)), \"hipMalloc vP\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dY, sizeof(float)), \"hipMalloc vY\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice), \"hipMemcpy vX\")) return 4;" << '\n'
+    << "    if (launch_reduce(dX, dP, dY, VL, VP, nullptr) != 0) return 4;" << '\n'
+    << "    if (!uk_ok(hipDeviceSynchronize(), \"sync verify\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost), \"hipMemcpy vY\")) return 4;" << '\n'
+    << "    float den = std::fabs(ref);" << '\n'
+    << "    if (den < 1e-6f) den = 1e-6f;" << '\n'
+    << "    max_rel = std::fabs(Y[0] - ref) / den;" << '\n'
+    << "    if (max_rel > 0.03125f) rc = 1;" << '\n'
+    << "    hipFree(dX); hipFree(dP); hipFree(dY);" << '\n'
+    << "  }" << '\n'
+    << "  // Timing at the declared length." << '\n'
+    << "  const int L = " << L << ";" << '\n'
+    << "  const int UK_REDUCE_WIDTH = " << width << ";" << '\n'
+    << "  const unsigned long long UK_VRAM_BYTES = " << vram_bytes << "ULL;" << '\n'
+    << "  const double UK_STREAM_FRAC = 0.85;" << '\n'
+    << "  const unsigned long long UK_PAYLOAD_BYTES =" << '\n'
+    << "      (unsigned long long)L * 4 + (unsigned long long)UK_REDUCE_WIDTH * 4 + 4;" << '\n';
+  emit_residency_guard(o);
+  o << "  const bool UK_BIG_WS = UK_PAYLOAD_BYTES > (2ULL << 30);" << '\n'
+    << "  const int warm = UK_BIG_WS ? 1 : 2;" << '\n'
+    << "  const int iters = UK_BIG_WS ? 1 : 10;" << '\n'
+    << "  double ms = 0.0;" << '\n'
+    << "  double kms = 0.0;" << '\n'
+    << "  {" << '\n'
+    << "    std::vector<float> X((size_t)L, 0.5f);" << '\n'
+    << "    std::vector<float> P((size_t)UK_REDUCE_WIDTH, 0.f), Y(1, 0.f);" << '\n'
+    << "    float *dX, *dP, *dY;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dX, X.size() * sizeof(float)), \"hipMalloc tX\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dP, P.size() * sizeof(float)), \"hipMalloc tP\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMalloc(&dY, sizeof(float)), \"hipMalloc tY\")) return 4;" << '\n'
+    << "    hipStream_t st;" << '\n'
+    << "    if (!uk_ok(hipStreamCreate(&st), \"hipStreamCreate t\")) return 4;" << '\n'
+    << "    hipEvent_t t0, t1, k0, k1;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&t0), \"hipEventCreate t0\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&t1), \"hipEventCreate t1\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&k0), \"hipEventCreate k0\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventCreate(&k1), \"hipEventCreate k1\")) return 4;" << '\n'
+    << "    for (int w = 0; w < warm; ++w) {" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice, st), \"warm h2d tX\")) return 4;" << '\n'
+    << "      if (launch_reduce(dX, dP, dY, L, UK_REDUCE_WIDTH, st) != 0) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"warm d2h tY\")) return 4;" << '\n'
+    << "    }" << '\n'
+    << "    if (!uk_ok(hipStreamSynchronize(st), \"warm sync\")) return 4;" << '\n'
+    << "    double total = 0.0;" << '\n'
+    << "    for (int i = 0; i < iters; ++i) {" << '\n'
+    << "      if (!uk_ok(hipEventRecord(t0, st), \"record t0\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice, st), \"h2d tX\")) return 4;" << '\n'
+    << "      if (launch_reduce(dX, dP, dY, L, UK_REDUCE_WIDTH, st) != 0) return 4;" << '\n'
+    << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipEventRecord(t1, st), \"record t1\")) return 4;" << '\n'
+    << "      if (!uk_ok(hipEventSynchronize(t1), \"sync t1\")) return 4;" << '\n'
+    << "      float e = 0.f;" << '\n'
+    << "      if (!uk_ok(hipEventElapsedTime(&e, t0, t1), \"elapsed e2e\")) return 4;" << '\n'
+    << "      total += e;" << '\n'
+    << "    }" << '\n'
+    << "    ms = total / iters;" << '\n'
+    << "    // kernel-only reference on the already-resident operand." << '\n'
+    << "    if (!uk_ok(hipEventRecord(k0, st), \"record k0\")) return 4;" << '\n'
+    << "    for (int i = 0; i < iters; ++i) {" << '\n'
+    << "      if (launch_reduce(dX, dP, dY, L, UK_REDUCE_WIDTH, st) != 0) return 4;" << '\n'
+    << "    }" << '\n'
+    << "    if (!uk_ok(hipEventRecord(k1, st), \"record k1\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventSynchronize(k1), \"sync k1\")) return 4;" << '\n'
+    << "    float ke = 0.f;" << '\n'
+    << "    if (!uk_ok(hipEventElapsedTime(&ke, k0, k1), \"elapsed kref\")) return 4;" << '\n'
+    << "    kms = double(ke) / iters;" << '\n'
+    << "    hipEventDestroy(t0); hipEventDestroy(t1);" << '\n'
+    << "    hipEventDestroy(k0); hipEventDestroy(k1);" << '\n'
+    << "    hipStreamDestroy(st);" << '\n'
+    << "    hipFree(dX); hipFree(dP); hipFree(dY);" << '\n'
+    << "  }" << '\n'
+    << "  const double payload_mb = double(UK_PAYLOAD_BYTES) / (1024.0 * 1024.0);" << '\n'
+    << "  std::cout << \"UNIKERN_RESULT backend=amd verify=\" << (rc == 0 ? \"PASS\" : \"FAIL\")" << '\n'
+    << "            << \" max_rel=\" << std::scientific << std::setprecision(6) << (double)max_rel" << '\n'
+    << "            << std::fixed << std::setprecision(6)" << '\n'
+    << "            << \" measured_ms=\" << ms" << '\n'
+    << "            << \" kernel_ms=\" << kms" << '\n'
+    << "            << \" mode=resident\"" << '\n'
+    << "            << \" payload_mb=\" << payload_mb" << '\n'
+    << "            << \" perf=\" << L << std::endl;" << '\n'
+    << "  return rc;" << '\n'
+    << "}" << '\n';
+  return o.str();
+}
+
+// ---------------------------------------------------------------------------
+// gemm: the original Phase 5/7/8 program, byte for byte as published (the
+// tile-quantized register-blocked kernel + R8.3 double-buffered streaming).
+// hip_runnable_program dispatches conv/reduce away before this point, so the
+// emitted gemm artifact and its ledger behaviour are unchanged.
+// ---------------------------------------------------------------------------
+std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
   const EmittedTile tile = emit_tile_for(tree, sol);
   const int RPT = tile.tm / 16;
   const int RPN = tile.tn / 16;
   const int TK = 16;
   const int VM = 256, VN = 256, VK = 256;          // differential verification size
   // R8: timing size = tree dims, 16-aligned with a floor of 32, uncapped.
-  // gemm-only beyond this point: op_support_gap() above refuses every other kind.
+  // gemm-only beyond this point: hip_runnable_program dispatched conv/reduce
+  // to their own programs above.
   auto floor16 = [](int64_t v) { const int a = int((v / 16) * 16); return a < 32 ? 32 : a; };
   const int PM = floor16(tree.dims[0]), PN = floor16(tree.dims[1]), PK = floor16(tree.dims[2]);
   // R8.2 streaming parameters emitted into the program: vram capacity from

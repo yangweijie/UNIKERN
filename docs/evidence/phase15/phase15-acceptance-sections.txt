@@ -1,0 +1,21 @@
+[R1] canonical uniqueness + illegal type-name rejection OK
+[R1.1/2] KML text front end: three op families, round-trip, complete rejection list, arity, layout, children paths OK
+[R2] filter 22/25, violation records + |X| OK
+[R3] C bitwise-stable over 10^4 repeats + HCS constants adopted OK
+[R4] argmin (128,128) via canonical key + infeasible termination OK
+[R5] 3 backends non-empty + HCS fingerprint in head + (KML,HCS)-only inputs OK
+[R6] fp32 graded tolerance exact/within/beyond/config/size-mismatch OK
+[R7] sqlite round-trip + hit(off-grid tiles) + measured_ms persisted + isolation OK
+[R7] crash mid-transaction leaves no half row OK
+[CAL] file-ledger formats + measured->link-bw median + version bump + export round-trip OK
+[R7.1] op_signature encodes the op's full arity; conv shapes differ, gemm keys unchanged OK
+[R7.3] scenario-A calibrate gate: refusal / flag passes the gate / flag calibrates / scenario-B unaffected OK
+[R8] scenario A/B placement records explicit + distinct OK
+[R9] complete missing-field rejection + fingerprint OK
+[R10] vendor mapping + availability semantics + vendor-API isolation OK
+[R10.2] op coverage is per backend: all three vendors generate real conv/reduce kernels (Phase 15); each artifact carries only its own kernels; failed/unavailable runs commit nothing; gemm path unaffected OK
+[R13] conv/reduce CPU references exact on hand-computed cases; each source carries only its own kernels; capability covered for three ops on all backends (layout the only refusal) OK
+[R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel, provenance banner intact (compiles out-of-band; runtime needs the Intel host) OK
+[R15] HIP sources per op: conv/reduce programs carry only their own kernels, provenance head intact, capability covers three ops with layout the only refusal OK
+[R10.3] coverage report: three backends, primitive/execution/toolchain axes distinct and derived from the live objects OK
+[R10.3] kml/solve/run all carry the coverage lines; declaration rejection and end-to-end emit through --kml OK

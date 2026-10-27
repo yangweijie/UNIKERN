@@ -1,0 +1,35 @@
+# Out-of-band hipcc compile of the generated conv/reduce programs (R5 real-compile evidence for the two new program kinds) + gemm byte-identity regression.
+# Generator: build/unikern.exe 535c3c9e4a53459866459661155ae403  hipcc: HIP version: 7.13.99004-3309c6114a
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml samples/conv.kml --ledger D:/Temp/uk_p15/oob.jsonl --emit D:/Temp/uk_p15/emit_conv
+EMIT amd:hip -> D:/Temp/uk_p15/emit_conv/uk_amd.cpp lines=219
+EMIT apple:metal -> D:/Temp/uk_p15/emit_conv/uk_apple.metal lines=40 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/uk_p15/emit_conv/uk_intel.cl lines=32 (toolchain absent)
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --ledger D:/Temp/uk_p15/oob.jsonl --emit D:/Temp/uk_p15/emit_reduce
+EMIT amd:hip -> D:/Temp/uk_p15/emit_reduce/uk_amd.cpp lines=183
+EMIT apple:metal -> D:/Temp/uk_p15/emit_reduce/uk_apple.metal lines=36 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/uk_p15/emit_reduce/uk_intel.cl lines=31 (toolchain absent)
+
+# backslash audit of the generated sources (E10: generated source must contain zero backslashes):
+0
+0
+
+$ hipcc D:/Temp/uk_p15/emit_conv/uk_amd.cpp -O3 --offload-arch=gfx1032 -o D:/Temp/uk_p15/conv.exe  (rc=0, no diagnostics)
+rc=0
+$ hipcc D:/Temp/uk_p15/emit_reduce/uk_amd.cpp -O3 --offload-arch=gfx1032 -o D:/Temp/uk_p15/reduce.exe  (rc=0, no diagnostics)
+rc=0
+
+# --- gemm byte-identity regression (fresh-solve vs fresh-solve) ---
+# Pre-change snapshot (git HEAD codegen_hip.cpp) captured before the edit with a fresh ledger:
+#   ./build/unikern.exe solve --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger D:/Temp/uk_p15/pre.jsonl --emit D:/Temp/uk_p15/pre
+# Post-change snapshot with the current build, also a FRESH ledger — note: a ledger-HIT solution does not carry shard params (pre-existing ledger shape), so the identity comparison must be fresh-solve vs fresh-solve:
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger D:/Temp/uk_p15/post2.jsonl --emit D:/Temp/uk_p15/post2
+EMIT amd:hip -> D:/Temp/uk_p15/post2/uk_amd.cpp lines=390
+EMIT apple:metal -> D:/Temp/uk_p15/post2/uk_apple.metal lines=61 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/uk_p15/post2/uk_intel.cl lines=53 (toolchain absent)
+$ diff D:/Temp/uk_p15/pre/uk_amd.cpp D:/Temp/uk_p15/post2/uk_amd.cpp
+(no output — gemm program byte-identical, 390 lines)
+$ diff D:/Temp/uk_p15/pre/uk_apple.metal D:/Temp/uk_p15/post2/uk_apple.metal
+(no output — MSL unchanged)
+$ diff D:/Temp/uk_p15/pre/uk_intel.cl D:/Temp/uk_p15/post2/uk_intel.cl
+(no output — OpenCL C unchanged)

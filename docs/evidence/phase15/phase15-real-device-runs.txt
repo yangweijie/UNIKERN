@@ -1,0 +1,53 @@
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --kml samples/conv.kml
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=4.024
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=4.024000 kernel_ms=3.343997 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+LEDGER COMMIT predicted_ms=0.0583194 measured_ms=4.024 epsilon_abs=3.96568 epsilon_rel=67.9993
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --kml samples/conv.kml  (same key, second run)
+LEDGER HIT  c_cached_ms=0.0583194  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=4.17844
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=4.178440 kernel_ms=3.325420 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+LEDGER COMMIT predicted_ms=0.0583194 measured_ms=4.17844 epsilon_abs=4.12012 epsilon_rel=70.6475
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.46996
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.469960 kernel_ms=0.160716 mode=resident payload_mb=4.015629 perf=1048576
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.46996 epsilon_abs=0.191432 epsilon_rel=0.687299
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0  (same key, second run)
+LEDGER HIT  c_cached_ms=0.278528  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.47134
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.471340 kernel_ms=0.158152 mode=resident payload_mb=4.015629 perf=1048576
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.47134 epsilon_abs=0.192812 epsilon_rel=0.692254
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger uk_run/p15_gemm.sqlite3  (gemm regression, fresh ledger)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=55.4604
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=55.460390 kernel_ms=35.171912 mode=resident payload_mb=192.000000 perf=4096x4096x4096
+LEDGER COMMIT predicted_ms=12.5387 measured_ms=55.4604 epsilon_abs=42.9217 epsilon_rel=3.42314
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --dims 4096 4096 4096 --ledger uk_run/p15_gemm.sqlite3  (same key, second run)
+LEDGER HIT  c_cached_ms=12.5387  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=55.7011
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=55.701130 kernel_ms=35.202859 mode=resident payload_mb=192.000000 perf=4096x4096x4096
+LEDGER COMMIT predicted_ms=12.5387 measured_ms=55.7011 epsilon_abs=43.1624 epsilon_rel=3.44234

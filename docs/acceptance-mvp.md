@@ -1,6 +1,6 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8/9/10
 
-- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**；**v10 Phase 14：Intel/OpenCL 的 conv/reduce——`ocl_kernel_source` 三算子内核 + `ocl_op_gap`/per-backend 覆盖 + runner_ocl 按算子分派；三份 .cl 过 clang 的 OpenCL 前端（负测可红），runner host 侧仅编译检查（本机无 Intel 设备，运行未验）；能力面变三向；新增 [R14]，Phase 13 中"OpenCL 仍 gemm-only"的结论据实标记取代**
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**；**v10 Phase 14：Intel/OpenCL 的 conv/reduce——`ocl_kernel_source` 三算子内核 + `ocl_op_gap`/per-backend 覆盖 + runner_ocl 按算子分派；三份 .cl 过 clang 的 OpenCL 前端（负测可红），runner host 侧仅编译检查（本机无 Intel 设备，运行未验）；能力面变三向；新增 [R14]，Phase 13 中"OpenCL 仍 gemm-only"的结论据实标记取代**；**v11 Phase 15（2026-10-28）：AMD 收尾——`hip_runnable_program` 按算子分派，conv 出 `uk_conv`、reduce 出 `uk_reduce_part`+`uk_reduce_sum`（各自独立程序、CPU 参考内嵌、gemm 程序逐位不变）；`op_support_gap()` 翻转为三算子 covered（layout 是唯一拒绝轴）；RX 6600M 真机 conv/reduce/gemm 全部 verify=PASS max_rel=0 → COMMIT → 同键 HIT；新增 [R15]，R5/R6/R10 行据实更新，[R10.2] 的 op 拒绝臂改为"不可用后端诚实失败"臂**
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）；**Phase 9（Intel 段）另用 MSVC 2022 Community（cl.exe 14.44 + vcvarsall 环境）构建，OpenCL 经 oneAPI 2026.1/lib/OpenCL.lib 导入库链接 + third_party/CL 厂商头（18 头，Apache-2.0），构建标志含 -DUK_HAS_OCL**（MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；GCC 风格 -Wall/-Wextra 按编译器翻译）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
@@ -25,12 +25,12 @@
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
-| R5 三厂商后端生成 | 单测：三源非空 + 头部指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数；v9 增 per-op 内核结构臂；**v10 增 OpenCL 三算子内核结构臂** | `[R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel ... OK`；`EMIT intel:ocl -> uk_intel.cl lines=53/32/31`（gemm/conv/reduce）；三份 .cl 均过 `clang -x cl` 语法检查（`docs/evidence/phase14/`） | ✅（生成侧三厂商三算子；**执行侧 Apple 三算子真机、Intel 三算子编译级、AMD 仅 gemm**） |
-| R6 差分验证 | 单测：容差函数 verify_fp32 五路径 + v9 的 conv/reduce 共享 CPU 参考手算用例；真机：生成程序/runner 自带 CPU 对拍 + CLI run | `[R13] conv/reduce CPU references exact ... OK`；Apple 的 gemm/conv/reduce 均 `verify=PASS max_rel=0`；**Intel 侧 verify 代码路径只过编译检查（本机无 Intel 设备，运行未验）** | ✅（Apple 三算子真机；Intel 三算子待真机；AMD gemm 真机） |
+| R5 三厂商后端生成 | 单测：三源非空 + 头部指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数；v9 增 per-op 内核结构臂；v10 增 OpenCL 三算子内核结构臂；**v11 增 HIP 三算子程序结构臂（[R15]）** | `[R14] OpenCL sources per op ... OK`、`[R15] HIP sources per op: conv/reduce programs carry only their own kernels ... OK`；conv/reduce 的 HIP 程序过 `hipcc --offload-arch=gfx1032` 真编译（`docs/evidence/phase15/phase15-compile-and-gemm-identity.txt`） | ✅（生成侧三厂商三算子；**执行侧 Apple 三算子真机、AMD 三算子真机、Intel 三算子编译级**） |
+| R6 差分验证 | 单测：容差函数 verify_fp32 五路径 + v9 的 conv/reduce 共享 CPU 参考手算用例；真机：生成程序/runner 自带 CPU 对拍 + CLI run | `[R13] conv/reduce CPU references exact ... OK`；Apple 的 gemm/conv/reduce 均 `verify=PASS max_rel=0`；**AMD 的 conv/reduce/gemm 也 verify=PASS max_rel=0（v11，RX 6600M）**；Intel 侧 verify 代码路径只过编译检查（本机无 Intel 设备，运行未验） | ✅（Apple 三算子真机；AMD 三算子真机；Intel 三算子待真机） |
 | R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环；R7.3 场景 A 校准门控四臂；v8 增 R7.1/G9 键身份臂；**v9 增 conv/reduce 实测行端到端** | `[R7.1] op_signature encodes the op's full arity ... OK`；conv `LEDGER COMMIT ε_rel=334.619` → 同键 `LEDGER HIT` → 再 COMMIT `ε_rel=243.931`；reduce `ε_rel=10.9052` / HIT 轮 `8.86814`（`docs/evidence/phase13/phase13-conv-reduce-device.txt`） | ✅ |
 | R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s（AMD）；**Apple M4 场景 A 真机 resident 执行 PASS（零拷贝语义，placement=unified_memory 单测已验）** | 🟡（AMD 流式 ✅；Apple 场景 A resident ✅；**Intel/Apple resident-only，流式不实现**——生成程序横幅声明此边界，payload > 0.85×上限时 runner 如实 `UNIKERN_ERROR what=stream_refused` 拒绝（R10 无静默降级），如实标注） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
-| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends`；v7 增 op 能力面三层拒绝臂；v8 增 R10.3 覆盖报告三轴；v9 增 per-backend 异构臂；**v10 增三向能力面（amd unsupported / apple+intel covered）与 OpenCL 按算子内核臂** | `[R14] OpenCL sources per op ... OK`；`COVER amd:hip primitive=unsupported reason=...op=conv` 与 `COVER apple:metal primitive=covered`、`COVER intel:ocl primitive=covered` 同表共存；toolchain 轴单列（本机 intel=absent） | ✅（R10.1/R10.2/R10.3 均有实现与回归位；**R10.2 的 F 约束合流仍属 V1**） |
+| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends`；v7 增 op 能力面三层拒绝臂；v8 增 R10.3 覆盖报告三轴；v9 增 per-backend 异构臂；v10 增三向能力面；**v11 增 [R15]：HIP 三算子 covered（layout 是共享谓词唯一拒绝轴），HIP 程序按算子分派 + 每源只带自己内核** | `[R14] OpenCL sources per op ... OK`、`[R15] HIP sources per op ... OK`；三后端 × 三算子全 `COVER ... primitive=covered` 同表共存，layout 拒绝仍点名 `layout=colmajor`；toolchain 轴单列（本机 apple=absent） | ✅（R10.1/R10.2/R10.3 均有实现与回归位；**R10.2 的 F 约束合流仍属 V1**） |
 
 ## 逐项验收
 
@@ -567,3 +567,38 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   rc=2 的读数在当时为真，现在 Intel 会通过能力门并在运行期因无设备失败。
 - **仍未做**：AMD（HIP 程序）的 conv/reduce（无 hipcc，连语法都验不了）、Intel 真机运行、
   conv/reduce 调优与浮点次序鲁棒性、R10.2 的 F 约束合流（V1）。
+
+## Phase 15 AMD 收尾补遗（2026-10-28，v11，G1 执行半边闭合）
+
+- **生成**：`hip_runnable_program` 按算子分派——conv 出 `uk_conv`（implicit GEMM 视角的
+  valid-padding 二维卷积，一线程一输出，六维 H W C Kh Kw Oc），reduce 出 `uk_reduce_part` +
+  `uk_reduce_sum`（分段 strided 部分和 + 单线程按序折叠；pass-1 宽度 = min(L,4096) 向上取整到
+  256 线程块倍数）。每份程序只带自己算子的内核；**gemm 程序逐位不变**（生成器内原样搬运，
+  fresh-solve 对 fresh-solve 的 diff 为空，`docs/evidence/phase15/phase15-compile-and-gemm-identity.txt`）。
+  生成的程序独立可编译：CPU 参考内嵌（语义对齐 `src/reference.cpp`，不含核心库头），
+  conv/reduce 程序过 `hipcc --offload-arch=gfx1032` 真编译（rc=0、0 诊断）。
+- **能力面**：`op_support_gap()` 的 HIP 谓词 conv/reduce 从 unsupported 改 covered——三后端 ×
+  三算子全覆盖；共享谓词剩下的唯一拒绝轴是 layout（`layout=colmajor` 仍点名拒绝，拒绝产物
+  `UNIKERN_ERROR what=op_unsupported` 保留）。Apple/Intel 分支不动。
+- **验收臂**：新增 `[R15]`（conv 源只含 uk_conv、reduce 源只含 uk_reduce_part/uk_reduce_sum、
+  gemm 源不含另两者、provenance 头六字段、计时维取声明树、能力面三算子 covered）；
+  `[R1.1/2]/[R10.2]/[R10.3]/[R13]` 同步为 amd=covered 期望。摘掉即红两条腿
+  （分派落回 gemm → 红 @1317；谓词退回 gemm-only → 红 @305），`probe/phase15_arm_probes.py`。
+- **真机闭环（RX 6600M，gfx1032）**：两条门禁命令逐字执行——
+  `run --hcs samples/hcs_amd.json --kml samples/conv.kml`（conv 64×64×32/3×3/64）：
+  verify=PASS max_rel=0 → LEDGER COMMIT ε_rel=67.9993 → 同键 HIT；`run --op reduce --dims
+  1048576 0 0`：verify=PASS max_rel=0 → COMMIT ε_rel=0.687299 → HIT；gemm 4096³ 回归：
+  PASS max_rel=0 → COMMIT ε_rel=3.42314 → HIT，UNIKERN_RESULT 字段与 Phase 8 同形。
+  转录：`docs/evidence/phase15/phase15-real-device-runs.txt`（二进制 md5 同录）。
+- **拒绝臂的让位（如实）**：HIP conv/reduce 不再被 CLI 门/生成物/runner 拒绝，原"rc=2
+  op=reduce 拒绝且不建账本"臂改为"不可用后端诚实失败"臂（Windows 上 `--vendor apple`：
+  rc=1 RUN FAILED、无 UNIKERN_RESULT、无 LEDGER COMMIT；macOS 上 apple 可用，该臂为
+  _WIN32-only）。runner 层（run_metal/run_ocl 入口自拒）未动。
+- **新样例**：`samples/conv.kml`（六维 64,64,32,3,3,64）与 `samples/reduce.kml`（L=1048576），
+  `unikern kml` 两份均过且 OP_SIG 与 Phase 12 的 arity 口径一致。
+- **被本阶段推翻的旧结论（保留原文并标记）**：Phase 14 补遗里"仍缺：AMD（HIP 程序）的
+  conv/reduce（无 hipcc，连语法都验不了）"已不成立——本机 ROCm 7.1 在位，conv/reduce/gemm
+  三算子真机闭环如上；`[R13]` 时代"HIP=gemm-only"的能力面表述已过时（三向 covered）。
+- **仍未做**：Intel conv/reduce 真机运行（需 Intel 机器）；conv/reduce 调优与浮点次序鲁棒性
+  （reduce verify 数据刻意取 2^-6×2^20，验结构不验次序）；R10.2 的 F 约束合流（V1）；
+  G5 R8.5 驻留守卫长测。

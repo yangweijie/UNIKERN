@@ -1,0 +1,8 @@
+{
+  "op": "conv",
+  "dtype": "fp32",
+  "dims": [64, 64, 32, 3, 3, 64],
+  "tile_m": 64,
+  "tile_n": 128,
+  "layout": "NT"
+}

@@ -1,0 +1,18 @@
+
+=== ARM-PROBE hip_per_op_dispatch (src/codegen_hip.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance.exe
+[R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel, provenance banner intact (compiles out-of-band; runtime needs the Intel host) OK
+Assertion failed: hc.find("__global__ void uk_conv") != std::string::npos && hc.find("uk_gemm") == std::string::npos && hc.find("uk_reduce") == std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1317
+--- hip_per_op_dispatch restored ---
+
+=== ARM-PROBE predicate_three_ops (src/codegen_hip.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance.exe
+[R1] canonical uniqueness + illegal type-name rejection OK
+Assertion failed: op_support_gap(*pr.first).empty(), file D:/git/c/gpu-math/tests/acceptance.cpp, line 305
+--- predicate_three_ops restored ---
+
+residual ARM-PROBE legs: none
+[5/5] Linking CXX executable unikern_acceptance.exe
+100% tests passed out of 2
+
+Total Test time (real) =   0.58 sec

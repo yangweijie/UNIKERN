@@ -1,0 +1,2 @@
+535c3c9e4a53459866459661155ae403 *build/unikern.exe
+980cc3ca6c88f8d04aa57bad471908b9 *build/unikern_acceptance.exe

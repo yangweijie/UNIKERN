@@ -1,0 +1,6 @@
+{
+  "op": "reduce",
+  "dtype": "fp32",
+  "dims": [1048576],
+  "layout": "NT"
+}
