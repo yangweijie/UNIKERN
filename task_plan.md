@@ -5,15 +5,17 @@
 "KML→求解→生成→验证→Ledger"闭环，交付可构建的 C++20 CLI 与组件，并逐阶段替换 stub。
 
 ## Current Phase
-**本机可做项已清零（2026-10-28，Phase 15 验收收尾闭合）**——Phase 0-15 全 complete；
-G5/R8.5 驻留守卫已实现并真机验证 migrations=0（Phase 16，commit ea76c2f；当前二进制复采
-`docs/evidence/phase15/phase15-recheck-v12.txt`）。本机事实：AMD RX 6600M 真机三算子闭环
-（conv/reduce/gemm 全 verify=PASS max_rel=0 → COMMIT → 同键 HIT）；Apple 侧已在 macOS 机器上
-于 Phase 10/13 闭合；Intel 三算子实现 + 过 clang 的 OpenCL 前端语法检查（backends 实测
-intel=no——本机无 Intel 设备）。验收矩阵 v12：G1 全闭合、G5 驻留守卫落地。
-剩余开放缺口（本机做不了的 / 属 V1）：① Intel conv/reduce 真机运行验证（需 Intel 机器）；
-② G5 的"长测"部分（长时间/大负载缺页迁移率统计与超阈重求解）；③ R10.2 的 F 约束合流（V1）；
-④ conv/reduce 调优与浮点次序鲁棒性。
+**本机可做项已清零（2026-10-28，Phase 17 闭合后复核）**——Phase 0-17 全 complete。
+Phase 17（2026-10-28）：开放缺口①「Intel conv/reduce 真机运行验证（需 Intel 机器）」
+在本机闭合——**本机即 Intel Arc B390 机器**（v12/v12.1 的"本机无 Intel 设备、intel=no"
+是 AMD 机器侧并行会话的机器相关读数；同一命令在 Intel 机器实测 intel=yes）：
+conv/reduce 首次真机执行即 verify=PASS max_rel=0 → COMMIT → 同键 HIT，gemm 回归不变；
+顺带修复两个真机暴露缺陷 E18（LOCAL 工作组上限被误当全局网格上限的规格误读）与
+E19（事件完成前读 profiling 的竞态 → 间歇性 measured_ms=0），证据
+`docs/evidence/phase17/`（含前后对照转录）。ctest 2/2 绿。
+剩余开放缺口（据实分类）：② G5 的"长测"部分（缺页迁移率长时统计与超阈重求解——
+HIP/AMD 机器侧长测，本机无 AMD 设备）；③ R10.2 的 F 约束合流（V1，计划口径）；
+④ conv/reduce 调优与浮点次序鲁棒性（开放型 R&D，计划口径"本机做不了的 / 属 V1"）。
 
 ## Phases
 | # | Phase | Status |
@@ -35,6 +37,7 @@ intel=no——本机无 Intel 设备）。验收矩阵 v12：G1 全闭合、G5 �
 | 14 | 执行面补齐 · **Intel（OpenCL）**：conv/reduce 的 OpenCL C 内核 + 进程内 runner 分派 + per-backend 能力面 | **complete（2026-10-28；三算子 .cl 全过 clang 的 OpenCL 前端、负测可红；能力面三向；runner host 侧仅编译检查——本机无 Intel 设备，运行未验，如实标注）** |
 | 15 | 执行面收尾 · **AMD（HIP）**：conv/reduce 的 HIP 程序 + `op_support_gap` 三算子 covered + RX 6600M 真机闭环 | **complete（2026-10-28；conv=uk_conv / reduce=uk_reduce_part+uk_reduce_sum 独立程序、CPU 参考内嵌、gemm 程序逐位不变；hipcc 真编译 + 两条门禁命令 COMMIT→HIT 全 PASS max_rel=0；[R15] 两条摘除即红；证据 docs/evidence/phase15/）** |
 | 16 | G5/R8.5 驻留守卫：hipMalloc 与 `hipPointerGetAttributes` 驻留断言折叠进 `uk_mmalloc()`、超订 loud 拒绝退 5、UNIKERN_RESULT 尾 `migrations=<n>` | **complete（2026-10-28，commit ea76c2f；RX 6600M 三算子六轮真机 migrations=0（v12 复采），拒绝分支 host 指针代位实测 exit=5；[R8.5] 单测 + 摘除即红；"长测"部分如实开放，见缺口表 G5 行）** |
+| 17 | Intel conv/reduce/gemm 三算子真机运行验证（开放缺口①；本机 = Intel 机器）+ E18/E19 修复 | **complete（2026-10-28；conv/reduce 首次真机执行 verify=PASS max_rel=0 → COMMIT → HIT，gemm 回归不变，ctest 2/2 绿；证据 docs/evidence/phase17/ 含 E18/E19 前后对照）** |
 
 ### Phase 15 子任务（AMD 收尾，2026-10-28）
 | 子项 | 状态 |
@@ -155,6 +158,17 @@ intel=no——本机无 Intel 设备）。验收矩阵 v12：G1 全闭合、G5 �
 - 计时口径与 AMD runner 对齐：warm 2 / timed 10（小）或 1/1（大）；e2e = 标记事件包裹，kernel_ms 为内核参考
 - 流式双缓冲本期不实现（intel:ocl 后端源横幅已声明 resident-only）；payload 超过 0.85×vram 时诚实拒绝，不静默降级（R10）
 
+### Phase 17 子任务（Intel 三算子真机运行验证，2026-10-28）
+| 子项 | 状态 |
+|------|------|
+| a. 本机基线：Phase 10-16 变更后的 CMake 在 Intel 机器重新配置 + 构建 + ctest | complete（OpenCL 发现 → -DUK_HAS_OCL；ctest 2/2 绿，含全部新验收臂） |
+| b. backends 机器口径修正 | complete（本机 intel=yes；v12 的 intel=no 是 AMD 机器侧读数，两份转录并存） |
+| c. gemm 回归 | complete（1024³ verify=PASS max_rel=0 → COMMIT ε_rel=2.4714 → 同键 HIT，与 Phase 9 同键同 tile） |
+| d. conv 真机首验 | complete（--kml samples/conv.kml：verify=PASS max_rel=0 → COMMIT ε_rel=13.5646 → HIT） |
+| e. reduce 真机首验 + E18 修复 | complete（首跑被错误拒绝 grid_too_large——CL_DEVICE_MAX_WORK_ITEM_SIZES 是本地工作组上限而非全局网格上限，verify=PASS 与 refused 并存即暴露点；删除错误检查、代之以 gemm 显式 local 256 对 CL_DEVICE_MAX_WORK_GROUP_SIZE 的真值门；修复后 verify=PASS max_rel=0 → COMMIT ε_rel=0.883955 → HIT） |
+| f. E19 修复 | complete（time_passes 事件完成前读 profiling——本机驱动对未完成事件返回全零而非 NOT_AVAILABLE → 间歇性 measured_ms=0；读前 clWaitForEvents，与 HIP 程序 hipEventSynchronize 同纪律；e2e 与 kernel-only 两括号都加） |
+| g. 证据入库 + 文档 + commit | complete（docs/evidence/phase17/：backends/ctest/三算子 commit+hit 转录 + E18/E19 前后对照 + README；acceptance-mvp v13；task_plan/findings/progress 落定） |
+
 ## Decisions
 | # | 决策 | 状态 |
 |---|------|------|
@@ -195,3 +209,5 @@ intel=no——本机无 Intel 设备）。验收矩阵 v12：G1 全闭合、G5 �
 | E15 | 新写的 R7.3 门控臂在 macOS 上 `assert(rc == 3)` 失败：POSIX `std::system()` 返回 **wait 状态**，`exit(3)` 读回 768（Windows cmd.exe 直返退出码，故 Phase 8/9 的 `rc != 0` 断言从未暴露此差异） | 1 | 归一化 `WIFEXITED/WEXITSTATUS`（POSIX 分支），Windows 分支保持原样；同时发现"门控摘掉后 rc 仍是 3（原因换成 no measured rows）"——rc 不具判别力，改为断言**拒绝消息**并增设加旗标的顺序判别臂 |
 | E16 | 技能自带 `check-complete.sh` 报 "Task in progress (0/3 phases complete)"，看似本计划仍有 3 个未完成阶段 | 1 | 读脚本判据后定性为**工具口径不合而非状态缺陷**：它数 `grep -c "### Phase"` 作分母、`**Status:** complete` 或 `[complete]` 作分子，而本计划用 markdown 表格记状态（分母 3 实为三个 `### Phase N 子任务` 标题，分子 0 因表格无该标记）。不为迁就脚本重构状态记法（会造出同文件两处权威陈述）；结论以表格 + Phase 0-10 全 complete + ctest 实证为准，本行留作下轮的"勿据此判红"注记 |
 | E17 | 并行会话 Phase 10 为 macOS 引入的无条件 `project(... OBJCXX)` 使 Windows 配置直接失败（MinGW 无 Objective-C++ 编译器，CMake 报 OBJCXX broken），且 `runner_metal.mm` 仅 Apple 可编译——非 Apple 链接 `run_metal` undefined | 1 | OBJCXX 改为 APPLE 分支内 `enable_language`；`runner_metal.mm` 仅 APPLE 进编译列表，非 Apple 链接 `runner_metal_stub.cpp`（`metal_available()=false` / `run_metal` 诚实拒绝，R10 语义不变）；本机基线恢复：配置成功（OpenCL 诚实 stub）、构建零告警、ctest 2/2 绿（commit 4224d42） |
+| E18 | runner_ocl 把 CL_DEVICE_MAX_WORK_ITEM_SIZES（本地工作组每维上限）误当全局网格上限做 launch 前检查（Phase 9 引入；此前证据维恰好 <1024 未触发）——reduce P=4096 首次真机执行被错误拒绝，而 verify 阶段同一发射在设备上真实执行且 max_rel=0（"verify=PASS 与 refused 并存"即自相矛盾暴露点） | 1 | 删除错误检查（规格：global_work_size 无每维上限）；代之以真值门：gemm 显式 local 16×16=256 按 CL_DEVICE_MAX_WORK_GROUP_SIZE 校验（what=workgroup_too_large），conv/reduce 传 nullptr local 由驱动自选、越界经 UK_OCL_CK 大声失败；前后对照 docs/evidence/phase17/phase17-defects-before-after.txt |
+| E19 | time_passes 在事件完成前读 clGetEventProfilingInfo——规格应返回 CL_PROFILING_INFO_NOT_AVAILABLE，本机 Intel NEO 驱动实测返回 CL_SUCCESS+全零时间戳 → 间歇性 measured_ms=0（连 kernel_ms 也为 0；Phase 9-16 的证据恰好每次都赢了该竞态，宿主入队慢于设备执行） | 1 | 读 profiling 前先 clWaitForEvents 等待 pass 末尾标记（e2e 与 kernel-only 两个括号都加）——与生成的 HIP 程序"hipEventSynchronize 后再 hipEventElapsedTime"同一纪律；修复后三算子复采全部正常计时（同上转录） |

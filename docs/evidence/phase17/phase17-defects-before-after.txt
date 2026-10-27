@@ -1,0 +1,66 @@
+# Phase 17 真机暴露缺陷与修复（前后对照，E18/E19）
+
+Phase 14 的 conv/reduce OpenCL 路径只在本机无 Intel 设备的会话里做过 clang 语法检查；
+本会话（Intel Arc B390 机器）首次真机执行，暴露两个缺陷。以下"修复前"输出为本会话
+实测原文转录（当时的二进制），"修复后"为当前二进制复跑（phase17-*-commit/hit.txt）。
+
+## E18：对 CL_DEVICE_MAX_WORK_ITEM_SIZES 的规格误读（全局网格被错误拒绝）
+
+修复前的 runner 把"每维 LOCAL 工作组上限"误当作"全局网格上限"来检查（该检查自
+Phase 9 引入；此前 gemm/conv 的证据维恰好都低于 1024，从未触发）。reduce（pass-1
+宽度 P=4096）首次撞上它——**而 verify 阶段同一宽度的发射在设备上真实执行且
+max_rel=0**（证明该限值并不约束全局网格；OpenCL 规格中 clEnqueueNDRangeKernel 的
+global_work_size 无每维上限，CL_DEVICE_MAX_WORK_ITEM_SIZES 约束的是本地工作组）。
+
+修复前（reduce，L=1048576，原文转录）：
+
+```
+UNIKERN_ERROR what=grid_too_large gws=4096x1 max_wi=1024x1024
+intel:ocl runner refuses: the timing grid exceeds CL_DEVICE_MAX_WORK_ITEM_SIZES (chunked/SVM launches are not part of the MVP runner). Reduce --dims or the solved tile (R10).
+COVER intel:ocl primitive=covered execution=resident-only toolchain=present
+RUN intel:ocl built=yes ran=no verified=PASS max_rel=0 measured_ms=0
+-- log tail --
+UK_RUNNER plan op=reduce perf=1048576 tile=96x96 vram_bytes=27207761920 payload_mb=4.015629 warm=2 iters=10
+UK_RUNNER refused: grid exceeds CL_DEVICE_MAX_WORK_ITEM_SIZES
+RUN FAILED; solution NOT committed to ledger (R6.3)
+```
+
+（注意其中的自相矛盾即缺陷暴露点：同一 P=4096 的发射在 verify 已 PASS，
+计时前检查却拒绝——verify=PASS 与 refused 并存。）
+
+修复：删除该错误检查；代之以对**真实**限值的门——runner 唯一显式传 local 的是
+gemm 内核（reqd_work_group_size(16,16,1)=256），按 CL_DEVICE_MAX_WORK_GROUP_SIZE
+校验（what=workgroup_too_large）；conv/reduce 传 nullptr local 由驱动自选，越界时
+enqueue 会经 UK_OCL_CK 大声失败，不存在静默路径。HIP conv 程序内既有的
+grid_too_large（gridDim.y/z ≤ 65535）是真实硬件限值，不受本条影响。
+
+修复后：见 phase17-reduce-commit.txt（verify=PASS max_rel=0 → COMMIT ε_rel=0.895532
+→ HIT）。
+
+## E19：事件完成前读 profiling 时间戳的竞态（间歇性 measured_ms=0）
+
+time_passes 的计时循环在 enqueue 标记事件后**立即**读
+clGetEventProfilingInfo——未等待命令完成。规格对此应返回
+CL_PROFILING_INFO_NOT_AVAILABLE，但本机 Intel NEO 驱动实测返回 CL_SUCCESS 且
+时间戳全零 → 间歇性 measured_ms=0（连 kernel_ms 也为 0）。此前 Phase 9-16 的
+证据恰好每次都赢了该竞态（宿主入队慢于设备执行），属未爆雷。
+
+修复前（gemm，原文转录——同一修复前二进制，随机竞态输掉的一次）：
+
+```
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=0.000000 kernel_ms=0.000000 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.482694 measured_ms=0 epsilon_abs=0.482694 epsilon_rel=1
+```
+
+（暴露特征即 E12 家族的"貌似合理的零"：verify 位级 PASS 而计时为零——
+但根因不是 launch 静默失败，而是 profiling 读取竞态。）
+
+修复：读 profiling 前先 clWaitForEvents 等待 pass 末尾标记（与生成的 HIP 程序
+"hipEventSynchronize 后再 hipEventElapsedTime" 同一纪律）；e2e 与 kernel-only
+两个括号都加。修复后三算子全部实测正常计时（见各 commit/hit 转录）。
+
+## 分级说明（沿 Phase 11 d 的先例）
+两处缺陷都在 runner 的设备执行路径上：ctest（CPU 侧）无回归位，"摘除即红"
+以本文件的前后对照转录承载——E18 的红是 grid_too_large 拒绝转录，E19 的红是
+measured_ms=0 提交转录；修复后的绿是 phase17-*-commit/hit.txt。E19 的竞态是
+间歇性的，无法在探针中确定性地复红，此处如实分级。

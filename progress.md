@@ -359,3 +359,26 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
   ② v12 补遗 md5 锚标注为历史时点 + 当前锚注记，`binary-md5.txt` 记录全演进
   （当前 unikern.exe `9759d55a…` / acceptance `1c0f8620…` 不变）
 - [x] ctest 2/2 绿；工作区净（仅 .serena/ 未跟踪，会话前即存在）；HEAD = df44dd8
+
+## Session 2026-10-28（Phase 17 — Intel 三算子真机运行验证，开放缺口①闭合）
+- [x] 机器口径澄清：v12 的"本机无 Intel 设备、intel=no"是 AMD 机器侧并行会话的读数；
+  本会话运行于 Intel Arc B390 机器，同一 backends 命令实测 intel=yes（两份转录并存）
+- [x] 本机基线：Phase 10-16 变更后的 CMake 重新配置（OpenCL 发现 → -DUK_HAS_OCL）
+  + 构建 + ctest 2/2 绿
+- [x] gemm 回归：1024³ verify=PASS max_rel=0 → COMMIT ε_rel=2.4714 → 同键 HIT
+  （与 Phase 9 同键同 tile，行为不变）
+- [x] conv 真机首验：--kml samples/conv.kml → verify=PASS max_rel=0 → COMMIT
+  ε_rel=13.5646 → HIT（Phase 14 只做过 clang 语法检查，首次真机执行）
+- [x] reduce 真机首验 + E18 修复：首跑被错误拒绝（grid_too_large——
+  CL_DEVICE_MAX_WORK_ITEM_SIZES 是本地工作组上限而非全局网格上限，verify=PASS 与
+  refused 并存即暴露点）→ 删错误检查、代之以 gemm local 256 对
+  CL_DEVICE_MAX_WORK_GROUP_SIZE 的真值门 → verify=PASS max_rel=0 → COMMIT
+  ε_rel=0.883955 → HIT
+- [x] E19 修复：time_passes 事件完成前读 profiling——本机驱动返回全零而非
+  NOT_AVAILABLE → 间歇性 measured_ms=0（本会话实测捕获一次）；读前 clWaitForEvents
+  （与 HIP 程序 hipEventSynchronize 同纪律），e2e 与 kernel-only 两括号都加
+- [x] 证据入库 docs/evidence/phase17/（backends/ctest/三算子 commit+hit 转录 +
+  E18/E19 前后对照 + README）+ acceptance-mvp v13 + task_plan（Phase 17 行 +
+  E18/E19）/findings/progress 落定
+- [x] 目标核验：本机可做项清零——剩余开放缺口 ②（AMD 机器侧长测）③（V1）
+  ④（开放型 R&D）均非本机任务，据实分类
