@@ -1,0 +1,8 @@
+# solve --emit（R5.1/R5.3 三后端源码生成，intel 行含 uk_intel.cl）
+# 复现：build/unikern.exe solve --hcs samples/hcs_intel.json --emit build/phase9-emit --dims 1024 1024 1024
+# 本输出为运行时实测（2026-10-27）。
+SOLVED  x* tile=128x128  c_ms=0.482694  |X|=25  hcs_fp=65ae21b5
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+EMIT amd:hip -> C:/git/c/UNIKERN/build/phase9-emit/uk_amd.cpp lines=390 (toolchain absent)
+EMIT apple:metal -> C:/git/c/UNIKERN/build/phase9-emit/uk_apple.metal lines=61 (toolchain absent)
+EMIT intel:ocl -> C:/git/c/UNIKERN/build/phase9-emit/uk_intel.cl lines=53

@@ -39,6 +39,7 @@ struct Options {
   std::string ledger = kDefaultLedger;
   std::string emit_dir;
   std::string workdir = "uk_run";
+  std::string vendor = "amd";  // run/verify execution target (Phase 9)
   int dims[3] = {0, 0, 0};  // dims[0] > 0 => override the demo tree dims
   bool selfcheck = false;
 };
@@ -74,6 +75,9 @@ bool parse_options(int argc, char** argv, Options* o) {
       i += 3;
     } else if (a == "--selfcheck") {
       o->selfcheck = true;
+    } else if (a == "--vendor" && i + 1 < argc) {
+      o->vendor = argv[++i];
+      if (o->vendor != "amd" && o->vendor != "intel") return false;
     }
   }
   if (o->dims[0] || o->dims[1] || o->dims[2]) {
@@ -227,7 +231,7 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   Options o;
   const char* usage =
       "usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] "
-      "[--dims M N K]\n";
+      "[--dims M N K] [--vendor amd|intel]\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
     std::cerr << usage;
     return 2;
@@ -251,14 +255,29 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
       return 3;
     }
   }
-  // AMD is the only backend this host can compile + execute (findings.md);
-  // Apple/Intel stay at source generation until their machines run them.
-  std::string program;
-  for (auto& b : make_backends()) {
-    if (b->vendor() == Vendor::Amd) program = b->generate(sol, *hcs, tree);
+  // Execute on the requested vendor's real hardware. The backend's own
+  // availability probe decides whether this host can run it; an unavailable
+  // backend fails the run with its own honest diagnostic instead of
+  // substituting another vendor (R10). The ledger flow below is identical
+  // for both vendors (R6.3: only a verified PASS commits).
+  RunOutcome r;
+  const char* backend_name = nullptr;
+  if (o.vendor == "intel") {
+    std::string kernel;
+    for (auto& b : make_backends()) {
+      if (b->vendor() == Vendor::Intel) kernel = b->generate(sol, *hcs, tree);
+    }
+    r = run_ocl(kernel, sol, *hcs, tree, o.workdir);
+    backend_name = "intel:ocl";
+  } else {
+    std::string program;
+    for (auto& b : make_backends()) {
+      if (b->vendor() == Vendor::Amd) program = b->generate(sol, *hcs, tree);
+    }
+    r = run_hip(program, o.workdir);
+    backend_name = "amd:hip";
   }
-  const RunOutcome r = run_hip(program, o.workdir);
-  std::cout << "RUN amd:hip built=" << (r.built ? "yes" : "no")
+  std::cout << "RUN " << backend_name << " built=" << (r.built ? "yes" : "no")
             << " ran=" << (r.ran ? "yes" : "no")
             << " verified=" << (r.verified ? "PASS" : "FAIL")
             << " max_rel=" << r.max_rel << " measured_ms=" << r.measured_ms << "\n";
@@ -382,8 +401,10 @@ int main(int argc, char** argv) {
   if (argc < 2) {
     std::cerr << "unikern (MVP skeleton)\n"
               << "  solve --hcs f.json [--ledger f] [--emit dir] [--dims M N K] [--selfcheck]\n"
-              << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]\n"
-              << "  verify --hcs f.json [--workdir dir] [--dims M N K]  (= run, no ledger write)\n"
+              << "  run --hcs f.json [--ledger f] [--workdir dir] [--dims M N K]"
+                 " [--vendor amd|intel]\n"
+              << "  verify --hcs f.json [--workdir dir] [--dims M N K] [--vendor amd|intel]"
+                 "  (= run, no ledger write)\n"
               << "  calibrate --hcs f.json --ledger l [--out f.json]  (R7.3: measured -> link bw)\n"
               << "  hcs <f.json> | backends | ledger\n"
               << "  ledger paths: *.jsonl = file ledger, else SQLite (default "

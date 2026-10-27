@@ -1,0 +1,16 @@
+{
+  "vendor": "intel",
+  "device": "Arc B390（实测 2026-10-27：OpenCL 3.0 NEO，驱动 32.0.101.9150，96 CU，全局显存 27207761920 B，2.5 GHz；平台标签含 (integrated) 字样，类型/显存以 OpenCL API 实测为准——非照抄标签）",
+  "unified_memory": false,
+  "link_bw_gbps": 18.587711107457462,
+  "flops_gflops": 24000,
+  "compute_units": 32,
+  "toolchain": "level-zero-1.x",
+  "constants_version": 2,
+  "confidence": "predicted",
+  "tiers": [
+    { "name": "vram", "bytes": 27207761920, "bw_gbps": 560, "confidence": "measured" },
+    { "name": "ram", "bytes": 68719476736, "bw_gbps": 60, "confidence": "official" },
+    { "name": "nvme", "bytes": 2000398934016, "bw_gbps": 7, "confidence": "measured" }
+  ]
+}

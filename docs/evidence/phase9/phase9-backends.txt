@@ -1,0 +1,10 @@
+# backends（R10 availability 真探测，Intel 行=yes）
+# 复现：build/unikern.exe backends
+# 本输出为运行时实测（2026-10-27）。（可用性 = BackendIntel::available() 的真实
+# OpenCL ICD 运行时探测：pick_intel_gpu 枚举平台/设备；不接受 OCL_ICD_VENDORS
+# 环境启发式。acceptance.cpp R10 镜像用独立 Win32 LoadLibrary + GetProcAddress
+# 枚举做对照，两路在本机一致。）
+vendor    backend      available  note
+amd       amd:hip     no        source-gen ready (Phase 5 full)
+apple     apple:metal     no        source-gen ready (Phase 5 full)
+intel     intel:ocl     yes        source-gen ready (Phase 5 full)

@@ -1,0 +1,12 @@
+# ocloc AOT 编译探针（R5 真编译证据）
+# 复现：ocloc compile -file build/phase9-emit/uk_intel.cl -device bmg-g21 -out_dir build/phase9-emit/aot
+# 设备名来源：ocloc compile --help 列出的设备表，Arc B390 属 Battlemage G21 家族
+# （bmg-g21；bmg 亦可匹配）。本输出为运行时实测（2026-10-27）。
+Build succeeded.
+uk_intel_bmg.bin
+uk_intel_bmg.spv
+
+产物说明：uk_intel_bmg.bin = 生成 uk_intel.cl 的 Intel Compute GPU 设备二进制
+（clGetProgramInfo(CL_PROGRAM_BINARIES) 返回 / clCreateProgramWithBinary 可接受），
+uk_intel_bmg.spv = 中间 SPIR-V 文本。证明生成产物经过 Intel 自身编译器链路，
+不止是文本。

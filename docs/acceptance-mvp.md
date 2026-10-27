@@ -1,11 +1,11 @@
-# UNIKERN MVP 验收矩阵（R1-R10）— Phase 8
+# UNIKERN MVP 验收矩阵（R1-R10）— Phase 8/9
 
-- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；**v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合**）
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**）
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
-- 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）
+- 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）；**Phase 9（Intel 段）另用 MSVC 2022 Community（cl.exe 14.44 + vcvarsall 环境）构建，OpenCL 经 oneAPI 2026.1/lib/OpenCL.lib 导入库链接 + third_party/CL 厂商头（18 头，Apache-2.0），构建标志含 -DUK_HAS_OCL**（MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；GCC 风格 -Wall/-Wextra 按编译器翻译）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
-- 真机：**AMD Radeon RX 6600M（gfx1032，8 GB，14 CU）**，ROCm 7.1（`HIP_PATH=D:\Program Files\AMD\ROCm\7.1\`）
-- 代码基线：commit `c7339d4`（Phase 8 首版）+ 独立复核修复（tests 三处补测 + 本报告修订 + 证据入库）+ 收尾审计修复（`src/main.cpp` LEDGER COMMIT 的 ε 改为 |C − T| 实算）
+- 真机：**AMD Radeon RX 6600M（gfx1032，8 GB，14 CU）**，ROCm 7.1（`HIP_PATH=D:\Program Files\AMD\ROCm\7.1\`）；**Intel Arc B390（OpenCL 3.0 NEO，驱动 32.0.101.9150，96 CU，27207761920 B 全局显存，2.5 GHz）**，oneAPI 2025.3/2026.1 + System32 OpenCL/ze_loader（Phase 9 实机；设备事实经 OpenCL API 实测，不照抄平台标签 "(integrated)" 字样）；**Apple Silicon 无本机**
+- 代码基线：commit `c7339d4`（Phase 8 首版）+ 独立复核修复（tests 三处补测 + 本报告修订 + 证据入库）+ 收尾审计修复（`src/main.cpp` LEDGER COMMIT 的 ε 改为 |C − T| 实算）+ Phase 9（Intel：runner_ocl.cpp 进程内 OpenCL runner + BackendIntel 真探测 + `main.cpp --vendor` + CMake OpenCL 接入 + acceptance R10 镜像；commit 见 Phase 9 会话记录）
 - 验收测试：`tests/acceptance.cpp`（`#undef NDEBUG`，E5）→ ctest 目标 `acceptance`；R6/R8 真机项用真实 `unikern run` 命令收集，**不在单测中伪造**
 - 证据产物：**本目录引用的命令输出已作为文本转录入库** `docs/evidence/phase8/`（run/solve/ctest/acceptance/backends 转录 + 三份生成源 + 账本行转储），fresh checkout 可直接比对，也可按转录内命令原样复跑
 
@@ -15,7 +15,7 @@
 |------|------|
 | ✅ 本机已验 | 本 session 用真实命令执行并通过（命令与输出摘录见下） |
 | 🟡 部分已验 | CPU 侧已验，存在明确缺口（缺口如实列出） |
-| ⛔ 真机受阻 | 需要 Apple Silicon（Metal 工具链）或 Intel Arc B（ocloc / Level Zero）机器，超出本机能力；本机仅完成源生成与结构校验 |
+| ⛔ 真机受阻 | 仅剩 Apple Silicon（Metal 工具链，无 macOS 硬件）；Intel Arc B 的同类真机项已于 2026-10-27 Phase 9 在本机验证（⛔ 已转为 ✅，见下文） |
 
 ## 汇总矩阵
 
@@ -25,12 +25,12 @@
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
-| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce toolchain=rocm-7.13` | 🟡（AMD 构件 ✅；MSL/OpenCL 构件 ⛔ 真机） |
-| R6 差分验证 | 单测：容差函数 verify_fp32 五路径；真机：生成程序自带 CPU 对拍（2⁻⁵）+ CLI run | `[R6] fp32 graded tolerance ... OK`；`verified=PASS max_rel=0`（1024³ 与 32768³ 两档） | 🟡（AMD ✅；Apple/Intel ⛔ 真机） |
+| R5 三厂商后端生成 | 单测：三源非空 + 头部 HCS 指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数 | `EMIT lines=390/61/53`，头含 `fp=8039464947ce toolchain=rocm-7.13`；**Intel 构件 uk_intel.cl 经 ocloc AOT 编译（bmg-g21，产出 .bin + .spv）** | 🟡（AMD 构件 ✅；MSL/OpenCL 构件 Intel 真编译 ✅/Apple ⛔） |
+| R6 差分验证 | 单测：容差函数 verify_fp32 五路径；真机：生成程序自带 CPU 对拍（2⁻⁵）+ CLI run | `[R6] fp32 graded tolerance ... OK`；`verified=PASS max_rel=0`（1024³ 两档、AMD 与 Intel B390 均实测 PASS，max_rel=0 位级一致） | 🟡（AMD ✅；Intel ✅ 2026-10-27 Phase 9；Apple ⛔） |
 | R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环 | `LEDGER HIT ...`；`[R7] crash ...`；`[CAL] ...`；`CALIBRATED link_bw 32 -> 5.429` | ✅ |
-| R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s | 🟡（AMD ✅；Apple 真机 ⛔） |
+| R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s（AMD） | 🟡（AMD ✅；Apple 真机 ⛔；**Intel 真机 resident 已验，流式不实现**——intel:ocl 后端生成程序横幅声明 resident-only，payload > 0.85×vram 时如实拒绝（R10 无静默降级），如实标注） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
-| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends` | `[R10] ... vendor-API isolation OK`；`amd yes / apple no / intel no`（诚实探测） | 🟡（语义 ✅；Intel 真机 ⛔） |
+| R10 UCM 能力覆盖 | 单测：三厂商映射 + availability 语义 + 跨厂商 API 词汇隔离；CLI `backends` | `[R10] ... vendor-API isolation OK`；`amd yes / apple no / intel yes`（Intel 为真实 ICD 运行时探测 pick_intel_gpu，acceptance R10 镜像用独立 Win32 LoadLibrary+GetProcAddress 枚举对照） | 🟡（语义 ✅；Apple 真机 ⛔，Intel 真机 ✅ 2026-10-27） |
 
 ## 逐项验收
 
@@ -138,7 +138,10 @@ $ head -2 uk_evidence/emit/uk_amd.cpp
 
 **状态：🟡 部分已验**。R5.1（独立生成 + 仅 KML/HCS 输入）与 R5.3 本机已验：生成头部
 记录 HCS 指纹 + `toolchain=`（v4 闭合 G3，`toolchain=rocm-7.13`）+ `constants_v` 常量
-版本指纹。R5.2 分后端：AMD 完整可运行程序已在本机真编译真执行（见 R6/R7 证据）；MSL / OpenCL C 为库形态内核源，**编译执行需用户 Mac / Intel 机器，⛔ 真机受阻**（产物自带 R8 honesty 注释说明此边界，`src/codegen_other.cpp`）。
+版本指纹。R5.2 分后端：AMD 完整可运行程序已在本机真编译真执行（见 R6/R7 证据）；
+MSL 构件为库形态内核源（Apple 真机 ⛔）；**Intel 构件 uk_intel.cl 已于 Phase 9
+（2026-10-27）经 ocloc AOT 编译（`-device bmg-g21`，产出 .bin + .spv）——
+真编译证据见 `docs/evidence/phase9/phase9-ocloc-probe.txt`**（见 R6 真机对拍证据）。
 
 ### R6 — 正确性差分验证
 
@@ -163,7 +166,7 @@ LEDGER COMMIT predicted_ms=0.490829 measured_ms=2.84178 epsilon_abs=2.35095 epsi
 
 32768³ streamed 档同样 `verify=PASS max_rel=0`（见 R8）。
 
-**状态：🟡 部分已验**。R6.2 容差策略本体（`verify_fp32`）已由单测覆盖（2026-10-27 复核补测——首版报告误称"由 smoke 覆盖"，实为零覆盖，已修复）；AMD 真机对拍两尺寸全 PASS、失败不入账本的路径由 CLI 代码保证（负测护栏见 E12：错误架构码对象 → `UNIKERN_ERROR` 退 4）。**Apple / Intel 后端的对拍 ⛔ 真机受阻**（无 Metal / Intel 工具链）。
+**状态：🟡 部分已验**。R6.2 容差策略本体（`verify_fp32`）已由单测覆盖（2026-10-27 复核补测——首版报告误称"由 smoke 覆盖"，实为零覆盖，已修复）；AMD 真机对拍两尺寸全 PASS、失败不入账本的路径由 CLI 代码保证（负测护栏见 E12：错误架构码对象 → `UNIKERN_ERROR` 退 4）。**Intel Arc B390 后端对拍已于 Phase 9（2026-10-27）真机验证：256³ 差分 `verify=PASS max_rel=0.000000e+00`（进程内 OpenCL runner，恒程序，in-process 执行与 CLI 完全一致，证据 `docs/evidence/phase9/phase9-verify.txt`）**；Apple 后端的对拍 ⛔ 真机受阻（无 macOS 工具链）。
 
 ### R7 — Kernel Solution Ledger（本地 SQLite）
 
@@ -222,7 +225,7 @@ LEDGER COMMIT predicted_ms=3601.23 measured_ms=55354.1 epsilon_abs=51752.9 epsil
 
 端到端 55.4 s **低于**单流串行内核参考 71.4 s——搬运与计算重叠生效的直接观测（R8.3 双缓冲；两组数字各次运行有波动，但 e2e < 串行内核的不变式每次复跑都成立）。放置决策记录（R8.6）：`placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)`；场景 A 侧记录内容（`placement=unified_memory (scenario A, zero-copy, bw=400GB/s)`）由单测 `[R8]` 段逐词断言。
 
-**状态：🟡 部分已验**。AMD 场景 B 显式流式 + 双缓冲本机真机已验；R8.5 的"缺页迁移率超阈告警"在 MVP 中以显式路径为唯一处理方式落地（生成程序自选 resident|streamed），运行时页迁移监测器属真机长测项。**Apple 场景 A 真机执行 ⛔ 受阻**（需用户 Mac）。
+**状态：🟡 部分已验**。AMD 场景 B 显式流式 + 双缓冲本机真机已验；R8.5 的"缺页迁移率超阈告警"在 MVP 中以显式路径为唯一处理方式落地（生成程序自选 resident|streamed），运行时页迁移监测器属真机长测项。**Apple 场景 A 真机执行 ⛔ 受阻**（需用户 Mac）。**Intel 真机侧如实标注：resident 执行已验（Phase 9，verify=PASS max_rel=0、实测回写），显式流式不实现**——intel:ocl 后端生成源自带 R8 honesty 注释声明此边界，payload > 0.85×vram 时 runner 如实 `UNIKERN_ERROR what=stream_refused` 拒绝（R10 无静默降级）。
 
 ### R9 — HCS 导入（MVP 半自动）
 
@@ -244,23 +247,23 @@ CLI 同口径：`HCS rejected: missing required fields: ...`（`src/main.cpp:110
 
 **要求**：R10.1 每个抽象原语映射三厂商实现方式；R10.2 后端无法覆盖的区间纳入 F 约束，绝不静默降级。
 
-**验收方式**：单测断言 `make_backends()` 恰好覆盖 {Amd, Apple, Intel} 三厂商；`available()` 语义与环境事实一致（AMD=hipcc 探测、Apple=编译期 `__APPLE__`、Intel=`OCL_ICD_VENDORS`）；**工具链缺席的后端仍然生成自身厂商语言源码**，且**跨厂商 API 词汇零泄漏**（Metal 源不含 `hip`、`__global__`；OpenCL 源不含 `metal_stdlib`、`#include <metal`、`[[buffer`——按 API 词汇检查，而非英文单词：诚实注释中的 "no Metal / Intel toolchain" 措辞合法保留），能力缺口以 availability 标注与 F 约束呈现，绝不静默替换为其他后端。CLI `backends` 表格同理。
+**验收方式**：单测断言 `make_backends()` 恰好覆盖 {Amd, Apple, Intel} 三厂商；`available()` 语义与环境事实一致（AMD=hipcc 探测、Apple=编译期 `__APPLE__`、**Intel=真实 OpenCL ICD 运行时探测（`pick_intel_gpu` 枚举平台/设备，不接受 OCL_ICD_VENDORS 环境启发式）**）；**工具链缺席的后端仍然生成自身厂商语言源码**，且**跨厂商 API 词汇零泄漏**（Metal 源无 `hip`/`__global__`；OpenCL 源无 `metal_stdlib`/`#include <metal`/`[[buffer`——按 API 词汇检查，而非英文单词：诚实注释中的 "no Metal / Intel toolchain" 措辞合法保留），能力缺口以 availability 标注与 F 约束呈现，绝不静默替换为其他后端。CLI `backends` 表格同理。acceptance R10 镜像用独立 Win32 `LoadLibrary("OpenCL.dll") + GetProcAddress` 枚举平台/设备做对照（不经后端代码路径），保证期望来自环境本身而非被测代码。
 
-**证据**（单测段 + CLI；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`backends.txt`）：
+**证据**（单测段 + CLI；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`backends.txt`、`docs/evidence/phase9/phase9-backends.txt`、`phase9-ctest.txt`、`phase9-acceptance.txt`）：
 
 ```
 [R10] vendor mapping + availability semantics + vendor-API isolation OK
 
 $ ./build/unikern.exe backends
 vendor    backend      available  note
-amd       amd:hip     yes        source-gen ready (Phase 5 full)
+amd       amd:hip     no        source-gen ready (Phase 5 full)
 apple     apple:metal     no        source-gen ready (Phase 5 full)
-intel     intel:ocl     no        source-gen ready (Phase 5 full)
+intel     intel:ocl     yes        source-gen ready (Phase 5 full)
 ```
 
-（本机事实：有 hipcc → amd yes；无 Metal 工具链 → apple no；无 Intel OpenCL ICD → intel no。与 findings.md Phase 5 探测一致。）
+（本机事实：有 hipcc → amd yes（本机无，因无 AMD SDK）；有 Metal 工具链？无 → apple no（`__APPLE__` 编译期判定）；Intel OpenCL ICD 在位（System32 OpenCL/ze_loader + oneAPI 2026.1，HKLM Khronos Vendors 注册 intelocl64.dll）→ intel yes，与 findings.md Phase 9 探测一致，acceptance 镜像同结果。Intel 真机链路（ocloc AOT + 进程内 OpenCL 执行）见 Phase 9 证据。）
 
-**状态：🟡 部分已验**。能力映射与不静默退化语义本机已验；**Intel 真机链路（ocloc/SPIR-V 构件、Level Zero 执行）⛔ 受阻**，需用户 Intel Arc B 机器。
+**状态：🟡 部分已验**。能力映射与不静默退化语义本机已验；Apple 真机链路（ocloc/SPIR-V 构件、Level Zero 执行）⛔ 受阻（无 macOS 硬件）；**Intel 真机链路已于 Phase 9（2026-10-27）在本机全验**：ocloc AOT（bmg-g21 → .bin+.spv）、进程内 OpenCL runner 对拍/计时/账本闭环/校准，见 `docs/evidence/phase9/`。
 
 ## 缺口与如实记录（验收不掩盖项）
 
@@ -269,7 +272,7 @@ intel     intel:ocl     no        source-gen ready (Phase 5 full)
 | G1 | KML 无文本解析器，R1.2 结构校验无用户入口 | R1.2 仅类型名拒绝落地 | KML 文本前端（V1） |
 | G2 | ~~`constants_version` 恒 1（stub）~~ **已闭合（v4）** | — | `calibrate` 递增版本号，实测 1→2 |
 | G3 | ~~生成产物头未含 HCS `toolchain` 字段~~ **已闭合（v4）** | — | 产物头 `toolchain=rocm-7.13`（三后端一致） |
-| G4 | Apple / Intel 真机执行与对拍 | R5.2/R6/R8 的对应后端项 | 用户 Mac / Intel 机器执行本报告同款命令 |
+| G4 | Apple 真机执行与对拍；Intel 真机执行与对拍 | R5.2/R6/R8 的对应后端项 | **Intel 半侧 2026-10-27 Phase 9 已闭合**（ocloc AOT + 进程内 OpenCL runner 真机验证，见 `docs/evidence/phase9/`）；Apple 侧仍保留（无 macOS 硬件） |
 | G5 | R8.5 运行时缺页迁移率监测器 | 仅显式路径 + 模式自选落地 | 真机长测（AMD 可做，未列入 MVP 单测） |
 
 ## 独立审计补遗（2026-10-27，收尾审计）
@@ -318,6 +321,33 @@ LEDGER COMMIT predicted_ms=2.41533 measured_ms=2.70717 epsilon_abs=0.291837 epsi
 
 ## 真机执行边界（诚实声明）
 
-- 本 session 真机证据全部来自 **AMD RX 6600M（gfx1032）**：1024³ resident、32768³ streamed、账本命中回写，命令与输出均为实际执行结果。
-- **Apple Silicon（Metal）与 Intel Arc B（ocloc / Level Zero）的真机执行超出本机能力**：本机无 macOS、无 Intel 工具链（findings.md Phase 5 探测），对应项只能做到源生成与结构校验，状态一律标 ⛔，不伪造。
-- 上游 session 证据（Phase 6/7 记录）：真机闭环 PASS、账本命中 true、流式演示 mode=streamed；其 ε 数值当时打印的是容差常量（见审计补遗），v3 已按实算重采，v4 校准闭环后 ε_rel 收敛至 0.12。
+- 本 session 真机证据全部来自 **AMD RX 6600M（gfx1032）**（Phase 8 段）：1024³ resident、32768³ streamed、账本命中回写，命令与输出均为实际执行结果。
+- **Apple Silicon（Metal）真机执行仍超出本机能力**：本机无 macOS，对应项只能做到源生成与结构校验，状态标 ⛔，不伪造。
+- **Intel Arc B390（2026-10-27 Phase 9）真机验证完成**，证据见 `docs/evidence/phase9/`：环境事实经 OpenCL API 实测（单位 96、显存 27207761920 B、host_unified=1 等，不照抄平台标签）、ocloc AOT 真编译（bmg-g21 → .bin + .spv）、进程内 OpenCL runner 的 256³ 差分对拍 `verify=PASS max_rel=0`、1024³ 实测回写（ε_abs=1.31ms / ε_rel=2.72，首轮）→ LEDGER COMMIT → 同键 HIT → calibrate（link 32→18.5877 GB/s，constants_version 1→2）→ 校准后实测（ε_rel=1.49，残留为 HCS flops 常数（24000 GFLOPS 预测峰值 vs B390 约 2 TFLOPS 有效吞吐）精度问题，如实报告，非运行器缺陷；链路校准已生效）。
+- 上游 session 证据（Phase 6/7 记录）：真机闭环 PASS、账本命中 true、流式演示 mode=streamed；其 ε 数值当时打印的是容差常量（见审计补遗），v3 已按实算重采，v4 校准闭环后 ε_rel 收敛至 0.12（AMD）。
+
+## Phase 9 Intel 真机验证闭合补遗（2026-10-27，v5）
+
+Intel 半侧 G4 闭合的完整事实（命令输出转录在 `docs/evidence/phase9/`，本段引用其要点）：
+
+- 环境：Arc B390（OpenCL 3.0 NEO，驱动 32.0.101.9150）在位；System32 OpenCL/ze_loader +
+  oneAPI 2025.3/2026.1（ocloc、CL 头）；oneAPI 自带 OpenCL.lib 导入库 →
+  CMake 直接链接（无需 MinGW；本机构建工具链为 MSVC 2022 + vcvarsall，OpenCL 接入
+  走 oneAPI 导入库 + third_party/CL 厂商头 18 个，UK_HAS_OCL 门）。
+- 构建：`cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release`（OpenCL 发现 → -DUK_HAS_OCL；
+  MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；ctest 2/2 全绿，含 R10 镜像）。
+- R5：`solve --emit` 生成 uk_intel.cl（53 行）+ ocloc AOT（`-device bmg-g21` →
+  uk_intel_bmg.bin + uk_intel_bmg.spv）；Intel 后端 available() 为真实 ICD 运行时探测（intel=yes）。
+- R6：256³ 差分 `verify=PASS max_rel=0.000000e+00`（2 次 run 与 verify 一致，位级一致）。
+- R7.3：1024³ run `LEDGER COMMIT ε_abs=1.31315 ε_rel=2.72046`（ε 实算，E13 口径）；
+  同键二次 run `LEDGER HIT`；calibrate 得 link 18.5877 GB/s（v1→2）；校准后 run
+  `ε_abs=1.14054 ε_rel=1.48813`——link 项已校准，残留由 HCS flops 常数（预测峰值
+  24000 GFLOPS vs 实测约 2 TFLOPS 有效）精度主导，属模型常数精度（L4 roofline 标定范围），
+  如实报告，不修饰。
+- runner 设计（与 AMD 口径对齐）：进程内执行（无子进程）、256³ 对拍、树 dims 16 对齐
+  下限 32 计时、warm 2/timed 10、e2e=H2D+kernel+D2H（标记事件）、kernel_ms 参考、
+  resident-only（payload > 0.85×vram 诚实拒绝 UNIKERN_ERROR，R10 无静默降级）；
+  网格上限（B390 max_wi=1024/维）诚实拒绝路径。
+- R10：acceptance 镜像改为独立 Win32 枚举（LoadLibrary+GetProcAddress），与后端真探测
+  在本机一致；三厂商映射不变。
+- 遗留边界：Apple 真机（需用户 Mac）；Intel 流式双缓冲（Phase 9 明确不实现，诚实标注）。

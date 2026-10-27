@@ -1,0 +1,24 @@
+# ctest（构建全绿：smoke + acceptance，含 R10 Intel 镜像真机验证）
+# 复现：ctest --test-dir build --output-on-failure（Release：-O3 -DNDEBUG，
+# MinGW/GNU 口径不适用——本机构建工具链为 MSVC 2022 Community，Release 默认
+# /W4 /O2，/W4 经 /utf-8 消编码警告，_CRT_SECURE_NO_WARNINGS 消 CRT 弃用告警）
+# 本输出为运行时实测（2026-10-27）。
+[1/2] Building CXX object CMakeFiles\unikern_acceptance.dir\tests\acceptance.cpp.obj
+cl_version.h: CL_TARGET_OPENCL_VERSION is not defined. Defaulting to 300 (OpenCL 3.0)
+[2/2] Linking CXX executable unikern_acceptance.exe
+Internal ctest changing into directory: C:/git/c/UNIKERN/build
+Test project C:/git/c/UNIKERN/build
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.12 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    0.56 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.69 sec
+ALL_DONE rc=0
+
+说明：CMake 本机发现 OpenCL（oneAPI 2026.1/lib/OpenCL.lib 导入库 +
+third_party/CL 头），编译标志含 -DUK_HAS_OCL；acceptance.cpp 的 R10 镜像
+（ocl_intel_gpu_visible_win32，独立 Win32 探测）在本机与后端真探测一致，
+acceptance 0.56s 内完成 R1-R10 全矩阵（含 Intel availability）。

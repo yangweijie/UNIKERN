@@ -42,6 +42,8 @@
   设备 = **AMD Radeon RX 6600M, gfx1032, 8176 MB, 14 CU**；`hipGetDeviceCount` 返回 1
 - OpenCL：仅有 "AMD Accelerated Parallel Processing" 平台；**无 Intel OpenCL 平台**
 - Intel：**无 ocloc.exe**，无 `HKLM\SOFTWARE\Khronos\OpenCL\Vendors` 条目 → Intel Arc B390 应在另一台机器
+  （**2026-10-27 更正**：该结论已被 Phase 9 环境事实推翻——工具链实际在位，见文末 Phase 9 节；
+  本行保留作为当时探测记录，不改写历史）
 - 结论：本机只能真编译+真执行 AMD；Apple(MSL)/Intel(OpenCL) 走源生成 + 结构校验，
   真机验证需在用户 Mac / Intel 机器上进行（诚实边界）
 - 教训复用：单行 shell 里 `\n` 会被折叠 → 一律 heredoc 写文件（E1）
@@ -106,6 +108,8 @@
   缺陷，非产品缺陷），改 `{kid1,c1}` vs `{c2,kid1}`（c1≡c2）后通过
 - Apple / Intel 真机执行仍超出本机能力（无 macOS、无 Intel 工具链），
   验收矩阵逐项标注 ⛔ 受阻，不伪造
+  （**2026-10-27 更正**：Intel 半侧不再受阻——Arc B390 + oneAPI/OpenCL 3.0 在位，
+  Phase 9 进行中；Apple 半侧维持受阻）
 
 ## Phase 8 独立复核修复（2026-10-27，v2）
 - 复核 5 项全数属实并处理：3 项补测试（可修）、1 项证据入库、1 项构建配置纠正
@@ -158,3 +162,52 @@
   toolchain/constants_version（同一硬件一个指纹）
 - 工程教训复用：hcs_export 首版用默认 6 位精度写浮点 → 导出再导入值不等，
   被单测当场抓住（同 E4）→ 任何序列化浮点的出口一律 max_digits10
+
+## Phase 9 Intel 环境事实（2026-10-27，推翻 Phase 5 探测结论）
+- **设备**：Intel Arc B390 GPU OpenCL 3.0 NEO，驱动 32.0.101.9150（sycl-ls 可见）；
+  平台标签含 "(integrated)" 字样——设备类型/显存以 OpenCL API 实测为准，不照抄标签
+  （HCS 样例写 16GB 离散，与标签矛盾，证据里如实记录实测值）
+- **加载器**：`C:\Windows\System32\OpenCL.dll`（Khronos ICD loader）+
+  `ze_loader.dll`；HKLM\SOFTWARE\Khronos\OpenCL\Vendors 已注册 intelocl64.dll
+- **工具链**：oneAPI 2025.3 + 2026.1 已安装——
+  ocloc.exe ×2 版本（`C:\Program Files (x86)\Intel\oneAPI\ocloc\{2025.3,2026.1}\bin`）、
+  CL 头在 `C:/Program Files (x86)/Intel/oneAPI/2026.1/include/CL/`、
+  sycl-ls.exe（2026.1\bin）
+- **CPU 平台**：Core Ultra X7 358H OpenCL 3.0（枚举时注意与 GPU 平台区分）
+- **验证路径选定**：进程内 OpenCL runner（clBuildProgram 用驱动编译器即时编译生成的
+  uk_intel.cl，跑 256³ 对拍 + 计时）+ ocloc AOT 编译（R5 真编译证据）；
+  不走 hipcc 式子进程模式——OpenCL ICD 加载器直接链接进主程序更简单可靠
+- 链接方式 sanity 未做：GNU ld 对 System32/OpenCL.dll 的直接链接待子项 a 验证
+  （若失败，备选：LoadLibrary + GetProcAddress 动态解析符号）
+- **与 AMD runner 的口径对齐**：warm 2 / timed 10（小）或 1/1（大）；e2e 用
+  clEnqueueMarkerWithWaitList 包裹；kernel_ms 用内核参考事件；UNIKERN_RESULT 字段一致
+- **流式不实现**（intel:ocl 后端源横幅已声明 resident-only）：payload > 0.85×vram
+  时诚实拒绝并报告，R10 不静默降级
+- 历史结论保留不改写：Phase 5"无 ocloc/无 Intel 平台"为当时探测记录，已被本节推翻
+
+## Phase 9 Intel 真机验证闭合（2026-10-27，G4 Intel 半闭合）
+- 构建工具链为 **MSVC 2022 Community**（vcvarsall + Ninja，OpenCL 经 oneAPI 2026.1 的
+  OpenCL.lib 导入库链接 + third_party/CL 厂商头 18 个，UK_HAS_OCL 编译期门；
+  MSVC 旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；无 MinGW）
+- R5 真编译：生成的 uk_intel.cl 经 ocloc AOT（`-device bmg-g21`）编译成功，产出
+  uk_intel_bmg.bin + uk_intel_bmg.spv
+- R6 真机对拍（Arc B390）：256³ 差分 `verify=PASS max_rel=0.000000e+00`（位级一致）
+- R7.3 闭环：1024³ run → LEDGER COMMIT（ε_abs=1.31315，ε_rel=2.72046，ε 实算）
+  → 同键 LEDGER HIT → calibrate（link 32→18.5877 GB/s，constants_version 1→2）
+  → 校准后 run ε_rel=1.48813：**link 项已校准收敛，残留 ε 由 HCS flops 常数
+  （24000 GFLOPS 预测峰值 vs B390 实测约 2 TFLOPS 有效吞吐）精度主导**——模型常数
+  精度问题（L4 roofline 标定范围），非运行器/链路缺陷，如实报告不修饰
+- 设备实测事实（OpenCL API，非标签）：Arc B390 OpenCL 3.0 NEO，驱动
+  32.0.101.9150，**96 CU、全局显存 27207761920 B、2.5 GHz、host_unified=1、
+  max_wi=1024/维**（HCS 样例的 16GB/32 CU 与平台标签 "(integrated)" 均不采信，
+  已更新 samples/hcs_intel.json 为实测值）
+- runner 与 AMD 口径对齐：256³ 对拍、树 dims 16 对齐下限 32、warm2/timed10、
+  e2e=H2D+kernel+D2H（标记事件）、kernel_ms 参考、resident-only（payload > 0.85×vram
+  诚实拒绝 UNIKERN_ERROR，R10 无静默降级）、网格超限诚实拒绝
+- acceptance R10 镜像改为独立 Win32 枚举（LoadLibrary + GetProcAddress），与后端
+  真探测在本机一致（踩坑：OpenCL 枚举函数指针必须带 3 参
+  num_entries/platforms/num_platforms，且 windows.h 定义 near/small/big 宏）
+- 遗留边界：Apple 真机（需用户 Mac）；Intel 流式双缓冲（不实现，诚实标注）
+- 真机证据：docs/evidence/phase9/（环境/ocloc/solve_emit/verify/run/hit/calibrate/
+  calibrated-run/backends/ctest/acceptance 转录 + emit/uk_intel.cl 与 aot 产物，
+  -f 入库）；acceptance-mvp.md v5

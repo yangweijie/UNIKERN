@@ -1,0 +1,14 @@
+# calibrate --hcs samples/hcs_intel.json（R7.3/R3.3 实测→互联带宽校准）
+# 复现：build/unikern.exe calibrate --hcs samples/hcs_intel.json --ledger ledger.sqlite3 --out samples/hcs_intel.calibrated.json
+# 本输出为运行时实测（2026-10-27）。
+CALIBRATED link_bw_gbps 32 -> 18.5877 constants_version 1 -> 2
+usable_rows=1 median_link_bw=18.587711GB/s [gemm:fp32:1024x1024x1024 bytes=12582912 copy_ms=0.676948 eff_bw=18.5877GB/s; ]
+PREDICTED demo c_ms 12.0181 -> 16.5578
+
+要点：校准口径 = 有效性互联带宽 eff_bw = compulsory_bytes/(measured_e2e − kernel_only)，
+多行确定性中位数；只吃 kernel_ms>0 的行。1024³ 行：12582912 B 拷贝段
+measured−kernel=0.676948 ms → eff_bw=18.5877 GB/s（真实 B390 有效链路带宽，
+远低于 HCS 标称 32 GB/s——正是校准前 ε_rel≈2.7 的来源）。constants_version 1→2（R3.3）。
+设计约束保持：solve 仍是 (hcs,tree) 纯函数，校准只在 calibration 时进入系统。
+校准后 demo（4096³）预测 c_ms 12.0181→16.5578（link 标称下调 → 拷贝项预测上调，
+符合模型语义）。

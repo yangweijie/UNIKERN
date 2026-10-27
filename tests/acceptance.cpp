@@ -1,8 +1,8 @@
 // Phase 8 acceptance tests — R1-R10, every CPU-testable item, one binary.
 // (R6/R8 real-device execution is NOT faked here: it is collected with real
-// `unikern run` commands on the AMD RX 6600M and recorded in
-// docs/acceptance-mvp.md; Apple/Intel real-device items are marked blocked
-// pending the user's Mac / Intel machine.)
+// `unikern run` commands and recorded in docs/acceptance-mvp.md. The AMD
+// RX 6600M and Intel Arc B390 real-device items live in the matrix; Apple
+// remains blocked pending the user's Mac.)
 //
 // Coverage map (requirement -> section in this file):
 //   R1.2  illegal KML type names rejected at the front end; note: the MVP has
@@ -52,9 +52,66 @@
 #include "unikern/codegen.hpp"
 #include "unikern/components.hpp"
 
+#ifdef _WIN32
+// CL headers are vendored (third_party/CL) — declarations only, no linking:
+// the R10 mirror below resolves the ICD loader through Win32 dynamically.
+// windows.h must come first: cl_platform.h defines CL_API_CALL itself but
+// does not include <windows.h>.
+#include <windows.h>
+#include <CL/cl.h>
+#endif
+
 using namespace unikern;
 
 namespace {
+
+#ifdef _WIN32
+// R10 mirror (Windows): probe OpenCL availability INDEPENDENTLY of the
+// backend's own probe — load the ICD loader with Win32 and enumerate
+// platforms via GetProcAddress, so the expectation is derived from the
+// environment itself, not from the code under test. Returns true when a
+// platform carrying an Intel GPU device is visible.
+bool ocl_intel_gpu_visible_win32() {
+  HMODULE h = LoadLibraryA("OpenCL.dll");
+  if (!h) return false;
+  auto fn_ids = reinterpret_cast<cl_int(CL_API_CALL*)(cl_uint, cl_platform_id*,
+                                                     cl_uint*)>(
+      GetProcAddress(h, "clGetPlatformIDs"));
+  auto fn_info = reinterpret_cast<cl_int(CL_API_CALL*)(cl_platform_id, cl_platform_info,
+                                                     size_t, void*, size_t*)>(
+      GetProcAddress(h, "clGetPlatformInfo"));
+  auto fn_devs = reinterpret_cast<cl_int(CL_API_CALL*)(cl_platform_id, cl_device_type,
+                                                     cl_uint, cl_device_id*, cl_uint*)>(
+      GetProcAddress(h, "clGetDeviceIDs"));
+  if (!fn_ids || !fn_info || !fn_devs) {
+    FreeLibrary(h);
+    return false;
+  }
+  cl_uint nplats = 0;
+  if (fn_ids(0, nullptr, &nplats) != CL_SUCCESS || nplats == 0) {
+    FreeLibrary(h);
+    return false;
+  }
+  std::vector<cl_platform_id> plats(nplats);
+  cl_uint nplats2 = 0;
+  if (fn_ids(nplats, plats.data(), &nplats2) != CL_SUCCESS || nplats2 != nplats) {
+    FreeLibrary(h);
+    return false;
+  }
+  bool found = false;
+  for (cl_uint i = 0; i < nplats && !found; ++i) {
+    char vendor[256] = {};
+    if (fn_info(plats[i], CL_PLATFORM_VENDOR, sizeof(vendor), vendor, nullptr) != CL_SUCCESS)
+      continue;
+    if (std::strstr(vendor, "Intel") == nullptr) continue;
+    cl_uint ndev = 0;
+    if (fn_devs(plats[i], CL_DEVICE_TYPE_GPU, 0, nullptr, &ndev) == CL_SUCCESS && ndev > 0)
+      found = true;
+  }
+  FreeLibrary(h);
+  return found;
+}
+#endif
 
 Hcs discrete_hcs(int64_t vram_bytes, double vram_bw_gbps) {
   Hcs h;
@@ -133,6 +190,10 @@ int main(int argc, char** argv) {
   if (argc == 3 && std::strcmp(argv[1], "crash-tx") == 0) {
     return crash_tx_child(argv[2]);
   }
+  // Flush after every line: ctest captures stdout through a pipe (fully
+  // buffered), so a mid-test crash would otherwise lose the section markers
+  // that pinpoint the failure point.
+  std::cout.setf(std::ios::unitbuf);
 
   // ---------------- R1: KML front end + canonical form (R1.2, R1.3) --------
   {
@@ -260,12 +321,12 @@ int main(int argc, char** argv) {
     // key "m=128,n=128" sorts first, so the argmin must be (128,128). That
     // proves selection is (C, key)-driven, not enumeration-driven.
     KmlTree t;
-    const Hcs big = discrete_hcs(int64_t(8) << 30, 512);
-    const Solution sol = solve(big, t);
+    const Hcs big_hcs = discrete_hcs(int64_t(8) << 30, 512);
+    const Solution sol = solve(big_hcs, t);
     assert(sol.feasible_count == 25);
     assert(sol.best.tile_m == 128 && sol.best.tile_n == 128);
     // R4.2: bitwise-identical repeat (also covered by the R3 loop).
-    const Solution again = solve(big, t);
+    const Solution again = solve(big_hcs, t);
     assert(again.c_ms == sol.c_ms && again.best.tile_m == sol.best.tile_m &&
            again.best.tile_n == sol.best.tile_n);
     // R4.4: empty X terminates infeasible with the first violation record —
@@ -319,10 +380,10 @@ int main(int argc, char** argv) {
     assert(seen_amd && seen_apple && seen_intel);
     // Inputs flow only from KML + HCS: changing tree dims changes the emitted
     // timing dims; changing the HCS vram tier changes the emitted constant.
-    KmlTree small = t;
-    small.dims[0] = 1024; small.dims[1] = 1024; small.dims[2] = 1024;
+    KmlTree small_tree = t;
+    small_tree.dims[0] = 1024; small_tree.dims[1] = 1024; small_tree.dims[2] = 1024;
     const std::string p1 = backends[0]->generate(sol, amd, t);
-    const std::string p2 = backends[0]->generate(solve(amd, small), amd, small);
+    const std::string p2 = backends[0]->generate(solve(amd, small_tree), amd, small_tree);
     assert(p1.find("const int PM = 4096") != std::string::npos);
     assert(p2.find("const int PM = 1024") != std::string::npos);
     const Hcs half = discrete_hcs(int64_t(4) << 30, 512);
@@ -344,9 +405,9 @@ int main(int argc, char** argv) {
     assert(exact.ok && exact.max_rel_err == 0.0);
     // 1/1024 relative error is inside the 2^-5 default -> pass, worst
     // relative error reported.
-    std::vector<float> near = ref;
-    near[1] += 2.0f / 1024.0f;
-    const Verdict within = verify_fp32(near, ref);
+    std::vector<float> nearly = ref;
+    nearly[1] += 2.0f / 1024.0f;
+    const Verdict within = verify_fp32(nearly, ref);
     assert(within.ok);
     assert(within.max_rel_err > 0.0 && within.max_rel_err <= 0.03125);
     // Error beyond the default tolerance -> reject, naming the element.
@@ -357,7 +418,7 @@ int main(int argc, char** argv) {
     assert(beyond.summary.find("index 3") != std::string::npos);
     assert(beyond.max_rel_err > 0.03125);
     // R6.2 "configurable": a tighter bound rejects what the default accepted.
-    const Verdict tight = verify_fp32(near, ref, Tolerance{1.0 / 4096.0, 0.0625});
+    const Verdict tight = verify_fp32(nearly, ref, Tolerance{1.0 / 4096.0, 0.0625});
     assert(!tight.ok);
     // Size mismatch is a loud rejection, never a false pass.
     const Verdict sized = verify_fp32(std::vector<float>{1.0f}, ref);
@@ -636,10 +697,15 @@ int main(int argc, char** argv) {
     }
     assert(amd && apple && intel);
     // Availability is the honest toolchain probe (R10 honesty), checked
-    // against the same environment facts the CLI reports.
+    // against the same environment facts the CLI reports. The Intel half is
+    // mirrored independently: the Win32 ICD-loader enumeration above never
+    // touches the backend's own OpenCL code path.
     const bool hipcc_present = !find_hipcc().empty();
-    const char* icd = std::getenv("OCL_ICD_VENDORS");
-    const bool intel_env = icd != nullptr && *icd;
+#ifdef _WIN32
+    const bool intel_env = ocl_intel_gpu_visible_win32();
+#else
+    const bool intel_env = false;  // non-Windows hosts: no ICD probe here
+#endif
 #ifdef _WIN32
     assert(!backends[1]->available());  // metal toolchain is macOS-only
 #else

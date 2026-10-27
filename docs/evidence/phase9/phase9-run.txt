@@ -1,0 +1,25 @@
+# run --vendor intel（LEDGER COMMIT，ε 实算）
+# 复现：build/unikern.exe run --vendor intel --hcs samples/hcs_intel.json --dims 1024 1024 1024
+# 本输出为运行时实测（2026-10-27）。
+LEDGER HIT  c_cached_ms=0.482694  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.795843 kernel_ms=1.058766 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+RUN intel:ocl built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.795843 kernel_ms=1.058766 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+-- log tail --
+UK_DEVICE name=Intel(R) Arc(TM) B390 GPU
+UK_DEVICE_VENDOR vendor=Intel(R) Corporation
+UK_DEVICE_VERSION version=OpenCL 3.0 NEO
+UK_DEVICE_DRIVER driver=32.0.101.9150
+UK_DEVICE_UNITS units=96
+UK_DEVICE_MEM gmem=27207761920
+UK_DEVICE_MEM lmem=131072
+UK_DEVICE_CLOCK clock_mhz=2500
+UK_DEVICE_UNIFIED host_unified=1
+UK_DEVICE_WG max_wg=1024
+UK_RUNNER plan perf=1024x1024x1024 tile=96x96 vram_bytes=27207761920 payload_mb=12.000000 warm=2 iters=10
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.795843 kernel_ms=1.058766 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.482694 measured_ms=1.795843 epsilon_abs=1.31315 epsilon_rel=2.72046
+
+要点（R6.3/R7.3）：verify=PASS 才提交账本（R6.3 门）；ε = |C−T| 实算（E13 教训
+复用——predicted 取 HCS link 32GB/s 标称，实测 e2e 含真实链路带宽与启动开销，
+ε 大即 R7.3 校准信号）：epsilon_abs=1.31315、epsilon_rel=2.72046。

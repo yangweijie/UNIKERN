@@ -271,16 +271,16 @@ int main(int argc, char** argv) {
   // measured_ms + kernel_ms + mode + payload_mb.
   {
     Hcs amd = sample_hcs(false);  // vram tier = 8 GiB = 8589934592 bytes
-    KmlTree t;                    // demo 4096^3 fp32
-    Solution sol = solve(amd, t);
-    const std::string prog = hip_runnable_program(sol, amd, t);
+    KmlTree t2;                   // demo 4096^3 fp32 (avoids shadowing)
+    Solution sol = solve(amd, t2);
+    const std::string prog = hip_runnable_program(sol, amd, t2);
     // Timing dims straight from tree dims (16-aligned, floor 32, no 1024 cap).
     assert(prog.find("const int PM = 4096, PN = 4096, PK = 4096;") != std::string::npos);
-    KmlTree small = t;
+    KmlTree small = t2;
     small.dims[0] = 40; small.dims[1] = 40; small.dims[2] = 40;
     const std::string psmall = hip_runnable_program(solve(amd, small), amd, small);
     assert(psmall.find("const int PM = 32, PN = 32, PK = 32;") != std::string::npos);
-    KmlTree big = t;
+    KmlTree big = t2;
     big.dims[0] = 32768; big.dims[1] = 32768; big.dims[2] = 32768;
     const std::string pbig = hip_runnable_program(solve(amd, big), amd, big);
     assert(pbig.find("const int PM = 32768, PN = 32768, PK = 32768;") != std::string::npos);

@@ -1,0 +1,18 @@
+# run --vendor intel（校准后 HCS，ε 状态如实报告）
+# 复现：build/unikern.exe run --vendor intel --hcs samples/hcs_intel.calibrated.json --dims 1024 1024 1024
+# 本输出为运行时实测（2026-10-27）。
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.906969 kernel_ms=1.081937 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.906969 kernel_ms=1.081937 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.766426 measured_ms=1.90697 epsilon_abs=1.14054 epsilon_rel=1.48813
+
+要点（诚实口径）：link 项校准后（32→18.5877 GB/s、v1→2），ε_rel 从 2.72 → 1.48813。
+残留 ε 的组成与真实原因：校准后 predicted=0.766 ms（拷贝项 0.677 ms + 计算项 0.179 ms），
+实测 e2e=1.907 ms = 拷贝 0.825 ms + kernel 1.082 ms；实测 kernel 1.082 ms 对应
+约 2 TFLOPS 有效吞吐，而 HCS flops_gflops=24000 GFLOPS 是**预测峰值常数**（对 B390
+96 CU × 16 SP × 2 × 2.5 GHz 的理论峰值 7680 GFLOPS 仍偏乐观），计算项模型预测
+与真实内核吞吐存在差距——这是 **HCS 常数精度问题**（flops 常数），非运行器/链路
+缺陷（链路已由校准收敛，对拍仍 max_rel=0）。计算项模型的后续标定属于设计既定的
+L4 roofline 标定工作，不在 Phase 9 范围；此处如实报告，不做修饰。
+另：本机桌面环境后台负载未受控，同负载实测在 1.796 / 1.811 / 1.907 间波动，
+结论只依赖 PASS/FAIL 与不变式（resident 模式下 e2e=拷贝+kernel，与模型构成一致），
+不依赖单点绝对值。

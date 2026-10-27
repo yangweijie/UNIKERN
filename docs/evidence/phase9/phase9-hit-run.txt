@@ -1,0 +1,12 @@
+# 二次 run --vendor intel（同键，R7.2 账本命中）
+# 复现：build/unikern.exe run --vendor intel --hcs samples/hcs_intel.json --dims 1024 1024 1024
+# 本输出为运行时实测（2026-10-27）。
+LEDGER HIT  c_cached_ms=0.482694  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.81106 epsilon_abs=1.32837 epsilon_rel=2.75199
+RUN intel:ocl built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.81106
+LEDGER COMMIT predicted_ms=0.482694 measured_ms=1.81106 epsilon_abs=1.32837 epsilon_rel=2.75199
+
+要点：同键二次 run → LEDGER HIT（复用记录解，跳过求解，R7.2）；真实执行与实测回写
+照常进行（cached 解 + 本轮实测进入账本）。ε 与首次同量级（真机数据波动属正常，
+桌面环境后台负载未受控，见 findings.md 收尾审计事实）。

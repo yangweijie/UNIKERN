@@ -35,4 +35,20 @@ RunOutcome run_hip(const std::string& program, const std::string& workdir);
 // Resolve hipcc from HIP_PATH (empty when unavailable).
 std::string find_hipcc();
 
+// Intel OpenCL: execute the generated kernel source IN-PROCESS against a real
+// Intel GPU (ICD loader): deterministic init + 256^3 differential verify vs a
+// scalar CPU reference + timing at the tree dims (e2e H2D+kernel+D2H basis) +
+// the UNIKERN_RESULT contract line. Resident-only (MVP); refuses honestly
+// when the payload exceeds 0.85 * vram (R10). Requires UK_HAS_OCL at build
+// time; without it the stub reports the gap instead of pretending.
+RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
+                   const Hcs& hcs, const KmlTree& tree,
+                   const std::string& workdir);
+
+// Intel OpenCL availability probe: true when a platform with an Intel GPU
+// device is visible through the OpenCL ICD loader (replaces the
+// OCL_ICD_VENDORS env heuristic, Phase 9). Compiles to false when the build
+// had no OpenCL library (UK_HAS_OCL undefined).
+bool intel_ocl_available();
+
 }  // namespace unikern

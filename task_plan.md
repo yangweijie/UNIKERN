@@ -5,7 +5,7 @@
 "KML→求解→生成→验证→Ledger"闭环，交付可构建的 C++20 CLI 与组件，并逐阶段替换 stub。
 
 ## Current Phase
-Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
+Phase 9（Intel 真机验证 — G4 Intel 半闭合，2026-10-27 完成；Apple 真机仍保留）
 
 ## Phases
 | # | Phase | Status |
@@ -18,7 +18,8 @@ Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 | 5 | 三后端代码生成（HIP 可运行程序 / MSL / OpenCL C）+ Runner 适配器（R5, R10） | complete |
 | 6 | 差分验证接入运行结果 + SQLite Ledger（R6, R7） | complete |
 | 7 | 多级存储：场景 A 零拷贝 / 场景 B 流式双缓冲执行（R8） | complete |
-| 8 | 硬件在环验收：R1-R10 测试矩阵（AMD 卡 / Apple Silicon / Intel Arc B） | complete（验收矩阵 docs/acceptance-mvp.md；Apple/Intel 真机项如实标注受阻） |
+| 8 | 硬件在环验收：R1-R10 测试矩阵（AMD 卡 / Apple Silicon / Intel Arc B） | complete（验收矩阵 docs/acceptance-mvp.md；Apple 真机项如实标注受阻） |
+| 9 | Intel 真机验证（G4 Intel 半闭合）：OpenCL 执行 runner + 差分验证 + 账本闭环 + ocloc AOT 证据 | **complete（2026-10-27；本机 Arc B390 + oneAPI/OpenCL 3.0 在位，ocloc AOT + 进程内 runner 全验，ε 如实报告；Apple 半侧维持受阻）** |
 
 ### Phase 5 子任务
 | 子项 | 状态 |
@@ -37,7 +38,28 @@ Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 |------|------|
 | G2 constants_version stub | **closed**：版本随 HCS 透传 + `calibrate` 递增（真机 1→2）；R7.3 校准闭环（账本实测行→中位数有效互联带宽 32→5.429 GB/s→校准 HCS），ε_rel 4.83→0.12 |
 | G3 产物头无 toolchain | **closed**：三后端产物头 `toolchain=<hcs.toolchain>` |
-| G1 KML 文本解析 / G4 Apple+Intel 真机 / G5 R8.5 迁移监测 | 保留（V1 / 用户硬件 / 真机长测） |
+| G1 KML 文本解析 / G5 R8.5 迁移监测 | 保留（V1 / 真机长测） |
+| G4 真机验证 | **Intel 半闭合已闭合（Phase 9，2026-10-27）**：ocloc AOT + 进程内 OpenCL runner 真机验证（对拍/账本闭环/校准，ε 如实报告，证据 docs/evidence/phase9/）；Apple 半侧仍保留（无 macOS 硬件，需用户 Mac） |
+
+### Phase 9 子任务（Intel 真机验证，2026-10-27 起）
+| 子项 | 状态 |
+|------|------|
+| a. 环境 sanity：MinGW g++ 链接 System32/OpenCL.dll + 厂商 CL 头枚举平台/设备；ocloc 设备名探测 | done（MSVC 2022 + oneAPI OpenCL.lib 导入库链接 + third_party/CL；设备名 bmg-g21；失败根因：函数指针签名 arity 错 + CL_API_CALL 取值，已修复并隔离验证） |
+| b. 厂商 CL 头文件归入 `third_party/CL/`（镜像 sqlite amalgamation 先例） | done（Khronos OpenCL-Headers 经 conda-forge opencl-headers 2025.06.13 提取，18 头 + Apache-2.0 + README 来源注记） |
+| c. `src/runner_ocl.cpp`：进程内 OpenCL 执行 runner（确定性 init + 256³ CPU 对拍 + 计时 + UNIKERN_RESULT），UK_HAS_OCL 编译期门 | done（语义逐项对齐 AMD runner：256³/容差 2⁻⁵/树 dims 16 对齐下限 32/warm2timed10/e2e 标记事件/kernel_ms 参考；resident-only 诚实拒绝；网格上限诚实拒绝） |
+| d. 接线：`BackendIntel::available()` 真实运行时探测（替换 OCL_ICD_VENDORS 启发式）+ `codegen.hpp` 声明 + `main.cpp --vendor` + CMake | done（pick_intel_gpu 平台/设备探测；acceptance R10 镜像改独立 Win32 枚举） |
+| e. `tests/acceptance.cpp` R10 镜像断言同步更新（LoadLibrary("OpenCL.dll") 独立枚举） | done（Win32 LoadLibrary+GetProcAddress 镜像，与后端真探测本机一致；处理了 windows.h 宏污染 near/small/big） |
+| f. ocloc AOT 编译生成的 uk_intel.cl（R5 真编译证据） | done（`-device bmg-g21` → uk_intel_bmg.bin + uk_intel_bmg.spv） |
+| g. Intel 真机闭环：run → LEDGER COMMIT → HIT → calibrate（ε 如实报告） | done（verify=PASS max_rel=0；run COMMIT ε_abs=1.31315 ε_rel=2.72046 → HIT → calibrate 32→18.5877 GB/s v1→2 → 校准后 ε_rel=1.48813，残留为 HCS flops 常数精度，如实报告） |
+| h. 证据转录入库 + acceptance-mvp.md v5 + 规划文件 + ctest 全绿 + commit | done（docs/evidence/phase9/ 11 文件转录 + emit/uk_intel.cl 与 aot 产物 add -f 入库；acceptance-mvp.md v5；task_plan/progress/findings 更新；ctest 2/2 绿） |
+
+### 约束提醒（Phase 9 复用）
+- 生成源码零反斜杠（E10）；路径前斜杠；源码编辑一律 Write/Edit 文件工具
+- MinGW 静态链接（E2：-static -static-libgcc -static-libstdc++）
+- LEDGER COMMIT 的 ε = |C−T| 实算，禁止常量冒充（E13）
+- 设备事实（显存/类型）经 OpenCL API 实测记录，不照抄平台标签（B390 标签含 "(integrated)" 字样，HCS 样例写 16GB 离散——以实测为准）
+- 计时口径与 AMD runner 对齐：warm 2 / timed 10（小）或 1/1（大）；e2e = 标记事件包裹，kernel_ms 为内核参考
+- 流式双缓冲本期不实现（intel:ocl 后端源横幅已声明 resident-only）；payload 超过 0.85×vram 时诚实拒绝，不静默降级（R10）
 
 ## Decisions
 | # | 决策 | 状态 |
@@ -51,8 +73,8 @@ Phase 8（R1-R10 验收矩阵与报告）— **complete（MVP 收官）**
 
 ## Constraints
 - 无 NVIDIA 硬件与 SDK：验收全链路不依赖 NVIDIA；GPUDirect Storage 属 V1
-- 本机真机只有 AMD RX 6600M（gfx1032）；Apple/Intel 仅源生成，真机验证需用户 Mac / Intel 机器
-- Intel 本机无 ocloc、无 Intel OpenCL 平台 → `intel:ocl` 后端 `available()=false`（诚实报告）
+- 本机真机：AMD RX 6600M（gfx1032）+ Intel Arc B390（OpenCL 3.0 NEO，驱动 32.0.101.9150）；Apple 仅源生成，真机验证需用户 Mac
+- Intel 工具链在位：System32 OpenCL.dll + ze_loader.dll、oneAPI 2025.3/2026.1（ocloc、CL 头）；`intel:ocl` 后端 available() 将改为真实运行时探测
 - 不静默安装系统级依赖；缺失工具链先报告再请示
 - 规格：.monkeycode/specs/unikern-mvp/{requirements.md, design.md}；白皮书：unikern-design.html
 

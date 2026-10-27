@@ -62,9 +62,9 @@
       task_plan.md + findings.md + progress.md
 
 ## MVP 状态
-Phase 0-8 全部完成。剩余真机项（Apple Metal / Intel OpenCL 的编译执行与对拍）
-需用户 Mac / Intel 机器，验收矩阵已逐项标注受阻边界。
-
+Phase 0-9 全部完成（Phase 9 = Intel 真机验证，G4 Intel 半闭合：ocloc AOT + 进程内
+OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/evidence/phase9/）。
+剩余真机项：Apple Metal 执行（需用户 Mac）；Intel 流式双缓冲（Phase 9 明确不实现，诚实标注）。
 ## Session 2026-10-27（Phase 8 独立复核修复，v2）
 - [x] 独立复核 5 项全数属实，逐条处理：
   - [x] 「verify_fp32 由 smoke 覆盖」不实（grep tests/ 零命中）→ acceptance.cpp
@@ -113,3 +113,34 @@ Phase 0-8 全部完成。剩余真机项（Apple Metal / Intel OpenCL 的编译�
   校准闭环补遗一节；证据新增 calibrate.txt / run_calibrated.txt / hcs_amd.calibrated.json，
   solve_emit + emit 三源 + ledger_dump 同步刷新（含 kernel_ms 列）
 - [x] ctest 2/2 全绿；commit（11 源文件 + 文档 + 证据 + 规划）
+
+## Session 2026-10-27（Phase 9 — Intel 真机验证，G4 Intel 半闭合）
+- [x] 环境重探测（此前"无 Intel 工具链"结论已过时）：
+  - **Intel Arc B390 GPU OpenCL 3.0 NEO** 在位（驱动 32.0.101.9150；sycl-ls 可见；
+    平台标签含 "(integrated)" 字样，设备事实须经 OpenCL API 实测，不照抄）
+  - System32 有 OpenCL.dll（Khronos ICD loader）+ ze_loader.dll；
+    HKLM\SOFTWARE\Khronos\OpenCL\Vendors 已注册 intelocl64.dll
+  - oneAPI 2025.3 + 2026.1 已安装：ocloc.exe ×2 版本、CL 头在
+    `C:/Program Files (x86)/Intel/oneAPI/2026.1/include/CL/`、sycl-ls.exe
+  - 无 MinGW g++（本机构建工具链为 MSVC 2022 Community + vcvarsall + Ninja；
+    OpenCL 经 oneAPI OpenCL.lib 导入库链接；Python conda-forge opencl-headers
+    用于 vendor Khronos CL 头（18 头 + Apache-2.0，third_party/CL）
+  - CPU 平台：Core Ultra X7 358H OpenCL 3.0（枚举时注意与 GPU 平台区分）
+  - 结论：G4 的 Intel 半侧阻塞解除，本机可做 ocloc AOT + 进程内 OpenCL 真验证
+- [x] Phase 9 规划落定（task_plan.md：阶段表 + 子项 a-h + 约束提醒）；
+  findings.md 过时行（"无 ocloc / 无 Intel 平台"）更正
+- [x] 子项 a sanity：MSVC + oneAPI OpenCL.lib 链接 + 枚举平台/设备经 API 实测
+  （B390：96 CU、27207761920 B 显存、2.5 GHz、host_unified=1；平台标签
+  "(integrated)" 字样不采信）；ocloc 设备名 bmg-g21（AOT 编译产出 .bin+.spv）
+  - 踩坑：OpenCL 枚举函数指针签名必须与 API 三参（num_entries/platforms/
+  num_platforms）一致，且 windows.h 会定义 near/small/big 宏污染变量名
+- [x] 子项 b/c/d/e/f：runner_ocl.cpp（256³ 对拍/计时/UNIKERN_RESULT，UK_HAS_OCL
+  门）+ BackendIntel 真探测 + main.cpp --vendor + CMake OpenCL 接入
+  + acceptance R10 独立 Win32 镜像（ctest 2/2 全绿）
+- [x] 子项 g 真机闭环（samples/hcs_intel.json 更新为实测设备事实）：
+  verify=PASS max_rel=0 → run LEDGER COMMIT（ε_abs=1.31315 ε_rel=2.72046）
+  → 同键 HIT → calibrate（link 32→18.5877 GB/s，v1→2）→ 校准后 run
+  （ε_rel=1.48813，残留为 HCS flops 常数精度，如实报告）
+- [x] 子项 h 收尾：docs/evidence/phase9/ 11 文件转录入库（emit/uk_intel.cl 与
+  aot 产物 add -f 入库）+ acceptance-mvp.md v5 + task_plan/progress/findings
+  更新

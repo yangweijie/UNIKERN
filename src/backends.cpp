@@ -1,6 +1,4 @@
 // Three vendor backends (R5, R10): independent generation, inputs = KML + HCS.
-#include <cstdlib>
-
 #include "unikern/codegen.hpp"
 #include "unikern/components.hpp"
 
@@ -45,10 +43,7 @@ class BackendIntel : public IBackend {
 public:
   Vendor vendor() const override { return Vendor::Intel; }
   std::string name() const override { return "intel:ocl"; }
-  bool available() const override {
-    const char* icd = std::getenv("OCL_ICD_VENDORS");
-    return icd != nullptr && *icd;
-  }
+  bool available() const override { return intel_ocl_available(); }
   std::string generate(const Solution& s, const Hcs& h, const KmlTree& t) const override {
     return ocl_kernel_source(s, h, t);
   }

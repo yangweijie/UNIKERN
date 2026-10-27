@@ -1,0 +1,60 @@
+# ocl_sanity.exe 输出（OpenCL 枚举 + 最简内核构建/运行/对拍）
+# 复现：build/ocl-sanity/ocl_sanity.exe（构建：MSVC cl.exe + 厂商 CL 头
+# + oneAPI OpenCL.lib 导入库；运行时链接 System32/OpenCL.dll 经 ICD）
+# 本输出为运行时实测（2026-10-27）。
+UK_OCL_SANITY begin
+UK_PLATFORM_COUNT n=3
+UK_PLATFORM i=0 name=Intel(R) OpenCL Graphics (integrated) vendor=Intel(R) Corporation version=OpenCL 3.0
+UK_DEVICE_BEGIN plat=0 name=Intel(R) Arc(TM) B390 GPU
+UK_DEVICE plat=see-above type=GPU name=Intel(R) Arc(TM) B390 GPU
+UK_DEVICE_VENDOR name_is_above vendor=Intel(R) Corporation
+UK_DEVICE_VERSION version=OpenCL 3.0 NEO
+UK_DEVICE_DRIVER driver=32.0.101.9150
+UK_DEVICE_UNITS units=96
+UK_DEVICE_MEM gmem=27207761920
+UK_DEVICE_MEM lmem=131072
+UK_DEVICE_CLOCK clock_mhz=2500
+UK_DEVICE_UNIFIED unified=1
+UK_DEVICE_WG max_wg=1024
+UK_DEVICE_WI max_wi=1024,1024,1024
+UK_PLATFORM i=1 name=Intel(R) OpenCL vendor=Intel(R) Corporation version=OpenCL 3.0 WINDOWS
+UK_DEVICE_BEGIN plat=1 name=Intel(R) Core(TM) Ultra X7 358H
+UK_DEVICE plat=see-above type=CPU name=Intel(R) Core(TM) Ultra X7 358H
+UK_DEVICE_VENDOR name_is_above vendor=Intel(R) Corporation
+UK_DEVICE_VERSION version=OpenCL 3.0 (Build 0)
+UK_DEVICE_DRIVER driver=2026.20.3.0.19_160000.xmain-hotfix
+UK_DEVICE_UNITS units=16
+UK_DEVICE_MEM gmem=33846444032
+UK_DEVICE_MEM lmem=262144
+UK_DEVICE_CLOCK clock_mhz=0
+UK_DEVICE_UNIFIED unified=1
+UK_DEVICE_WG max_wg=8192
+UK_DEVICE_WI max_wi=8192,8192,8192
+UK_PLATFORM i=2 name=Intel(R) OpenCL vendor=Intel(R) Corporation version=OpenCL 3.0 WINDOWS
+UK_DEVICE_BEGIN plat=2 name=Intel(R) Core(TM) Ultra X7 358H
+UK_DEVICE plat=see-above type=CPU name=Intel(R) Core(TM) Ultra X7 358H
+UK_DEVICE_VENDOR name_is_above vendor=Intel(R) Corporation
+UK_DEVICE_VERSION version=OpenCL 3.0 (Build 0)
+UK_DEVICE_DRIVER driver=2026.21.7.0.24_160000
+UK_DEVICE_UNITS units=16
+UK_DEVICE_MEM gmem=33846444032
+UK_DEVICE_MEM lmem=262144
+UK_DEVICE_CLOCK clock_mhz=0
+UK_DEVICE_UNIFIED unified=1
+UK_DEVICE_WG max_wg=8192
+UK_DEVICE_WI max_wi=8192,8192,8192
+UK_SANITY_TARGET device=Intel(R) Arc(TM) B390 GPU
+UK_KERNEL build=ok
+UK_KERNEL run=ok timed_avg_ms=0.0069
+UK_KERNEL verify=PASS max_rel=0.000000 (bad=0)
+UK_OCL_SANITY end fail=0
+
+事实要点（经 OpenCL API 实测，非平台标签）：
+- 设备 = Intel(R) Arc(TM) B390 GPU，OpenCL 3.0 NEO，驱动 32.0.101.9150
+  （平台标签含 "(integrated)" 字样——设备类型/显存以 API 实测为准，不照抄标签）
+- 96 compute units、全局显存 27207761920 B（约 25.34 GiB）、128 KB local mem、
+  2.5 GHz、CL_DEVICE_HOST_UNIFIED_MEMORY=1
+- 2 个 Intel CPU 平台（Core Ultra X7 358H）——runner 平台选择只取带 GPU 的 Intel 平台
+- 运行时链路全部验证：clBuildProgram（驱动编译器即时编译）→ 缓冲 → 内核 launch →
+  事件计时（warm 2 / timed 10）→ 对拍位级一致（max_rel=0）
+- 网格上限实测：max_wi=1024/维（决定 runner 网格上限判定）
