@@ -1,0 +1,36 @@
+# 键身份（G9）：签名按算子声明的 arity 编码，stale 默认维不再泄漏
+$ g++ -std=c++20 -Iinclude -Isrc probe/uk_kml_probe.cpp build-apple/libunikern_core.a build-apple/libsqlite3.a -o /tmp/uk_kml_probe
+# unikern_core md5: c6064a758b6c68e87ade6e276538fd00（.a md5 只标识本次构建，非同源性证明，口径见 phase11/README.md）
+$ /tmp/uk_kml_probe
+--- gemm ---
+OK dims=4096x4096x4096 op=gemm dtype=fp32 tile=64x128 layout=NT children=0
+canonical=(gemm:fp32 dims=4096,4096,4096 tile=64x128 layout=NT)
+op_sig=gemm:fp32:4096x4096x4096
+round-trip identical
+--- conv ---
+OK dims=32x32x3x3x3x64 op=conv dtype=fp16 tile=64x128 layout=NT children=0
+canonical=(conv:fp16 dims=32,32,3,3,3,64 tile=64x128 layout=NT)
+op_sig=conv:fp16:32x32x3x3x3x64
+round-trip identical
+--- reduce ---
+OK dims=1048576 op=reduce dtype=int8 tile=64x128 layout=NT children=0
+canonical=(reduce:int8 dims=1048576 tile=64x128 layout=NT)
+op_sig=reduce:int8:1048576
+round-trip identical
+--- bad-names+arity+layout ---
+REJECT rejected (4 violations):
+  unknown field 'dtyp' (typo would otherwise be ignored)
+  op='gemmm' not one of gemm|conv|reduce
+  dtype='fp64' not one of fp32|fp16|int8
+  layout='colmajor' is not implemented by kernel generation (only NT: A/B/C row-major indexing)
+--- reduce-with-extra-dims ---
+REJECT rejected (1 violations):
+  dims: reduce needs 1 dim (L), got 2
+--- conv shape identity ---
+sig A conv:fp32:64x64x32x3x3x64
+sig B conv:fp32:64x64x32x3x3x128
+sig C conv:fp32:64x64x32x5x5x64
+A!=B 1  A!=C 1
+--- children ---
+REJECT rejected (1 violations):
+  children[1].missing dtype (one of fp32|fp16|int8)

@@ -276,11 +276,11 @@
 - 三个静默默认位点同根：`src/codegen_hip.cpp` 的计时尺寸、`src/runner_metal.mm` 与
   `src/runner_ocl.cpp` 的 `TimingPlan`（都是 `if (op == Gemm) {...}` 无 else，落回 4096³ 默认）
 - **拒绝层次（每层各自被证明是承重墙）**：① 单一判据 `op_support_gap()`（谓词摘掉 →
-  acceptance 红于 `tests/acceptance.cpp:895`）；② 生成物自拒（HIP 程序打
+  红于断言 `op_support_gap(*pr.first).empty() == (op == Gemm)`）；② 生成物自拒（HIP 程序打
   `UNIKERN_ERROR what=op_unsupported` 退 4；MSL/OpenCL 文件不含内核，编译期即失败）；
   ③ runner **入口**自拒——必须排在写 workdir 与编译之前，否则拒绝用的空源文件会盖掉
   上一次的真产物（Apple 侧 uk_run/uk_apple.metal 是证据本体）；④ CLI 门排在 ledger
-  任何读写之前（被拒的树留不下账本行，红于 `:927` 的是 rc 契约）
+  任何读写之前（被拒的树留不下账本行，红的是 run 臂的 rc 契约）
 - **回归位分级（诚实口径）**：谓词与 CLI 门有 ctest 覆盖；**runner 入口门没有**——
   `run_metal`/`run_ocl` 要真设备，acceptance 在 CPU 侧调不到，摘掉它时 ctest 仍全绿。
   它的回归位是 `probe/uk_op_refuse_probe.mm`（错配调用应被拒，`probe_rc=0`）。
@@ -302,3 +302,35 @@
 - 平台边界：`src/runner_ocl.cpp` 本轮只经 `-fsyntax-only -DUK_HAS_OCL` 编译检查，
   未在 Intel 真机链接/运行；AMD 的 hipcc 真编译路径本轮未执行（其拒绝由生成物文本承担，
   acceptance 文本级断言）。Windows/ROCm 复跑仍待做
+
+## Phase 12 KML 文本前端 + 覆盖报告 + 键身份（2026-10-27，G1 声明半边 / G8 / G9）
+- 解析器只能有一份：HCS 与 KML 的 flat-JSON 读取合并到 `src/json_flat.{hpp,cpp}`，
+  hcs.cpp 改为复用。判据是行为不变——`hcs_apple.json` 的指纹仍是 `f01e6704`，
+  且 ctest 全绿。两份扫描逻辑迟早在不一致的转义/数组边界上漂移
+- children 必须先切作用域：`json_field` 找的是**第一处**键名，若不先把
+  `"children": [...]` 整段摘掉，父对象的 `op` 会被子对象的 `op` 满足（报错对象错位）。
+  这条由反测臂守着：摘掉切割后连"合法父子"都解析失败（红点 `:345`）
+- arity 的权威必须单点：`kml_arity()` 同时供前端校验、`kml_export`、`op_signature`、
+  `canonical_form`。起因是自捉——测试里 `reduce` 只设 `dims[0]`，结构体默认 4096
+  泄漏进了签名（`reduce:fp32:4194304x4096x4096`）。"尾零裁剪"不够，得按算子声明取维
+- 键身份的兼容口径：按 arity 编码后 **gemm 签名逐位不变**（4096³ 仍是三维），
+  所以 Phase 8/9/10 已入库的账本键与指纹不受影响；reduce 的 canonical 从 `L,0,0` 变 `L`，
+  而 reduce 从未有过已入库实测行（Phase 11 起它在落库前即被拒）→ 无历史产物需迁移
+- layout 是能力轴不是字符串：只接受 "NT"（三后端 emitted kernel 实际的行主序索引），
+  其它值在**前端**拒。收下一个不实现的 layout 再按行主序默默执行＝G7 同一类静默
+- R10.3 的覆盖报告三轴分别来自 `op_support_gap()` / `supports_streaming()` / `available()`，
+  不建第二张表——报告与生成器不可能各说各话；execution 轴写死即红（`[R10.3]` 臂）
+- **R10.2"纳入 F 约束"的真实形态要说清**：`solve()` 仍是 (hcs, tree) 纯函数、不知后端，
+  覆盖信息表现为*生成/执行拒绝 + 报告点名*，不是 F 里的一条谓词。合进 F 需给解空间
+  加后端轴（V1）。文档若写成"已按后端过滤可行域"就是夸大
+- 真机读数（声明驱动）：`run --vendor apple --kml samples/kml_gemm.json` →
+  verify=PASS max_rel=0；COMMIT ε_rel=88.7514；同键 HIT 再 COMMIT 84.2782（比值口径）。
+  conv/reduce 声明 rc=2 拒绝，且账本文件不被创建（gate 在 make_ledger 之前）
+- 断言设计坑（自捉第 2 处）：`solve` 连只读查找都会创建账本文件，因此"拒绝后无账本行"
+  必须用**未被触碰的新路径**断言，否则恒真
+- 跨阶段可复现性会被自己的重构打断：`op_support_gap()` 函数体在本轮加了 layout 轴，
+  Phase 11 的 `probe/phase11_arm_probes.py` 锚点失配 → 同步改写锚点；这类脚本是
+  fail-closed 的（锚点数≠1 即中止），所以不会半改，但也提醒：改到被转录引用的函数体
+  就要回验那条转录的复现命令
+- 遗留（如实）：G1 执行半边（conv/reduce 可用内核生成）、更复杂的原语树组合语法、
+  `--kml` 在 AMD/Intel 真机端到端复跑；`runner_ocl.cpp` 仍只有 `-fsyntax-only` 检查

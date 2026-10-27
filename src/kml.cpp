@@ -49,9 +49,11 @@ size_t dtype_size(DType d) {
 // R1.3 canonical form: fixed field order, trailing zero dims dropped,
 // children sorted (commutative composition), so equivalent trees serialize equal.
 std::string canonical_form(const KmlTree& t) {
-  // Effective dim count: trailing zeros carry no meaning, but always emit >= 3.
-  int len = 6;
-  while (len > 3 && t.dims[len - 1] == 0) --len;
+  // Exactly the dims the op declares — same rule as op_signature, so a tree
+  // that only differs in slots its op does not use cannot hash differently.
+  // gemm still serializes its three dims, so published tree hashes are
+  // unchanged.
+  const int len = kml_arity(t.op);
 
   std::string s = "(";
   s += to_string(t.op);
@@ -86,10 +88,28 @@ std::string fnv1a_hex(const std::string& data) {
   return std::string(buf);
 }
 
+int kml_arity(OpKind op) {
+  switch (op) {
+    case OpKind::Gemm: return 3;
+    case OpKind::Conv: return 6;
+    case OpKind::Reduction: return 1;
+  }
+  return 3;
+}
+
 std::string op_signature(const KmlTree& t) {
-  return std::string(to_string(t.op)) + ":" + to_string(t.dtype) + ":" +
-         std::to_string(t.dims[0]) + "x" + std::to_string(t.dims[1]) + "x" +
-         std::to_string(t.dims[2]);
+  // The signature identifies the *work*, so it encodes exactly the dims the op
+  // declares — no fixed three (that collapsed distinct conv shapes onto one
+  // ledger key, G9) and no trailing struct defaults leaking in from a
+  // partially-filled tree. gemm 4096^3 serializes as it always did, so every
+  // published ledger key stays byte-identical.
+  const int len = kml_arity(t.op);
+  std::string s = std::string(to_string(t.op)) + ":" + to_string(t.dtype) + ":";
+  for (int i = 0; i < len; ++i) {
+    if (i) s += "x";
+    s += std::to_string(t.dims[i]);
+  }
+  return s;
 }
 
 // Roofline inputs for C (R3): arithmetic work + compulsory memory traffic.

@@ -36,6 +36,7 @@ constexpr char kDefaultLedger[] = "ledger.sqlite3";
 
 struct Options {
   std::string hcs_path;
+  std::string kml_path;  // --kml: declared workload from text (R1.1)
   std::string ledger = kDefaultLedger;
   std::string emit_dir;
   std::string workdir = "uk_run";
@@ -72,6 +73,8 @@ bool parse_options(int argc, char** argv, Options* o) {
       o->ledger = argv[++i];
     } else if (a == "--emit" && i + 1 < argc) {
       o->emit_dir = argv[++i];
+    } else if (a == "--kml" && i + 1 < argc) {
+      o->kml_path = argv[++i];
     } else if (a == "--workdir" && i + 1 < argc) {
       o->workdir = argv[++i];
     } else if (a == "--dims") {
@@ -124,6 +127,39 @@ KmlTree demo_tree(const Options& o) {
     for (int i = 1; i < 6; ++i) t.dims[i] = 0;
   }
   return t;
+}
+
+// The declared workload: a KML text file when --kml is given, otherwise the
+// --op/--dims shorthand. A rejected declaration never reaches the solver:
+// R1.2 wants the violation list, not a partially parsed tree.
+std::optional<KmlTree> load_tree(const Options& o) {
+  if (o.kml_path.empty()) return demo_tree(o);
+  std::ifstream in(o.kml_path);
+  if (!in) {
+    std::cerr << "cannot read KML file: " << o.kml_path << "\n";
+    return std::nullopt;
+  }
+  const std::string txt((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+  std::string err;
+  auto t = kml_import(txt, &err);
+  if (!t) std::cerr << "KML " << err << "\n";
+  return t;
+}
+
+// R10.3: per-backend primitive coverage of the declared tree. The three axes
+// are printed apart on purpose — a covered primitive on an absent toolchain is
+// still not runnable, and an available host with an uncovered primitive says so
+// instead of substituting another vendor.
+void print_coverage(const KmlTree& tree) {
+  for (const auto& c : primitive_coverage(tree)) {
+    std::cout << "COVER " << c.backend << " primitive="
+              << (c.primitive_covered ? "covered" : "unsupported");
+    if (!c.reason.empty()) std::cout << " reason=" << c.reason;
+    std::cout << " execution=" << (c.streaming ? "resident+streamed" : "resident-only")
+              << " toolchain=" << (c.toolchain_available ? "present" : "absent")
+              << "\n";
+  }
 }
 
 // Read + import an HCS file (R9); on failure print the rejection reason.
@@ -204,7 +240,7 @@ static int cmd_solve(int argc, char** argv) {
   Options o;
   const char* usage =
       "usage: unikern solve --hcs <file.json> [--ledger f] [--emit dir] "
-      "[--op gemm|reduce] [--dims M N K] [--selfcheck]\n"
+      "[--kml f.json | --op gemm|reduce] [--dims M N K] [--selfcheck]\n"
       "  op=reduce takes a single length (--dims L 0 0); conv needs six dims and "
       "has no CLI surface yet (R1.2).\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
@@ -213,7 +249,9 @@ static int cmd_solve(int argc, char** argv) {
   }
   auto hcs = load_hcs(o.hcs_path);
   if (!hcs) return 2;
-  KmlTree tree = demo_tree(o);
+  const auto declared = load_tree(o);
+  if (!declared) return 2;
+  KmlTree tree = *declared;
   const std::string gap = op_support_gap(tree);
   if (!gap.empty() && !o.emit_dir.empty()) {
     std::cerr << "UNSUPPORTED: " << gap << " — --emit refuses rather than writing a "
@@ -227,6 +265,7 @@ static int cmd_solve(int argc, char** argv) {
               << "  tile=" << hit->best.tile_m << "x" << hit->best.tile_n
               << "\n"
               << hit->placement_record << "\n";
+    print_coverage(tree);
     if (o.emit_dir.empty()) return 0;
     // An explicit --emit still produces the three sources; the recorded tile
     // dimensions are reused from the ledger entry (both ledger kinds store
@@ -242,6 +281,7 @@ static int cmd_solve(int argc, char** argv) {
             << "  c_ms=" << sol.c_ms << "  |X|=" << sol.feasible_count
             << "  hcs_fp=" << key.hcs_fp.substr(0, 8) << "\n"
             << sol.placement_record << "\n";
+  print_coverage(tree);
   if (o.emit_dir.empty()) {
     if (gap.empty()) {
       print_sources(sol, *hcs, tree);
@@ -273,7 +313,7 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   Options o;
   const char* usage =
       "usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] "
-      "[--op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple]\n"
+      "[--kml f.json | --op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple]\n"
       "  --op reduce/conv: run/verify refuse any op kernel generation cannot "
       "cover (R10.2) — nothing is executed or committed.\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
@@ -282,7 +322,9 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   }
   auto hcs = load_hcs(o.hcs_path);
   if (!hcs) return 2;
-  KmlTree tree = demo_tree(o);
+  const auto declared = load_tree(o);
+  if (!declared) return 2;
+  KmlTree tree = *declared;
   // R10.2: nothing is executed, measured or committed for a workload kernel
   // generation cannot cover — checking before the ledger keeps a poisoned row
   // (a gemm measurement filed under another op) out of reach entirely.
@@ -337,6 +379,13 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
     }
     r = run_hip(program, o.workdir);
     backend_name = "amd:hip";
+  }
+  for (const auto& c : primitive_coverage(tree)) {
+    if (c.backend != backend_name) continue;
+    std::cout << "COVER " << c.backend << " primitive="
+              << (c.primitive_covered ? "covered" : "unsupported")
+              << " execution=" << (c.streaming ? "resident+streamed" : "resident-only")
+              << " toolchain=" << (c.toolchain_available ? "present" : "absent") << "\n";
   }
   std::cout << "RUN " << backend_name << " built=" << (r.built ? "yes" : "no")
             << " ran=" << (r.ran ? "yes" : "no")
@@ -465,6 +514,36 @@ static int cmd_hcs(const char* path) {
   return 0;
 }
 
+// `unikern kml <file>` — parse a KML declaration and report what it means:
+// canonical form, ledger signature, roofline work, and per-backend coverage.
+// Rejection prints the complete violation list (R1.2) and changes nothing.
+static int cmd_kml(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) {
+    std::cerr << "cannot read KML file: " << path << "\n";
+    return 2;
+  }
+  const std::string txt((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+  std::string err;
+  const auto t = kml_import(txt, &err);
+  if (!t) {
+    std::cerr << "KML " << err << "\n";
+    return 2;
+  }
+  const Workload w = workload_of(*t);
+  const std::string sig = op_signature(*t);
+  std::cout << "KML OK op=" << to_string(t->op) << " dtype=" << to_string(t->dtype)
+            << " tile=" << t->tile_m << "x" << t->tile_n << " layout=" << t->layout
+            << " children=" << t->children.size() << "\n";
+  std::cout << "CANONICAL " << canonical_form(*t) << "\n";
+  std::cout << "OP_SIG " << sig << "\n";
+  std::cout << "WORKLOAD ops=" << w.ops << " bytes=" << w.bytes << "\n";
+  print_coverage(*t);
+  std::cout << "EXPORT\n" << kml_export(*t);
+  return 0;
+}
+
 static int cmd_backends() {
   std::cout << "vendor    backend      available  note\n";
   for (auto& b : make_backends()) {
@@ -480,13 +559,14 @@ static int cmd_backends() {
 int main(int argc, char** argv) {
   if (argc < 2) {
     std::cerr << "unikern (MVP skeleton)\n"
-              << "  solve --hcs f.json [--ledger f] [--emit dir] [--op gemm|reduce]"
-                 " [--dims M N K] [--selfcheck]\n"
-              << "  run --hcs f.json [--ledger f] [--workdir dir] [--op gemm|reduce]"
-                 " [--dims M N K] [--vendor amd|intel|apple]\n"
-              << "  verify --hcs f.json [--workdir dir] [--op gemm|reduce] [--dims M N K]"
-                 " [--vendor amd|intel|apple]  (= run, no ledger write)\n"
+              << "  solve --hcs f.json [--ledger f] [--emit dir] [--kml f.json |"
+                 " --op gemm|reduce] [--dims M N K] [--selfcheck]\n"
+              << "  run --hcs f.json [--ledger f] [--workdir dir] [--kml f.json |"
+                 " --op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple]\n"
+              << "  verify --hcs f.json [--workdir dir] [--kml f.json | --op gemm|reduce]"
+                 " [--dims M N K] [--vendor amd|intel|apple]  (= run, no ledger write)\n"
               << "  calibrate --hcs f.json --ledger l [--out f.json]  (R7.3: measured -> link bw)\n"
+              << "  kml <f.json>  (parse a declaration; R1.2 rejects with the full list)\n"
               << "  hcs <f.json> | backends | ledger\n"
               << "  ledger paths: *.jsonl = file ledger, else SQLite (default "
               << kDefaultLedger << ")\n";
@@ -496,6 +576,7 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[1], "solve")) return cmd_solve(argc - 2, argv + 2);
     if (!std::strcmp(argv[1], "hcs")) return cmd_hcs(argc >= 3 ? argv[2] : "");
     if (!std::strcmp(argv[1], "backends")) return cmd_backends();
+    if (!std::strcmp(argv[1], "kml")) return cmd_kml(argc >= 3 ? argv[2] : "");
     if (!std::strcmp(argv[1], "run")) return cmd_run(argc - 2, argv + 2, true);
     if (!std::strcmp(argv[1], "verify")) return cmd_run(argc - 2, argv + 2, false);
     if (!std::strcmp(argv[1], "calibrate")) return cmd_calibrate(argc - 2, argv + 2);

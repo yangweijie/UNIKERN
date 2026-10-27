@@ -15,8 +15,16 @@ EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol);
 // some other workload than the one declared — the silent degradation R10
 // forbids, and one that poisons the ledger with a measurement of the wrong
 // work. Returns an empty string when the tree can be generated, otherwise a
-// reason naming the op kind; every generate/execute entry point consults it.
+// reason naming the unsupported field; every generate/execute entry point
+// consults it.
 std::string op_support_gap(const KmlTree& tree);
+
+// Layout tags the emitted kernels actually implement: "NT" is the tag under
+// which A[M][K], B[K][N] and C[M][N] are indexed row-major in all three
+// backends. Anything else is an unsupported interval (R10.2) rather than
+// something to assume away, and op_support_gap() folds it into the same answer
+// so the front end and the generators can never disagree from two tables.
+bool codegen_layout_supported(const std::string& layout);
 
 // AMD HIP: complete runnable program (kernel + deterministic init + CPU
 // reference + differential verify + event timing). Self-verifying by design.

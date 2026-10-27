@@ -5,8 +5,11 @@
 "KML→求解→生成→验证→Ledger"闭环，交付可构建的 C++20 CLI 与组件，并逐阶段替换 stub。
 
 ## Current Phase
-Phase 11 闭合（G7 非 GEMM 静默错执行 → 三层显式拒绝；2026-10-27）
-—— 规格 Phase 0-11 全部 complete；剩余为如实标注的开放缺口 G1/G5/G6/G8（见"缺口闭合"表）
+Phase 12 闭合（G1 声明半边 + G8 覆盖报告 + G9 键身份；2026-10-27）
+—— Phase 0-12 全部 complete；剩余开放缺口：G1 执行半边（conv/reduce 可用的内核生成）、
+G5（R8.5 长测）、G6（Metal 工作集上限）
+—— Phase 0-11 已 complete；本阶段后剩余开放缺口：G5（长测）、G6（Metal 工作集上限）、
+G1 的执行半边（conv/reduce 可用的内核生成，留 Phase 13）
 
 ## Phases
 | # | Phase | Status |
@@ -23,6 +26,17 @@ Phase 11 闭合（G7 非 GEMM 静默错执行 → 三层显式拒绝；2026-10-2
 | 9 | Intel 真机验证（G4 Intel 半闭合）：OpenCL 执行 runner + 差分验证 + 账本闭环 + ocloc AOT 证据 | **complete（2026-10-27；本机 Arc B390 + oneAPI/OpenCL 3.0 在位，ocloc AOT + 进程内 runner 全验，ε 如实报告；Apple 半侧维持受阻）** |
 | 10 | Apple 真机验证（G4 Apple 半闭合）：Metal 执行 runner + 差分验证 + 账本闭环 + 运行时 JIT 编译证据 | **complete（2026-10-27；本机 Apple M4 + Metal 4 运行时 JIT（newLibraryWithSource，无需 Xcode）；256³ 对拍 max_rel=0、512³ LEDGER COMMIT（ε 实算）、HIT、calibrate 场景 A 诚实门控；G4 全闭合）** |
 | 11 | G7 闭合：非 GEMM 算子的能力面显式化（谓词 + 生成物自拒 + runner 入口自拒 + CLI 门），拒绝不得静默替换负载 | **complete（2026-10-27；三层各自"摘掉即红"已录，A/B 缺陷重放入库；--op gemm/reduce 声明面第一片，conv 按 arity 在 parse 拒绝；证据 docs/evidence/phase11/）** |
+| 12 | 算子面闭合：G1 KML 文本前端（三类算子的 tile/layout/原语树声明 + R1.2 完整结构化拒绝）与 G8 R10.3 每后端原语覆盖报告，顺带 G9 账本键 arity 身份 | **complete（2026-10-27；三算子可声明、可解、可进键；由 KML 声明驱动的 512³ Apple 真机 COMMIT/HIT 入库；六条新腿逐一摘除即红；conv/reduce **可用的内核生成**仍缺＝G1 执行半边）** |
+
+### Phase 12 子任务（KML 文本前端 + 覆盖报告，2026-10-27）
+| 子项 | 状态 |
+|------|------|
+| a. 设计口径：KML JSON schema（op/dtype/dims/tile/layout/children），每算子的**维度 arity 硬约束**，layout 只接受产物真正实现的那一种（"NT"=A/B/C 行主序索引），其余显式拒绝——不得让前端接受一个 codegen 未实现的标签（那是 G7 同一类静默） | complete（arity 收敛到单一权威 `kml_arity()`，前端校验 / `kml_export` / `op_signature` / `canonical_form` 共用；layout 白名单与执行拒绝共用 `codegen_layout_supported()`） |
+| b. 前端实现 `kml_import`/`kml_export`：flat-JSON 解析与 hcs_import 共用同一内部工具（避免两份解析器漂移）；R1.2 拒绝**一次列全**所有违规字段/节点（R9.2 的既有教训） | complete（新增 `src/json_flat.{hpp,cpp}`，hcs.cpp 改为复用同一解析器；children 先切作用域再读父标量，杜绝"父借子字段"；违规覆盖未知字段/op/dtype/dims 个数与非整数与非正数/layout/子路径；export 恒全显式且 round-trip canonical 相同） |
+| c. G9：`op_signature` 只编进 dims[0..2] → conv 的 6 维形状在后两个非零维上共用一键（规划期发现，属 R7.1 键身份缺口；gemm 现有键逐位不变，故已入库证据不受影响） | complete（签名与 canonical_form 均改按 `kml_arity()` 取维；`[R7.1]` 臂断言 gemm 签名逐位不变、conv 三形状互异、reduce 未用槽位（含结构体默认 4096）不泄漏进键或哈希） |
+| d. CLI：`kml <file>` 解析打印；`solve/run/verify --kml <file>`；R10.3 覆盖报告（op × backend 支持/不支持 + 单一判据 reason，并与 toolchain availability 分列，两个维度不得混谈） | complete（`COVER <backend> primitive=covered/unsupported reason=... execution=resident+streamed/resident-only toolchain=present/absent`；三轴分别取自 `op_support_gap()`、后端对象 `supports_streaming()`、`available()`，不设第二张表；solve 的 SOLVED 与 LEDGER HIT 两支、run 执行前都打印） |
+| e. acceptance 臂（round-trip、完整拒绝清单、arity、layout、children、两形状 conv 键相异、覆盖表内容、CLI 端到端）+ 摘掉即红 + 证据 docs/evidence/phase12/ + 文档 + commit | complete（新增 `[R1.1/2]`、`[R7.1]`、`[R10.3]` 三段；六腿摘除即红，红点行号 323/313/345/783/796/1133 见 `docs/evidence/phase12/phase12-arm-probes.txt`；Apple 真机由声明驱动 512³ COMMIT/HIT；自捉两处：默认维泄漏进键、"无账本行"断言复用已被 solve 创建的路径而变恒真） |
+
 
 ### Phase 10 子任务（Apple 真机验证，2026-10-27）
 | 子项 | 状态 |
@@ -77,11 +91,12 @@ Phase 11 闭合（G7 非 GEMM 静默错执行 → 三层显式拒绝；2026-10-2
 |------|------|
 | G2 constants_version stub | **closed**：版本随 HCS 透传 + `calibrate` 递增（真机 1→2）；R7.3 校准闭环（账本实测行→中位数有效互联带宽 32→5.429 GB/s→校准 HCS），ε_rel 4.83→0.12 |
 | G3 产物头无 toolchain | **closed**：三后端产物头 `toolchain=<hcs.toolchain>` |
-| G1 KML 文本解析 / G5 R8.5 迁移监测 | 保留（V1 / 真机长测） |
+| G1 KML 文本解析 | **声明半边闭合（Phase 12）**：`kml_import`/`kml_export` + `--kml` + `kml` 子命令，三算子按 arity 校验、违规清单一次列全、layout 只接受已实现标签。**执行半边仍开放**：conv/reduce 尚无可用内核生成，执行仍由 Phase 11 三层拒绝点名拦着 |
 | G4 真机验证 | **已全闭合**：Intel 半侧（Phase 9，2026-10-27，ocloc AOT + 进程内 OpenCL runner 真机验证，证据 docs/evidence/phase9/）+ Apple 半侧（Phase 10，2026-10-27，Metal 运行时 JIT + 进程内 ObjC++ runner，证据 docs/evidence/phase10/） |
 | G6 Apple resident 预算口径（Phase 10 收尾新发现，如实入册） | **保留（记录，未实现）**：`src/runner_metal.mm:110` 的 resident 拒绝阈值取 `hcs.tier_bytes("unified")`（HCS 声明的 32 GiB），未与 Metal `recommendedMaxWorkingSetSize`（实际可驻留工作集上限，通常更小）交叉校验。本机 payload 3 MB 远低于两者，本次读数与结论不受影响；但"payload ≤ 0.85×容量"目前只对**声明容量**成立。属"HCS 声明值 vs API 实测"同类缺口，闭合它需要新增一次真机上限探测臂（不在 Phase 10 范围内，故不顺手实现） |
 | G7 非 GEMM 算子被静默当作 GEMM 执行/回写（Phase 10 收尾排查发现） | **closed（Phase 11，2026-10-27）**：单一判据 `op_support_gap()` + 生成物自拒 + runner 入口自拒 + CLI 门（置于 ledger 读写之前）；acceptance R10.2 臂与真机探针逐层"摘掉即红"，A/B 缺陷重放见 `docs/evidence/phase11/phase11-defect-replay.txt`。仍未做（属 G1 范围）：conv/reduce 的**可用**内核生成——本轮只把"不支持"变成显式的 |
-| G8 R10.3 每后端原语覆盖输出无人认领（Phase 11 排查发现） | **保留（记录，未实现）**：requirements R10 第 3 条"求解报告输出每个解在各后端的原语覆盖情况"在规格外的验收文档、代码与测试中零命中（`grep R10.3` 无果；acceptance R10 段只写 R10.1/R10.2）。现状由"拒绝消息"部分代偿（被拒时点名单一判据），但**没有**一张按 op × backend 的覆盖表，也没有把"不支持"纳入 F 约束的可查产物。与 G1 同一批做最省（覆盖表正是 conv/reduce 边界的载体） |
+| G8 R10.3 每后端原语覆盖输出无人认领（Phase 11 排查发现） | **closed（Phase 12）**：`primitive_coverage()` + `COVER` 行进 solve/run/kml 报告，三轴（primitive / execution / toolchain）分别取自 `op_support_gap()`、后端对象的 `supports_streaming()` 与 `available()`，无第二张表可漂移；`[R10.3]` 库+CLI 臂守着，摘掉 execution 轴即红（`phase12-arm-probes.txt` 第 6 腿）。**注意**：R10.2 的"纳入 F 约束"目前形态是*生成/执行拒绝 + 报告点名*，solve 仍是 (hcs, tree) 纯函数、不知后端——差异已写入 phase12/README.md 以免误读 |
+| G9 `op_signature` 只编进 dims[0..2]（Phase 12 规划期发现） | **closed（Phase 12）**：签名与 canonical_form 改按 `kml_arity()` 取维。gemm 键逐位不变（`[R7.1]` 断言 `gemm:fp32:4096x4096x4096`），故 Phase 8/9/10 已入库证据无需迁移；reduce 的 canonical 由 `L,0,0` 变 `L`，而 reduce 从未有过已入库实测行（Phase 11 起它在落库前即被拒），无历史产物受影响。附带收益：结构体默认维不再可能泄漏进键 |
 
 ### Phase 9 子任务（Intel 真机验证，2026-10-27 起）
 | 子项 | 状态 |

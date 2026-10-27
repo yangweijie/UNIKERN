@@ -207,7 +207,7 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
 - [x] `--op gemm|reduce` 声明面第一片；conv 按 arity 在 parse 拒绝（六维 vs 三维，
   接受即在隐式默认上求解）；`solve --op reduce` 可解但打印 model-only 且拒绝 `--emit`
 - [x] acceptance 新增 R10.2 臂（库/产物/CLI + gemm 对照 `PM = 64` 三源齐发）；
-  `probe/phase11_arm_probes.py` 逐层摘除验红：谓词 → `:895`，CLI 门 → `:927`，
+  `probe/phase11_arm_probes.py` 逐层摘除验红：谓词 → 断言 `op_support_gap(...)==(op==Gemm)`，CLI 门 → run 臂 `rc == 2`，
   runner 门 → 真机探针转红而 **ctest 仍绿**（该层无单测回归位，如实分级并记录）
 - [x] 自捉两处坑并修正：`-x objective-c++` 吞掉后续静态库输入（须 `-x none`）；
   第一次录 runner 拒绝对照时用了"摘门控"态编译的旧探针 → 量到过期产物，
@@ -222,3 +222,39 @@ OpenCL runner 真机对拍/账本闭环/校准，ε 如实报告，证据 docs/e
   G1（conv/reduce 真正可用的内核生成与 KML 文本前端）保持开放，本轮刻意不做
 - ctest 2/2 绿（Apple 主机）；残留探针标记校验为 0；平台边界：OpenCL 仅语法检查、
   AMD hipcc 真编译路径未复跑，Windows/ROCm 复跑待做
+
+## Session 2026-10-27（Phase 12 — 算子面闭合：G1 声明半边 + G8 覆盖报告 + G9 键身份）
+- [x] 单一 JSON 解析器：新增 `src/json_flat.{hpp,cpp}`（trim/field/objects/numbers/keys），
+  `src/hcs.cpp` 改为复用；行为不变的判据是 `hcs_apple.json` 指纹仍 `f01e6704` + ctest 绿
+- [x] KML 文本前端 `src/kml_front.cpp`：三算子（gemm 3 / conv 6 / reduce 1）按 arity 声明，
+  违规**一次列全**（未知与拼写错误字段、op/dtype 名、dims 个数/非整数/非正数、layout 不支持、
+  children 带路径）；children 先切作用域再读父标量（防父借子字段）；export 恒全显式、
+  round-trip canonical 相同
+- [x] layout 口径：只接受 "NT"（三后端 kernel 实际行主序索引），其它前端即拒——
+  收下不实现再默默按行主序执行＝G7 同类静默
+- [x] G9 键身份：`op_signature` 与 `canonical_form` 改按新的单一权威 `kml_arity()` 取维；
+  `[R7.1]` 臂断言 gemm 键逐位不变（已入库证据无需迁移）+ conv 三形状互异 +
+  reduce 未用槽位不泄漏。发现路径是**自捉**：测试里 reduce 只设 dims[0]，
+  结构体默认 4096 漏进了签名
+- [x] R10.3 覆盖报告 `primitive_coverage()` + `COVER` 行（primitive / execution / toolchain
+  三轴分别取自 `op_support_gap()`、`supports_streaming()`、`available()`，无第二张表），
+  进 solve（SOLVED 与 HIT 两支）/ run / `kml` 三入口；并在文档明确
+  "R10.2 纳入 F 约束"目前的真实形态（solve 不知后端，表现为拒绝 + 点名）
+- [x] CLI：`kml <file>` 子命令、`--kml` 接入 solve/run/verify、usage/help 同步；
+  新增三样例 `samples/kml_{gemm,conv,reduce}.json`
+- [x] acceptance 新增 `[R1.1/2]`、`[R7.1]`、`[R10.3]` 三段；`probe/phase12_arm_probes.py`
+  六腿逐一摘除各自转红（红点行号 323/313/345/783/796/1133），收尾残留 0 + ctest 2/2 绿；
+  Phase 11 的摘除脚本锚点因 `op_support_gap()` 加 layout 轴而失配，已同步改写
+- [x] 真机闭环（声明驱动）：Apple M4 上 `run --kml samples/kml_gemm.json` →
+  verify=PASS max_rel=0、COMMIT ε_rel=88.7514、同键 HIT 84.2782；
+  conv/reduce 声明 rc=2 且账本文件不创建（gate 在 make_ledger 之前）
+- [x] 自捉第 2 处：`solve` 连只读查找都会创建账本文件 → "无账本行"断言必须用未触碰的新路径
+
+## Phase 12 闭合记录（2026-10-27）
+- G1 **声明半边**闭合（三算子可从文本声明、被求解、被规范化、进账本键，非法声明完整拒绝）；
+  G8 闭合（R10.3 覆盖报告三轴有实现与回归位）；G9 闭合（键按算子 arity 编码，gemm 键逐位不变）
+- G1 **执行半边仍开放**：conv/reduce 可用的内核生成未做，执行仍由 Phase 11 三层拒绝点名拦着
+- 其余开放项不变：G5（R8.5 缺页迁移监测，长测）、G6（Apple resident 预算未与 Metal 工作集上限
+  交叉校验）；R10.2 的 F 约束合流属 V1（口径已在文档写明）
+- ctest 2/2 绿（Apple 主机，acceptance 含三段新臂）；平台边界：`--kml` 端到端只在 Apple 实跑，
+  AMD/Intel 真机与 Windows/ROCm 复跑待做，`runner_ocl.cpp` 仍只有语法级检查

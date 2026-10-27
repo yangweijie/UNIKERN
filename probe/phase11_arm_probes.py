@@ -11,9 +11,10 @@ PATCHES = {
     "predicate": (
         "src/codegen_hip.cpp",
         'std::string op_support_gap(const KmlTree& tree) {\n'
-        '  if (tree.op == OpKind::Gemm) return "";',
+        '  if (tree.op != OpKind::Gemm)',
         'std::string op_support_gap(const KmlTree& tree) {\n'
-        '  if (true) return "";  // ARM-PROBE: predicate neutered',
+        '  if (true) return "";  // ARM-PROBE: predicate neutered\n'
+        '  if (tree.op != OpKind::Gemm)',
     ),
     "cli_gate": (
         "src/main.cpp",

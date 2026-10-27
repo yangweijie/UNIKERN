@@ -4,66 +4,29 @@
 #include <limits>
 #include <sstream>
 
+#include "json_flat.hpp"
+
 namespace unikern {
 
 namespace {
 
-std::string trim(const std::string& s) {
-  size_t a = s.find_first_not_of(" \t\r\n");
-  if (a == std::string::npos) return {};
-  size_t b = s.find_last_not_of(" \t\r\n");
-  return s.substr(a, b - a + 1);
-}
+using detail::json_field;
+using detail::json_objects;
 
-// Find "key" at object depth 1 of a flat JSON object; returns raw value text.
-std::optional<std::string> json_field(const std::string& j, const std::string& key) {
-  const std::string pat = "\"" + key + "\"";
-  size_t pos = 0;
-  while ((pos = j.find(pat, pos)) != std::string::npos) {
-    size_t p = j.find(':', pos + pat.size());
-    if (p == std::string::npos) return std::nullopt;
-    ++p;
-    while (p < j.size() && (j[p] == ' ' || j[p] == '\t')) ++p;
-    if (p >= j.size()) return std::nullopt;
-    if (j[p] == '"') {
-      size_t e = j.find('"', p + 1);
-      if (e == std::string::npos) return std::nullopt;
-      return j.substr(p + 1, e - p - 1);
-    }
-    size_t e = j.find_first_of(",}\n", p);
-    if (e == std::string::npos) e = j.size();
-    return trim(j.substr(p, e - p));
-  }
-  return std::nullopt;
-}
-
-// Parse the "tiers": [ {...}, {...} ] array if present.
+// Parse the "tiers": [ {...}, {...} ] array if present. Unnamed objects are
+// skipped (a tier without a name cannot be addressed by the solver).
 void parse_tiers(const std::string& j, std::vector<StorageTier>* out) {
-  size_t k = j.find("\"tiers\"");
-  if (k == std::string::npos) return;
-  size_t open = j.find('[', k);
-  if (open == std::string::npos) return;
-  size_t pos = open;
-  while (true) {
-    size_t obj = j.find('{', pos);
-    if (obj == std::string::npos) break;
-    size_t close = j.find('}', obj);
-    if (close == std::string::npos) break;
-    std::string body = j.substr(obj + 1, close - obj - 1);
+  for (const auto& body : json_objects(j, "tiers")) {
     StorageTier tier;
     tier.name = json_field(body, "name").value_or("");
+    if (tier.name.empty()) continue;
     tier.bytes = std::stoll(json_field(body, "bytes").value_or("0"));
     tier.bw_gbps = std::stod(json_field(body, "bw_gbps").value_or("0"));
     std::string conf = json_field(body, "confidence").value_or("official");
     tier.confidence = conf == "measured"    ? Confidence::Measured
                       : conf == "predicted" ? Confidence::Predicted
                                             : Confidence::Official;
-    if (!tier.name.empty()) out->push_back(tier);
-    pos = close + 1;
-    if (j.find('[', pos) != std::string::npos &&
-        j.find(']', pos) != std::string::npos &&
-        j.find('[', pos) > j.find(']', pos))
-      break;  // array closed
+    out->push_back(tier);
   }
 }
 

@@ -5,9 +5,11 @@
 // and phase10 (Apple M4) — all three vendors verified on real hardware.)
 //
 // Coverage map (requirement -> section in this file):
-//   R1.2  illegal KML type names rejected at the front end; note: the MVP has
-//         no KML text parser (trees are built programmatically), so the only
-//         user-facing rejection surface is the type-name conversion below.
+//   R1.1/2  KML text front end (Phase 12): the three op families are declarable
+//         from JSON with per-op arity, and an illegal tree is rejected with the
+//         COMPLETE violation list (unknown names, wrong arity, non-positive or
+//         non-numeric dims, unimplemented layout, misspelled keys, child paths).
+//         Type-name rejection (below) is the inner layer of that surface.
 //   R1.3  canonical_form uniqueness: identical trees serialize identically,
 //         commutative children normalize, distinct trees differ.
 //   R2.2/3/4  feasibility filtering with an independently computed expectation,
@@ -51,6 +53,7 @@
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "sqlite3.h"
@@ -261,10 +264,7 @@ int main(int argc, char** argv) {
     KmlTree g = t;
     g.dims[0] = 2048;
     assert(canonical_form(t) != canonical_form(g));
-    // R1.2: type-name rejection at the KML front end (the MVP has no KML text
-    // parser — trees are constructed programmatically — so this conversion is
-    // the front-end's illegal-type rejection surface; documented honestly in
-    // the acceptance matrix).
+    // R1.2: type-name rejection (unknown op/dtype names).
     assert(!op_from_string("gemmm").has_value());
     assert(!op_from_string("").has_value());
     assert(!dtype_from_string("fp64").has_value());
@@ -273,6 +273,97 @@ int main(int argc, char** argv) {
     assert(dtype_from_string("fp32").value() == DType::F32);
     std::cout << "[R1] canonical uniqueness + illegal type-name rejection OK\n";
   }
+
+  // -------- R1.1/R1.2: KML text front end (declaration + structured reject) --
+  {
+    // Every op family the spec names is declarable, with the arity it needs.
+    auto declare = [](const std::string& body) {
+      std::string err;
+      const auto t = kml_import(body, &err);
+      return std::make_pair(t, err);
+    };
+    const char* gemm_txt =
+        "{ \"op\": \"gemm\", \"dtype\": \"fp32\", \"dims\": [512, 512, 512],"
+        " \"tile_m\": 64, \"tile_n\": 128, \"layout\": \"NT\" }";
+    const char* conv_txt =
+        "{ \"op\": \"conv\", \"dtype\": \"fp32\","
+        " \"dims\": [64, 64, 32, 3, 3, 64], \"layout\": \"NT\" }";
+    const char* reduce_txt =
+        "{ \"op\": \"reduce\", \"dtype\": \"int8\", \"dims\": [4194304],"
+        " \"layout\": \"NT\" }";
+    for (const char* txt : {gemm_txt, conv_txt, reduce_txt}) {
+      const auto pr = declare(txt);
+      assert(pr.first.has_value());
+      // Round-trip: what export writes, import reads back as the same tree.
+      // Export is always fully explicit (tile + layout included).
+      const auto again = declare(kml_export(*pr.first));
+      assert(again.first.has_value());
+      assert(canonical_form(*again.first) == canonical_form(*pr.first));
+      // A declared tree never carries a capability gap it did not state.
+      assert(op_support_gap(*pr.first).empty() ==
+             (pr.first->op == OpKind::Gemm));
+    }
+
+    // R1.2 completeness: one file, four distinct violations, all reported.
+    {
+      const auto pr = declare(
+          "{ \"op\": \"gemmm\", \"dtype\": \"fp64\", \"dims\": [512, 512],"
+          " \"layout\": \"colmajor\", \"dims_\": [1] }");
+      assert(!pr.first.has_value());
+      assert(pr.second.find("4 violations") != std::string::npos);
+      for (const char* needle : {"unknown field 'dims_'", "op='gemmm'",
+                                 "dtype='fp64'", "layout='colmajor'"})
+        assert(pr.second.find(needle) != std::string::npos);
+    }
+    // Arity per op — a partially supplied shape is rejected, never completed
+    // from struct defaults (that is how the G9 key collision could recur).
+    {
+      const auto r = declare(
+          "{ \"op\": \"reduce\", \"dtype\": \"fp32\", \"dims\": [1024, 64] }");
+      assert(!r.first.has_value());
+      assert(r.second.find("reduce needs 1 dim (L), got 2") != std::string::npos);
+      const auto c = declare(
+          "{ \"op\": \"conv\", \"dtype\": \"fp32\", \"dims\": [8, 8, 3] }");
+      assert(!c.first.has_value());
+      assert(c.second.find("conv needs 6 dims (H,W,C,Kh,Kw,outC), got 3") !=
+             std::string::npos);
+      const auto zero = declare(
+          "{ \"op\": \"gemm\", \"dtype\": \"fp32\", \"dims\": [64, 0, 64] }");
+      assert(!zero.first.has_value());
+      assert(zero.second.find("dims[1]=0 must be positive") != std::string::npos);
+      const auto nan = declare(
+          "{ \"op\": \"gemm\", \"dtype\": \"fp32\", \"dims\": [64, 64, 6k] }");
+      assert(!nan.first.has_value());
+      assert(nan.second.find("is not an integer") != std::string::npos);
+    }
+    // Children: a composite tree parses, and a bad child is reported by path.
+    {
+      const auto ok = declare(
+          "{ \"op\": \"gemm\", \"dtype\": \"fp32\", \"dims\": [64, 64, 64],"
+          " \"children\": [ { \"op\": \"reduce\", \"dtype\": \"fp32\","
+          " \"dims\": [16] } ] }");
+      assert(ok.first.has_value());
+      assert(ok.first->children.size() == 1);
+      assert(ok.first->children[0].op == OpKind::Reduction);
+      const auto bad = declare(
+          "{ \"op\": \"gemm\", \"dtype\": \"fp32\", \"dims\": [64, 64, 64],"
+          " \"children\": [ { \"op\": \"reduce\", \"dims\": [16] } ] }");
+      assert(!bad.first.has_value());
+      assert(bad.second.find("children[0].missing dtype") != std::string::npos);
+      // A child's own fields must not satisfy the parent's (mis-attribution):
+      // the parent here has no op, and no error may blame a child for it.
+      const auto steal = declare(
+          "{ \"dtype\": \"fp32\", \"dims\": [64, 64, 64],"
+          " \"children\": [ { \"op\": \"reduce\", \"dtype\": \"fp32\","
+          " \"dims\": [16] } ] }");
+      assert(!steal.first.has_value());
+      assert(steal.second.find("missing op") != std::string::npos);
+      assert(steal.second.find("children[0].missing op") == std::string::npos);
+    }
+    std::cout << "[R1.1/2] KML text front end: three op families, round-trip, "
+                 "complete rejection list, arity, layout, children paths OK\n";
+  }
+
 
   // ---------------- R2: feasibility filtering, violations, |X| -------------
   {
@@ -673,7 +764,49 @@ int main(int argc, char** argv) {
               << "version bump + export round-trip OK\n";
   }
 
+  // -------- R7.1 / G9: the ledger signature identifies the whole declared work --
+  {
+    KmlTree g;  // gemm 4096^3 — the shape every published row already uses
+    assert(op_signature(g) == "gemm:fp32:4096x4096x4096");  // unchanged by G9
+    const auto mk = [](OpKind op, std::initializer_list<int> d) {
+      KmlTree t;
+      t.op = op;
+      int i = 0;
+      for (int v : d) t.dims[i++] = v;
+      return t;
+    };
+    // Two conv shapes differing only in the kernel/out-channel dims must not
+    // share one key (the pre-G9 signature encoded only dims[0..2]).
+    const KmlTree c1 = mk(OpKind::Conv, {64, 64, 32, 3, 3, 64});
+    const KmlTree c2 = mk(OpKind::Conv, {64, 64, 32, 3, 3, 128});
+    const KmlTree c3 = mk(OpKind::Conv, {64, 64, 32, 5, 5, 64});
+    assert(op_signature(c1) == "conv:fp32:64x64x32x3x3x64");
+    assert(op_signature(c1) != op_signature(c2));
+    assert(op_signature(c1) != op_signature(c3));
+    // reduce carries its single length; stale struct defaults in the unused
+    // slots leak into neither the signature nor the canonical form (so two
+    // declarations of the same work cannot hash to two different keys).
+    const KmlTree r1 = mk(OpKind::Reduction, {4194304});
+    KmlTree r2 = mk(OpKind::Reduction, {4194304});
+    r2.dims[1] = 0;
+    r2.dims[2] = 0;
+    r2.dims[3] = 7;  // slots reduce does not declare
+    assert(op_signature(r1) == "reduce:fp32:4194304");
+    assert(op_signature(r1) == op_signature(r2));
+    assert(canonical_form(r1) == canonical_form(r2));
+    const Hcs kh = discrete_hcs(int64_t(8) << 30, 512);
+    const Key kr1 = key_of(kh, r1), kr2 = key_of(kh, r2);
+    assert(kr1.op_sig == kr2.op_sig && kr1.tree_hash == kr2.tree_hash &&
+           kr1.hcs_fp == kr2.hcs_fp);
+    // Distinct signatures still produce distinct ledger keys end to end.
+    Hcs h = discrete_hcs(int64_t(8) << 30, 512);
+    assert(key_of(h, c1).op_sig != key_of(h, c2).op_sig);
+    std::cout << "[R7.1] op_signature encodes the op's full arity; conv shapes "
+                 "differ, gemm keys unchanged OK\n";
+  }
+
   // -------- R7.3 scenario-A honesty gate: unified HCS refuses calibration ---
+
   {
     // The gate is CLI behaviour (rc + message), so every arm drives the real
     // binary through spawn_cli — a copy of the condition in this file would
@@ -978,6 +1111,115 @@ int main(int argc, char** argv) {
     fs::remove_all(dir);
     std::cout << "[R10.2] non-gemm ops refused at library, artifact and CLI level "
                  "(no ledger row, no source emitted); gemm path unaffected OK\n";
+  }
+
+  // -------- R10.3: per-backend primitive coverage, three axes kept apart -----
+  {
+    KmlTree gemm, red;
+    red.op = OpKind::Reduction;
+    red.dims[0] = 1 << 20;
+    for (int i = 1; i < 6; ++i) red.dims[i] = 0;
+
+    const auto cov = primitive_coverage(gemm);
+    assert(cov.size() == 3);  // exactly the three vendor backends
+    const auto bks = make_backends();
+    assert(bks.size() == cov.size());
+    for (const auto& c : cov) {
+      // Axis 1 — primitive interval: the report cannot disagree with what the
+      // generators actually accept, so both come from the same predicate.
+      assert(c.primitive_covered == op_support_gap(gemm).empty());
+      // Axis 2 — execution interval: resident everywhere, streaming only AMD.
+      assert(c.resident);
+      assert(c.streaming == (c.backend == "amd:hip"));
+      // Axis 3 — toolchain presence: reported per backend, taken live from the
+      // backend object (no environment-specific expectation asserted here).
+      bool matched = false;
+      for (const auto& b : bks) {
+        if (b->name() != c.backend) continue;
+        matched = true;
+        assert(b->available() == c.toolchain_available);
+        assert(b->supports_streaming() == c.streaming);
+      }
+      assert(matched);  // a coverage row for a backend that does not exist
+    }
+    // An uncovered primitive is named, per backend, with the same reason.
+    for (const auto& c : primitive_coverage(red)) {
+      assert(!c.primitive_covered);
+      assert(c.reason.find("op=reduce") != std::string::npos);
+    }
+    std::cout << "[R10.3] coverage report: three backends, primitive/execution/"
+                 "toolchain axes distinct and derived from the live objects OK\n";
+
+    // CLI: the report reaches the user through kml / solve / run.
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "unikern_cov";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const std::string hcs_path = (dir / "hcs.json").string();
+    { std::ofstream f(hcs_path, std::ios::binary); f << hcs_export(discrete_hcs(int64_t(8) << 30, 512)); }
+    const std::string k_gemm = (dir / "gemm.json").string();
+    const std::string k_red = (dir / "reduce.json").string();
+    { std::ofstream f(k_gemm, std::ios::binary); f << kml_export(gemm); }
+    { std::ofstream f(k_red, std::ios::binary); f << kml_export(red); }
+    const std::string led = (dir / "led.jsonl").string();
+
+    {
+      const std::string cap_path = (dir / "kml_ok.txt").string();
+      assert(spawn_cli("kml \"" + k_gemm + "\"", cap_path) == 0);
+      const std::string cap = slurp(cap_path);
+      assert(cap.find("KML OK op=gemm") != std::string::npos);
+      assert(cap.find("OP_SIG gemm:fp32:4096x4096x4096") != std::string::npos);
+      assert(cap.find("COVER amd:hip primitive=covered") != std::string::npos);
+      assert(cap.find("COVER apple:metal primitive=covered") != std::string::npos);
+      assert(cap.find("COVER intel:ocl primitive=covered") != std::string::npos);
+      assert(cap.find("execution=resident+streamed") != std::string::npos);
+      assert(cap.find("EXPORT") != std::string::npos);
+    }
+    {
+      // A rejected declaration says so with the whole list and rc=2.
+      const std::string bad = (dir / "bad.json").string();
+      { std::ofstream f(bad, std::ios::binary);
+        f << "{ \"op\": \"gemm\", \"dtype\": \"fp64\", \"dims\": [8, 8] }"; }
+      const std::string cap_path = (dir / "kml_bad.txt").string();
+      assert(spawn_cli("kml \"" + bad + "\"", cap_path) == 2);
+      const std::string cap = slurp(cap_path);
+      assert(cap.find("2 violations") != std::string::npos);
+      assert(cap.find("dtype='fp64'") != std::string::npos);
+      assert(cap.find("gemm needs 3 dims (M,N,K), got 2") != std::string::npos);
+    }
+    {
+      const std::string cap_path = (dir / "solve_cov.txt").string();
+      assert(spawn_cli("solve --hcs \"" + hcs_path + "\" --kml \"" + k_red +
+                       "\" --ledger \"" + led + "\"", cap_path) == 0);
+      const std::string cap = slurp(cap_path);
+      assert(cap.find("SOLVED") != std::string::npos);        // model covers it
+      assert(cap.find("primitive=unsupported reason=kernel generation covers "
+                     "gemm only; op=reduce") != std::string::npos);
+      assert(cap.find("model-only") != std::string::npos);
+    }
+    {
+      // A fresh ledger path: cmd_solve already created `led` for its lookup, so
+      // only an untouched path proves the refused run wrote nothing.
+      const std::string led2 = (dir / "led_run.jsonl").string();
+      const std::string cap_path = (dir / "run_refused.txt").string();
+      assert(spawn_cli("run --hcs \"" + hcs_path + "\" --vendor amd --kml \"" +
+                       k_red + "\" --ledger \"" + led2 + "\"", cap_path) == 2);
+      assert(!fs::exists(led2));  // gate precedes the ledger open at all
+    }
+    {
+      const std::string emit_dir = (dir / "emit").string();
+      const std::string cap_path = (dir / "solve_emit.txt").string();
+      assert(spawn_cli("solve --hcs \"" + hcs_path + "\" --kml \"" + k_gemm +
+                       "\" --ledger \"" + led + "\" --emit \"" + emit_dir + "\"",
+                       cap_path) == 0);
+      const std::string cap = slurp(cap_path);
+      assert(cap.find("EMIT amd:hip") != std::string::npos);
+      assert(cap.find("COVER amd:hip primitive=covered") != std::string::npos);
+      assert(fs::exists(emit_dir + "/uk_amd.cpp"));
+    }
+    fs::remove_all(dir);
+    std::cout << "[R10.3] kml/solve/run all carry the coverage lines; declaration "
+                 "rejection and end-to-end emit through --kml OK\n";
   }
 
   std::cout << "ACCEPTANCE PASS\n";

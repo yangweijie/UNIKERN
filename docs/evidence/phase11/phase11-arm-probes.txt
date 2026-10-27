@@ -31,3 +31,21 @@ residual ARM-PROBE markers: none
 100% tests passed, 0 tests failed out of 2
 
 Total Test time (real) =   0.77 sec
+
+# ---- Phase 12 后的复验（同一脚本，锚点已随 op_support_gap 加 layout 轴同步改写）----
+# 为什么要复验：本转录上方引用的 acceptance.cpp 行号是 Phase 11 当时编译产物的坐标，
+# 而 Phase 12 在测试文件更早处插入了 `[R1.1/2]` 段（其中一条断言也读 op_support_gap），
+# 于是"摘谓词"现在更早停下；行号坐标会随插入漂移，故本块给出当前复跑读数。
+=== ARM-PROBE predicate: layer disabled — the test below must notice ===
+Assertion failed: (op_support_gap(*pr.first).empty() == (pr.first->op == OpKind::Gemm)), function main, file acceptance.cpp, line 304.
+=== ARM-PROBE cli_gate: layer disabled — the test below must notice ===
+Assertion failed: (rc == 2), function main, file acceptance.cpp, line 1060.
+=== ARM-PROBE runner_gate: layer disabled — the test below must notice ===
+UNIKERN_RESULT backend=apple:metal verify=PASS max_rel=0.000000e+00 measured_ms=5.728908 kernel_ms=5.513292 mode=resident payload_mb=256.003906 perf=1048576x32x32
+ran=1 verified=1 measured_ms=5.72891
+runner refusal site is NOT covered by ctest: acceptance stays green here, which is why the probe exists
+ACCEPTANCE PASS
+residual ARM-PROBE markers: none
+100% tests passed, 0 tests failed out of 2
+# 结论不变：三层仍各自"摘掉即红"；runner 层依旧只有探针守着（ctest 同态全绿）。
+# 引用这三条腿时以**腿名 + 断言文本**为准，行号只作当次坐标。

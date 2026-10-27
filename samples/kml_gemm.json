@@ -1,0 +1,8 @@
+{
+  "op": "gemm",
+  "dtype": "fp32",
+  "dims": [512, 512, 512],
+  "tile_m": 64,
+  "tile_n": 128,
+  "layout": "NT"
+}

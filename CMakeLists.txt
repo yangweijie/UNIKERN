@@ -82,7 +82,9 @@ endif()  # WIN32
 
 # Core library: KML / HCS / solver / backends / runner / ledgers
 add_library(unikern_core STATIC
+  src/json_flat.cpp
   src/kml.cpp
+  src/kml_front.cpp
   src/hcs.cpp
   src/solver.cpp
   src/backends.cpp

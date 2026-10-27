@@ -8,7 +8,8 @@ G7 闭合：**非 GEMM 算子被静默当作 GEMM 执行/回写**这一缺陷面
 | phase11-defect-replay.txt | `probe/uk_op_probe_prerefusal.cpp` 的 A/B 两臂（A=摘掉 `op_support_gap` 谓词，B=当前提交态，库 md5 各自记录） | 缺陷本体当场可复跑：A 臂 `reduce:fp32:1048576x4096x4096` 的账本键下发出 `const int PM = 1048576, PN = 4096, PK = 4096;` 的 uk_gemm 且**零拒绝**；B 臂同一调用不 emit 任何内核、改发 `op_unsupported` |
 | phase11-cli-refusals.txt | `probe/phase11_cli_capture.sh` | CLI 四条臂的 rc 与输出：run/verify 拒绝（rc=2、账本文件**不创建**）、`--emit` 拒绝（目录**不创建**）、`--op conv` 在 parse 阶段按 arity 拒绝、`--op gemm` 对照仍解出 `PM = 64` 并三源齐发 |
 | phase11-runner-refusal.txt | `probe/uk_op_refuse_probe.mm` 编译并运行 | runner 层单独可证：内核取自 gemm 树、tree 参数取 reduce 树的**错配调用**被入口拒绝（probe_rc=0）；含本轮自捉的"量到过期产物"坑与 `-x none` 编译坑 |
-| phase11-arm-probes.txt | `python3 probe/phase11_arm_probes.py` | 三层各自"摘掉即红"：谓词 → acceptance 红于 `acceptance.cpp:895`；CLI 门 → 红于 `:927`；runner 入口门 → 探针转红（真机上跑出 `perf=1048576x32x32 verify=PASS` 的错配测量），且此态下 ctest 仍绿 → **runner 层的回归位是探针，不是单测**；收尾校验残留标记为 0 并 ctest 全绿 |
+| phase11-arm-probes.txt | `python3 probe/phase11_arm_probes.py` | 三层各自"摘掉即红"：谓词 → 红于断言 `op_support_gap(*pr.first).empty() == (op == Gemm)`；CLI 门 → 红于 run 臂的 `rc == 2`；runner 入口门 → 探针转红（真机上跑出 `perf=1048576x32x32 verify=PASS` 的错配测量），且此态下 ctest 仍绿 → **runner 层的回归位是探针，不是单测**；收尾校验残留标记为 0 并 ctest 全绿 |
+| phase11-arm-probes.txt 末尾复验块 | Phase 12 之后复跑同一脚本 | 三层结论不变；**行号坐标会随测试文件插入漂移**（Phase 12 在前部插入 `[R1.1/2]` 段后，谓词腿改停在更早的 `:304`、CLI 门改到 `:1060`），故引用这三条腿以腿名+断言文本为准，行号只作当次坐标 |
 | phase11-ctest.txt | `ctest --test-dir build-apple --output-on-failure` | 当前树 2/2 全绿（含 acceptance 新增 R10.2 臂） |
 | `probe/uk_op_gap_probe.cpp`、`probe/uk_op_probe_prerefusal.cpp`、`probe/uk_op_refuse_probe.mm`、`probe/phase11_cli_capture.sh`、`probe/phase11_arm_probes.py` | — | 探针源码本体（编译产物按 .gitignore 不入库） |
 

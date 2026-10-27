@@ -21,6 +21,7 @@ public:
   std::string generate(const Solution& s, const Hcs& h, const KmlTree& t) const override {
     return hip_runnable_program(s, h, t);  // complete self-verifying program
   }
+  bool supports_streaming() const override { return true; }  // R8.2 shard+prefetch
 };
 
 class BackendApple : public IBackend {
@@ -48,6 +49,25 @@ public:
     return ocl_kernel_source(s, h, t);
   }
 };
+
+std::vector<BackendCoverage> primitive_coverage(const KmlTree& tree) {
+  // The reason comes from the generators' own predicate, not a parallel table:
+  // a coverage report that disagrees with what generate() does is worse than
+  // no report at all.
+  const std::string gap = op_support_gap(tree);
+  std::vector<BackendCoverage> out;
+  for (const auto& b : make_backends()) {
+    BackendCoverage c;
+    c.backend = b->name();
+    c.primitive_covered = gap.empty();
+    c.reason = gap;
+    c.resident = true;  // in-process resident execution is verified for all three
+    c.streaming = b->supports_streaming();
+    c.toolchain_available = b->available();
+    out.push_back(c);
+  }
+  return out;
+}
 
 std::vector<std::unique_ptr<IBackend>> make_backends() {
   std::vector<std::unique_ptr<IBackend>> v;

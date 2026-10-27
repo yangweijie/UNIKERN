@@ -18,8 +18,30 @@ struct IBackend {
   virtual bool available() const = 0;  // toolchain probe (R10 honesty)
   virtual std::string generate(const Solution& sol, const Hcs& hcs,
                                const KmlTree& tree) const = 0;
+  // R10.1: this backend's execution capability interval. All three run a
+  // resident in-process instance; explicit scenario-B streaming (R8.2 shard +
+  // prefetch double buffering) is implemented only in the AMD program, and the
+  // other two runners refuse oversubscription loudly rather than degrade.
+  virtual bool supports_streaming() const { return false; }
 };
 std::vector<std::unique_ptr<IBackend>> make_backends();
+
+// R10.3: per-backend primitive coverage for a declared tree, as the solve
+// report prints it. Three axes are kept apart on purpose: the primitive
+// interval (can this backend generate the declared op/layout at all), the
+// execution interval (resident and/or explicit streaming), and toolchain
+// presence on this host. Covered-but-absent is still not runnable, and
+// present-but-uncovered must be stated rather than fallen through to another
+// vendor — the same no-silent-substitution rule R10.2 carries.
+struct BackendCoverage {
+  std::string backend;
+  bool primitive_covered = false;
+  std::string reason;  // empty when covered; names the unsupported field
+  bool resident = false;
+  bool streaming = false;
+  bool toolchain_available = false;
+};
+std::vector<BackendCoverage> primitive_coverage(const KmlTree& tree);
 
 // R2-R4: deterministic solve. Pure function of (hcs, tree) => P1.
 Solution solve(const Hcs& hcs, const KmlTree& tree);
@@ -29,6 +51,22 @@ Solution solve(const Hcs& hcs, const KmlTree& tree);
 std::optional<Hcs> hcs_import(const std::string& json, std::string* err = nullptr);
 std::string hcs_export(const Hcs& h);
 std::string hcs_fingerprint(const Hcs& h);
+
+// R1.1/R1.2: KML text front end — a flat-JSON declaration of op, dtype, dims,
+// tile, layout and composed children. Import reports EVERY structural
+// violation at once (same completeness rule as R9.2): unknown op/dtype names,
+// wrong dim arity for the op, non-positive or non-numeric dims, a layout the
+// generators do not implement, unknown or misspelled keys, and child nodes
+// prefixed by their path. A rejected declaration never reaches the solver.
+// Arity is hard-required per op: gemm 3 (M,N,K), conv 6 (H,W,C,Kh,Kw,outC),
+// reduce 1 (L) — a partially supplied shape is rejected rather than completed
+// from struct defaults.
+std::optional<KmlTree> kml_import(const std::string& json, std::string* err = nullptr);
+// Emits the same flat JSON, always fully explicit (tile and layout included),
+// so a written-out tree re-imports identically.
+std::string kml_export(const KmlTree& t);
+// The arity each op requires, as a printable spec ("3 (M,N,K)").
+const char* kml_dim_spec(OpKind op);
 
 // R7.3 calibration source: measured timings recorded by real runs.
 struct MeasuredRow {

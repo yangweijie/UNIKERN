@@ -1,0 +1,42 @@
+
+=== ARM-PROBE kml_arity (src/kml_front.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[R1] canonical uniqueness + illegal type-name rejection OK
+Assertion failed: (!r.first.has_value()), function main, file acceptance.cpp, line 323.
+--- kml_arity restored ---
+
+=== ARM-PROBE unknown_field_check (src/kml_front.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[R1] canonical uniqueness + illegal type-name rejection OK
+Assertion failed: (pr.second.find("4 violations") != std::string::npos), function main, file acceptance.cpp, line 313.
+--- unknown_field_check restored ---
+
+=== ARM-PROBE children_attribution_guard (src/kml_front.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[R1] canonical uniqueness + illegal type-name rejection OK
+Assertion failed: (ok.first.has_value()), function main, file acceptance.cpp, line 345.
+--- children_attribution_guard restored ---
+
+=== ARM-PROBE op_signature_arity (src/kml.cpp): leg disabled — a test must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[CAL] file-ledger formats + measured->link-bw median + version bump + export round-trip OK
+Assertion failed: (op_signature(c1) == "conv:fp32:64x64x32x3x3x64"), function main, file acceptance.cpp, line 783.
+--- op_signature_arity restored ---
+
+=== ARM-PROBE canonical_arity (src/kml.cpp): leg disabled — a test must notice ===
+[5/5] Linking CXX executable unikern_acceptance
+[CAL] file-ledger formats + measured->link-bw median + version bump + export round-trip OK
+Assertion failed: (canonical_form(r1) == canonical_form(r2)), function main, file acceptance.cpp, line 796.
+--- canonical_arity restored ---
+
+=== ARM-PROBE coverage_streaming_axis (src/backends.cpp): leg disabled — a test must notice ===
+[6/6] Linking CXX executable unikern_acceptance
+[R10.2] non-gemm ops refused at library, artifact and CLI level (no ledger row, no source emitted); gemm path unaffected OK
+Assertion failed: (c.streaming == (c.backend == "amd:hip")), function main, file acceptance.cpp, line 1133.
+--- coverage_streaming_axis restored ---
+
+residual ARM-PROBE legs: none
+[5/5] Linking CXX executable unikern_acceptance
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.84 sec

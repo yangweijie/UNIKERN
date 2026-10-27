@@ -91,6 +91,12 @@ struct Key {  // R7.1 ledger key
   std::string tree_hash;
 };
 
+// How many dims each op declares: gemm 3 (M,N,K), conv 6 (H,W,C,Kh,Kw,outC),
+// reduce 1 (L). Single owner — the text front end's arity check, kml_export and
+// op_signature all read this, so a ledger key can never disagree with what a
+// declaration means (a stale struct default must not leak into the key).
+int kml_arity(OpKind op);
+
 // R1.3 canonical form: fixed field order + commutative child normalization,
 // so structurally equivalent trees serialize identically.
 std::string canonical_form(const KmlTree& tree);

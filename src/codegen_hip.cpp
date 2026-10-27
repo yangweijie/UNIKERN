@@ -36,9 +36,14 @@ EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol) {
   return t;
 }
 
+bool codegen_layout_supported(const std::string& layout) { return layout == "NT"; }
+
 std::string op_support_gap(const KmlTree& tree) {
-  if (tree.op == OpKind::Gemm) return "";
-  return std::string("kernel generation covers gemm only; op=") + to_string(tree.op);
+  if (tree.op != OpKind::Gemm)
+    return std::string("kernel generation covers gemm only; op=") + to_string(tree.op);
+  if (!codegen_layout_supported(tree.layout))
+    return "kernel generation implements layout=NT only; layout=" + tree.layout;
+  return "";
 }
 
 std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
