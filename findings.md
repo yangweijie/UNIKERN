@@ -481,6 +481,35 @@
   `9759d55a…`，全演进记录 `binary-md5.txt`，文档引用历史锚必须标注时点
 - 收尾状态：ctest 2/2 绿、工作区净（仅 .serena/ 会话前即存在）、HEAD df44dd8
 
+
+## Phase 17 Intel 三算子真机验证闭合（2026-10-28，开放缺口①）
+- **机器身份口径**：本仓库由多台机器并行推进——v12/v12.1 写的"本机无 Intel 设备、
+  backends intel=no"是 AMD 机器侧会话的机器相关读数；本会话在 Intel Arc B390 机器上
+  同一命令实测 intel=yes。两份转录并存（phase15/intel-r1-command.txt 与
+  phase17/phase17-backends.txt），文档引用时必须注明机器侧
+- 真机结果（B390，驱动 32.0.101.9150）：conv 首次真机执行 verify=PASS max_rel=0
+  （64×64×32×3×3×64 位级一致）→ COMMIT ε_rel=13.5646 → HIT；reduce 首次真机执行
+  verify=PASS max_rel=0 → COMMIT ε_rel=0.883955 → HIT；gemm 回归 1024³
+  verify=PASS max_rel=0 → COMMIT ε_rel=2.4714 → HIT（与 Phase 9 同键同 tile 不变）
+- **E18（规格误读，Phase 9 引入）**：`CL_DEVICE_MAX_WORK_ITEM_SIZES` 限制的是
+  **本地工作组**每维大小，不是全局网格——规格里 global_work_size 无每维上限；
+  runner 此前把它当全局上限做 launch 前检查，reduce 的 P=4096 被错误拒绝。
+  暴露点："verify=PASS 与 refused 并存"（verify 阶段同一发射在设备上真实执行且
+  位级一致）。修复：删错误检查，代之以真值门（gemm 显式 local 16×16=256 对
+  CL_DEVICE_MAX_WORK_GROUP_SIZE；conv/reduce 传 nullptr local 由驱动自选）。
+  HIP conv 程序的 grid_too_large（gridDim.y/z ≤ 65535）是真实硬件限值，不受影响
+- **E19（计时竞态）**：事件完成前读 clGetEventProfilingInfo——规格应返回
+  CL_PROFILING_INFO_NOT_AVAILABLE，本机 Intel NEO 驱动实测返回 CL_SUCCESS+全零
+  → 间歇性 measured_ms=0。Phase 9-16 的证据恰好每次都赢了该竞态（宿主入队慢于
+  设备执行）。修复：读前 clWaitForEvents 等 pass 末尾标记——与生成的 HIP 程序
+  "hipEventSynchronize 后再读"同一纪律；e2e 与 kernel-only 两括号都加
+- 分级：两缺陷均在 runner 设备执行路径上，ctest（CPU 侧）无回归位——沿 Phase 11 d
+  先例以转录承载"摘除即红"（前后对照 phase17/phase17-defects-before-after.txt）；
+  E19 竞态间歇性，无法在探针中确定性复红，如实分级
+- 教训：真机执行路径的"从未在真设备上跑过"的代码（Phase 14 只有 clang 语法检查）
+  首跑即暴露两个潜伏缺陷——语法检查不等于执行验证；证据里 verify 与计时自相矛盾的
+  读数（PASS 但 measured=0）永远值得当场追查，不是噪声
+
 ## Phase 18 G5 长测半边（R8.5 后半：告警率 → 违规记录 → 重新求解，2026-10-28）
 
 - **规格原文核对**（`.monkeycode/specs/unikern-mvp/requirements.md:98-103` R8.5）：要求两件事——
@@ -1847,8 +1876,6 @@
   运行时。512-token prefill 仅 GEMM 下界外推 ≈954 ms（≈537 tok/s）。
 - KML 前端按 R1.2 拒绝未知字段 `comment`——声明文件里塞注释的"便利"被仪器挡下，
   出处说明必须住在证据 README。`ctest` 7/7。
-
-## Phase 63 差距审计总结（2026-10-30）
 
 - **审计范围**：对照 AGENTS.md 一句话目标（KML→Solve→Generate→Verify→Ledger）与 Requirements R1-R10，基于 Phase 63 证据（GGUF 解析、设备实测 HCS、5 真实形状真机 PASS、calibrate 闭环、模型级外推）。
 - **差距 10 类**（按优先级）：

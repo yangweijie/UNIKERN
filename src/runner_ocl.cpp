@@ -14,9 +14,9 @@
 // Resident-only (MVP): when the payload exceeds 0.85 * vram the runner
 // refuses with UNIKERN_ERROR — no silent streaming fallback (R10). The
 // generated source itself declares this boundary (codegen_other.cpp banner).
-// A grid that would exceed CL_DEVICE_MAX_WORK_ITEM_SIZES is refused the same
-// way (B390 caps each global dim at 1024 threads; the solved/emitted tile
-// keeps the evidence dims within the cap).
+// Launch legality is gated on the real limits (E18): global grids have no
+// per-dimension cap; gemm's required 16x16 local work group is checked
+// against CL_DEVICE_MAX_WORK_GROUP_SIZE.
 //
 // UK_HAS_OCL (defined by CMake when an OpenCL import library was found):
 // without it this file compiles to an honest stub reporting that OpenCL was
@@ -163,7 +163,7 @@ struct TimingPlan {
   bool stream_refuse = false;    // payload > 0.85 * vram
   int warm = 2, iters = 10;
   double payload_mb = 0;
-  size_t max_wi[3] = {1024, 1024, 1024};
+  size_t max_wg = 1024;  // CL_DEVICE_MAX_WORK_GROUP_SIZE (local work-group cap)
 };
 
 // Launch width for reduce pass 1, OpenCL side. Before Phase 51 this was a copied constant
@@ -292,7 +292,13 @@ TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
   const bool big_ws = p.payload > (2ULL << 30);
   p.warm = big_ws ? 1 : 2;
   p.iters = big_ws ? 1 : 10;
-  clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(p.max_wi), p.max_wi, nullptr);
+  // E18 correction: CL_DEVICE_MAX_WORK_ITEM_SIZES bounds each dimension of
+  // the LOCAL work-group, not the global grid — clEnqueueNDRangeKernel's
+  // global_work_size has no per-dimension cap (measured: a 4096-wide reduce
+  // launch executes exactly on this device). The honest launch gate is on the
+  // only explicit local size the runner passes (gemm's required 16x16 = 256).
+  clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(p.max_wg), &p.max_wg,
+                  nullptr);
   return p;
 }
 
@@ -353,9 +359,8 @@ void note_plan(const TimingPlan& p) {
 }
 
 // Set the six kernel args (3 buffers + 3 ints) and launch the full PM x PN
-// grid. Callers guarantee the grid fits within CL_DEVICE_MAX_WORK_ITEM_SIZES
-// (the timing plan is checked before the timing phase; the 256^3 verify grid
-// always fits).
+// grid (global sizes are unbounded per spec — E18; the gemm local work group
+// is gated by the plan against CL_DEVICE_MAX_WORK_GROUP_SIZE).
 void launch_gemm(OclAll& a, cl_mem dA, cl_mem dB, cl_mem dC, int M, int N, int K,
                  const TimingPlan& p) {
   size_t gws[3] = {size_t((N + p.TN - 1) / p.TN) * 16,
@@ -440,6 +445,15 @@ Span time_passes(OclAll& a, const std::function<void()>& h2d,
     d2h();
     UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &t1), "marker t1");
     if (uk_ocl_fail) return sp;
+    // The pass-end marker gates the profiling read: reading timestamps of
+    // commands that have not completed is a race, and this driver returns
+    // CL_SUCCESS with zero timestamps for pending events (observed: an
+    // intermittent measured_ms=0) instead of the spec's
+    // CL_PROFILING_INFO_NOT_AVAILABLE. Wait for the pass to finish first —
+    // the same discipline the generated HIP program applies with
+    // hipEventSynchronize before hipEventElapsedTime.
+    UK_OCL_CK(clWaitForEvents(1, &t1), "wait t1");
+    if (uk_ocl_fail) return sp;
     cl_ulong s0 = 0, s1 = 0;
     UK_OCL_CK(clGetEventProfilingInfo(t0, CL_PROFILING_COMMAND_START, sizeof(s0), &s0,
                                       nullptr), "p0");
@@ -459,6 +473,8 @@ Span time_passes(OclAll& a, const std::function<void()>& h2d,
     if (uk_ocl_fail) return sp;
   }
   UK_OCL_CK(clEnqueueMarkerWithWaitList(a.q, 0, nullptr, &k1), "marker k1");
+  if (uk_ocl_fail) return sp;
+  UK_OCL_CK(clWaitForEvents(1, &k1), "wait k1");  // same race gate as t1 (E19)
   if (uk_ocl_fail) return sp;
   cl_ulong ks0 = 0, ks1 = 0;
   UK_OCL_CK(clGetEventProfilingInfo(k0, CL_PROFILING_COMMAND_START, sizeof(ks0), &ks0,
@@ -705,28 +721,19 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
                   "implemented)\n";
     return finish();
   }
-  // The launch must fit CL_DEVICE_MAX_WORK_ITEM_SIZES. gemm's grid is expressed
-  // in workgroups of 16x16; conv and reduce launch global sizes directly, so
-  // the bound is checked on those numbers.
-  int gx = 0, gy = 0;
-  if (plan.op == OpKind::Gemm) {
-    gx = ((plan.PN + plan.TN - 1) / plan.TN) * 16;
-    gy = ((plan.PM + plan.TM - 1) / plan.TM) * 16;
-  } else if (plan.op == OpKind::Conv) {
-    gx = plan.Wd - plan.Kw + 1;
-    gy = plan.H - plan.Kh + 1;
-  } else {
-    gx = plan.P;
-    gy = 1;
-  }
-  if (size_t(gx) > plan.max_wi[0] || size_t(gy) > plan.max_wi[1]) {
-    std::cout << "UNIKERN_ERROR what=grid_too_large gws=" << gx << "x" << gy
-              << " max_wi=" << plan.max_wi[0] << "x" << plan.max_wi[1] << "\n"
-              << "intel:ocl runner refuses: the timing grid exceeds "
-              << "CL_DEVICE_MAX_WORK_ITEM_SIZES (chunked/SVM launches are not "
-              << "part of the MVP runner). Reduce --dims or the solved tile "
-              << "(R10).\n";
-    uk_ocl_log += "UK_RUNNER refused: grid exceeds CL_DEVICE_MAX_WORK_ITEM_SIZES\n";
+  // Launch-legality gate against the REAL OpenCL limits (E18): global grid
+  // sizes have no per-dimension cap, so the only honest check is on the local
+  // work-group — the runner passes an explicit local size only for gemm (the
+  // kernel requires 16x16 = 256 items); conv/reduce pass nullptr and the
+  // driver picks a legal local size (a violation would fail the enqueue
+  // loudly via UK_OCL_CK, never silently).
+  if (plan.op == OpKind::Gemm && size_t(256) > plan.max_wg) {
+    std::cout << "UNIKERN_ERROR what=workgroup_too_large wg=256"
+              << " max_wg=" << plan.max_wg << "\n"
+              << "intel:ocl runner refuses: the gemm kernel's required 16x16 "
+              << "work group does not fit CL_DEVICE_MAX_WORK_GROUP_SIZE on "
+              << "this device (R10).\n";
+    uk_ocl_log += "UK_RUNNER refused: work group exceeds CL_DEVICE_MAX_WORK_GROUP_SIZE\n";
     return finish();
   }
 

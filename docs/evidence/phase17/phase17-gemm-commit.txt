@@ -1,0 +1,17 @@
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.846474 kernel_ms=1.042104 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+COVER intel:ocl primitive=covered execution=resident-only toolchain=present
+RUN intel:ocl built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.84647
+-- log tail --
+me=Intel(R) Arc(TM) B390 GPU
+UK_DEVICE_VENDOR vendor=Intel(R) Corporation
+UK_DEVICE_VERSION version=OpenCL 3.0 NEO 
+UK_DEVICE_DRIVER driver=32.0.101.9150
+UK_DEVICE_UNITS units=96
+UK_DEVICE_MEM gmem=27207761920
+UK_DEVICE_MEM lmem=131072
+UK_DEVICE_CLOCK clock_mhz=2500
+UK_DEVICE_UNIFIED host_unified=1
+UK_DEVICE_WG max_wg=1024
+UK_RUNNER plan op=gemm perf=1024x1024x1024 tile=96x96 vram_bytes=27207761920 payload_mb=12.000000 warm=2 iters=10
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=1.846474 kernel_ms=1.042104 mode=resident payload_mb=12.000000 perf=1024x1024x1024
+LEDGER COMMIT predicted_ms=0.482694 measured_ms=1.84647 epsilon_abs=1.36378 epsilon_rel=2.82535

@@ -362,21 +362,29 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
   （当前 unikern.exe `9759d55a…` / acceptance `1c0f8620…` 不变）
 - [x] ctest 2/2 绿；工作区净（仅 .serena/ 未跟踪，会话前即存在）；HEAD = df44dd8
 
-## Session 2026-10-28 续3（Phase 17 — better-harness Harness 复核）
-- [x] Step 1 冻结证据封套：`harness evidence-bundle`（normal / zh-CN / 30 天窗口 /
-  include-memories）→ `status=complete`，三道 + lead 全 available，partial/unavailable 空
-- [x] Step 2 三条独立证据道并行（各自只看自己那道 + 自己的参考文档，不读封套其他部分）；
-  会话道定位到"默认提供者主目录读不到会话"这一不可达口径，并以显式主目录覆盖重跑证伪
-  "不存在"（`.qoder` 无本工作区存储根；`.qoder-cn` 有，但唯一会话即本次复核自身）
-- [x] Step 3 lead 复核：抽验并确认 3/4 处代码锚点漂移、"本机事实"与实测相反、
-  build/ 内被引用证据未跟踪且读数已变、探针对被跟踪源码无恢复保证；合并 Agent2 C1 与
-  Agent3 #3（同一后果/所有者/修复路径），deferred 明文 key 与 advisory 与 `.serena` 噪声
-- [x] Step 4 渲染校验：`harness render --mode qoder-harness --validate` → `status=pass`，
-  产物 canvas.json / findings.json / report.canvas.tsx（运行目录
-  `.qoder/better-harness-runs/2026-10-28-unikern/`，采集与分道临时件移入同级 `-scratch` 目录）
-- [x] 规划文件落账（本段 + task_plan Phase 17 行与子任务表 + findings Harness 复核事实段）
-- 状态：本次复核为只读，未改任何 src/tests/docs 文件；工作树仅新增未跟踪 `.qoder/`；
-  **未提交**（提交需明确指示）；finding 修复全部待单独授权
+## Session 2026-10-28（Phase 17 — Intel 三算子真机运行验证，开放缺口①闭合）
+- [x] 机器口径澄清：v12 的"本机无 Intel 设备、intel=no"是 AMD 机器侧并行会话的读数；
+  本会话运行于 Intel Arc B390 机器，同一 backends 命令实测 intel=yes（两份转录并存）
+- [x] 本机基线：Phase 10-16 变更后的 CMake 重新配置（OpenCL 发现 → -DUK_HAS_OCL）
+  + 构建 + ctest 2/2 绿
+- [x] gemm 回归：1024³ verify=PASS max_rel=0 → COMMIT ε_rel=2.4714 → 同键 HIT
+  （与 Phase 9 同键同 tile，行为不变）
+- [x] conv 真机首验：--kml samples/conv.kml → verify=PASS max_rel=0 → COMMIT
+  ε_rel=13.5646 → HIT（Phase 14 只做过 clang 语法检查，首次真机执行）
+- [x] reduce 真机首验 + E18 修复：首跑被错误拒绝（grid_too_large——
+  CL_DEVICE_MAX_WORK_ITEM_SIZES 是本地工作组上限而非全局网格上限，verify=PASS 与
+  refused 并存即暴露点）→ 删错误检查、代之以 gemm local 256 对
+  CL_DEVICE_MAX_WORK_GROUP_SIZE 的真值门 → verify=PASS max_rel=0 → COMMIT
+  ε_rel=0.883955 → HIT
+- [x] E19 修复：time_passes 事件完成前读 profiling——本机驱动返回全零而非
+  NOT_AVAILABLE → 间歇性 measured_ms=0（本会话实测捕获一次）；读前 clWaitForEvents
+  （与 HIP 程序 hipEventSynchronize 同纪律），e2e 与 kernel-only 两括号都加
+- [x] 证据入库 docs/evidence/phase17/（backends/ctest/三算子 commit+hit 转录 +
+  E18/E19 前后对照 + README）+ acceptance-mvp v13 + task_plan（Phase 17 行 +
+  E18/E19）/findings/progress 落定
+- [x] 目标核验：本机可做项清零——剩余开放缺口 ②（AMD 机器侧长测）③（V1）
+  ④（开放型 R&D）均非本机任务，据实分类
+
 
 ## Session 2026-10-28 续4（Phase 18 — G5 长测半边 / R8.5 后半，本机真机）
 - [x] 先测量后定标：32768³ 流式在 Phase 16 守卫落地后**首次**真机重跑 →

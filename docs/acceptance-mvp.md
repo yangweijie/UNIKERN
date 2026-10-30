@@ -1,6 +1,6 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8/9/10
 
-- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**；**v10 Phase 14：Intel/OpenCL 的 conv/reduce——`ocl_kernel_source` 三算子内核 + `ocl_op_gap`/per-backend 覆盖 + runner_ocl 按算子分派；三份 .cl 过 clang 的 OpenCL 前端（负测可红），runner host 侧仅编译检查（本机无 Intel 设备，运行未验）；能力面变三向；新增 [R14]，Phase 13 中"OpenCL 仍 gemm-only"的结论据实标记取代**；**v11 Phase 15（2026-10-28）：AMD 收尾——`hip_runnable_program` 按算子分派，conv 出 `uk_conv`、reduce 出 `uk_reduce_part`+`uk_reduce_sum`（各自独立程序、CPU 参考内嵌、gemm 程序逐位不变）；`op_support_gap()` 翻转为三算子 covered（layout 是唯一拒绝轴）；RX 6600M 真机 conv/reduce/gemm 全部 verify=PASS max_rel=0 → COMMIT → 同键 HIT；新增 [R15]，R5/R6/R10 行据实更新，[R10.2] 的 op 拒绝臂改为"不可用后端诚实失败"臂**；**v12 验收收尾（2026-10-28）：两项真机成果落账——① G1 执行半边的 AMD 侧闭合确认（G1 全闭合，缺口表据实改写）；② G5/R8.5 驻留守卫（Phase 16，ea76c2f）真机验证：HIP 三程序内嵌 uk_mmalloc 驻留断言，RX 6600M 三算子真机 run 全 `migrations=0`，当前二进制上复核重采（backends / emit 三源行数 / 三 run×COMMIT+HIT / ctest 2/2 绿，`docs/evidence/phase15/phase15-recheck-v12.txt`）；Intel conv/reduce 真机运行维持如实标注（本机无 Intel 设备，backends 实测 intel=no）**；**v12.1 独立复核修订（2026-10-28）：① 汇总矩阵 R1 行与 R1 详段系 v8/v9 旧文未随 v11/v12 更新（仍写"AMD/Intel 执行半边待下一批"与"rc=2 且不建账本"），与本文件 G1 全闭合结论矛盾——已据实改判（AMD 真机 COMMIT→HIT、Intel 本机实测 `COVER covered`+`RUN FAILED` rc=1 零落库，旧 rc=2 读数标注为 Phase 12 时代）；② Phase 14 补遗引用的失败消息「no Intel GPU platform/device found」改注出处（Mac 侧构建 + `uk_ocl_log`（`src/runner_ocl.cpp:516`）），并补 Windows 构建的实测消息（消息随构建而异，rc=1 与零落库两承重事实不变）；③ Phase 9 ocloc AOT 证据产物三件（build/phase9-emit/）工作区误删已由 git 恢复；④ 自捉修复：`unikern ledger <path>` 子命令静默忽略路径参数（main.cpp 硬编码 kDefaultLedger，G7 同类静默）——已改为尊重参数并重验**
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**；**v10 Phase 14：Intel/OpenCL 的 conv/reduce——`ocl_kernel_source` 三算子内核 + `ocl_op_gap`/per-backend 覆盖 + runner_ocl 按算子分派；三份 .cl 过 clang 的 OpenCL 前端（负测可红），runner host 侧仅编译检查（本机无 Intel 设备，运行未验）；能力面变三向；新增 [R14]，Phase 13 中"OpenCL 仍 gemm-only"的结论据实标记取代**；**v11 Phase 15（2026-10-28）：AMD 收尾——`hip_runnable_program` 按算子分派，conv 出 `uk_conv`、reduce 出 `uk_reduce_part`+`uk_reduce_sum`（各自独立程序、CPU 参考内嵌、gemm 程序逐位不变）；`op_support_gap()` 翻转为三算子 covered（layout 是唯一拒绝轴）；RX 6600M 真机 conv/reduce/gemm 全部 verify=PASS max_rel=0 → COMMIT → 同键 HIT；新增 [R15]，R5/R6/R10 行据实更新，[R10.2] 的 op 拒绝臂改为"不可用后端诚实失败"臂**；**v12 验收收尾（2026-10-28）：两项真机成果落账——① G1 执行半边的 AMD 侧闭合确认（G1 全闭合，缺口表据实改写）；② G5/R8.5 驻留守卫（Phase 16，ea76c2f）真机验证：HIP 三程序内嵌 uk_mmalloc 驻留断言，RX 6600M 三算子真机 run 全 `migrations=0`，当前二进制上复核重采（backends / emit 三源行数 / 三 run×COMMIT+HIT / ctest 2/2 绿，`docs/evidence/phase15/phase15-recheck-v12.txt`）；Intel conv/reduce 真机运行维持如实标注（本机无 Intel 设备，backends 实测 intel=no）**；**v12.1 独立复核修订（2026-10-28）：① 汇总矩阵 R1 行与 R1 详段系 v8/v9 旧文未随 v11/v12 更新（仍写"AMD/Intel 执行半边待下一批"与"rc=2 且不建账本"），与本文件 G1 全闭合结论矛盾——已据实改判（AMD 真机 COMMIT→HIT、Intel 本机实测 `COVER covered`+`RUN FAILED` rc=1 零落库，旧 rc=2 读数标注为 Phase 12 时代）；② Phase 14 补遗引用的失败消息「no Intel GPU platform/device found」改注出处（Mac 侧构建 + `src/runner_ocl.cpp:434`），并补 Windows 构建的实测消息（消息随构建而异，rc=1 与零落库两承重事实不变）；③ Phase 9 ocloc AOT 证据产物三件（build/phase9-emit/）工作区误删已由 git 恢复；④ 自捉修复：`unikern ledger <path>` 子命令静默忽略路径参数（main.cpp 硬编码 kDefaultLedger，G7 同类静默）——已改为尊重参数并重验**；**v13 Phase 17（2026-10-28）：Intel conv/reduce/gemm 三算子真机运行验证（开放缺口①闭合）——本会话运行于 Intel Arc B390 机器（v12 的「本机无 Intel 设备」是 AMD 机器侧会话的机器相关读数），conv/reduce 首次真机执行即 verify=PASS max_rel=0 → COMMIT → 同键 HIT，gemm 回归不变；顺带修复两个真机暴露缺陷：E18（把 LOCAL 工作组上限误当全局网格上限的规格误读，reduce 被错误拒绝——verify=PASS 与 refused 并存即暴露点）与 E19（事件完成前读 profiling 的竞态，驱动返回全零时间戳 → 间歇性 measured_ms=0），前后对照转录 docs/evidence/phase17/phase17-defects-before-after.txt**
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）；**Phase 9（Intel 段）另用 MSVC 2022 Community（cl.exe 14.44 + vcvarsall 环境）构建，OpenCL 经 oneAPI 2026.1/lib/OpenCL.lib 导入库链接 + third_party/CL 厂商头（18 头，Apache-2.0），构建标志含 -DUK_HAS_OCL**（MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；GCC 风格 -Wall/-Wextra 按编译器翻译）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
@@ -25,8 +25,8 @@
 | R2 多面体可行域 F | 单测：独立复算 5×5 网格过滤期望 | `[R2] filter 22/25, violation records + \|X\| OK` | ✅ |
 | R3 确定性代价 C | 单测：10⁴ 次同线程逐位一致 + 常量采纳 + 版本随 HCS 透传 | `[R3] C bitwise-stable over 10^4 repeats`；`CALIBRATED constants_version 1 -> 2` | ✅ |
 | R4 唯一最优解 | 单测：等价类字典序裁决 + 不可行终止 | `[R4] argmin (128,128) via canonical key` | ✅ |
-| R5 三厂商后端生成 | 单测：三源非空 + 头部指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数；v9 增 per-op 内核结构臂；v10 增 OpenCL 三算子内核结构臂；**v11 增 HIP 三算子程序结构臂（[R15]）** | `[R14] OpenCL sources per op ... OK`、`[R15] HIP sources per op: conv/reduce programs carry only their own kernels ... OK`；conv/reduce 的 HIP 程序过 `hipcc --offload-arch=gfx1032` 真编译（`docs/evidence/phase15/phase15-compile-and-gemm-identity.txt`） | ✅（生成侧三厂商三算子；**执行侧 Apple 三算子真机、AMD 三算子真机、Intel 三算子编译级**） |
-| R6 差分验证 | 单测：容差函数 verify_fp32 五路径 + v9 的 conv/reduce 共享 CPU 参考手算用例；真机：生成程序/runner 自带 CPU 对拍 + CLI run | `[R13] conv/reduce CPU references exact ... OK`；Apple 的 gemm/conv/reduce 均 `verify=PASS max_rel=0`；**AMD 的 conv/reduce/gemm 也 verify=PASS max_rel=0（v11，RX 6600M；v12 复采六轮同 PASS 且 UNIKERN_RESULT 尾 `migrations=0`，`docs/evidence/phase15/phase15-recheck-v12.txt`）**；Intel 侧 verify 代码路径只过编译检查（本机无 Intel 设备，运行未验） | ✅（Apple 三算子真机；AMD 三算子真机；Intel 三算子待真机） |
+| R5 三厂商后端生成 | 单测：三源非空 + 头部指纹与 toolchain + 纯函数 + 跨厂商 API 隔离；CLI `--emit` 行数；v9 增 per-op 内核结构臂；v10 增 OpenCL 三算子内核结构臂；**v11 增 HIP 三算子程序结构臂（[R15]）** | `[R14] OpenCL sources per op ... OK`、`[R15] HIP sources per op: conv/reduce programs carry only their own kernels ... OK`；conv/reduce 的 HIP 程序过 `hipcc --offload-arch=gfx1032` 真编译（`docs/evidence/phase15/phase15-compile-and-gemm-identity.txt`） | ✅（生成侧三厂商三算子；**执行侧 Apple 三算子真机、AMD 三算子真机、Intel 三算子真机（v13，B390）**） |
+| R6 差分验证 | 单测：容差函数 verify_fp32 五路径 + v9 的 conv/reduce 共享 CPU 参考手算用例；真机：生成程序/runner 自带 CPU 对拍 + CLI run | `[R13] conv/reduce CPU references exact ... OK`；Apple 的 gemm/conv/reduce 均 `verify=PASS max_rel=0`；**AMD 的 conv/reduce/gemm 也 verify=PASS max_rel=0（v11，RX 6600M；v12 复采六轮同 PASS 且 UNIKERN_RESULT 尾 `migrations=0`，`docs/evidence/phase15/phase15-recheck-v12.txt`）**；Intel 侧 v13 在 B390 真机验证：conv/reduce/gemm 三算子 verify=PASS max_rel=0（`docs/evidence/phase17/`） | ✅（Apple 三算子真机；AMD 三算子真机；Intel 三算子真机） |
 | R7 解账本 SQLite | 单测：往返/命中含 tile/事务崩溃恢复/实测与 kernel_ms 持久化；CLI 校准闭环；R7.3 场景 A 校准门控四臂；v8 增 R7.1/G9 键身份臂；**v9 增 conv/reduce 实测行端到端** | `[R7.1] op_signature encodes the op's full arity ... OK`；conv `LEDGER COMMIT ε_rel=334.619` → 同键 `LEDGER HIT` → 再 COMMIT `ε_rel=243.931`；reduce `ε_rel=10.9052` / HIT 轮 `8.86814`（`docs/evidence/phase13/phase13-conv-reduce-device.txt`） | ✅ |
 | R8 多级存储与流式 | 单测：场景 A/B 放置记录内容断言；真机 streamed | `[R8] scenario A/B placement records explicit + distinct OK`；`mode=streamed shards=64 prefetch_d=2`，e2e 40.5 s（AMD）；**Apple M4 场景 A 真机 resident 执行 PASS（零拷贝语义，placement=unified_memory 单测已验）** | 🟡（AMD 流式 ✅；Apple 场景 A resident ✅；**Intel/Apple resident-only，流式不实现**——生成程序横幅声明此边界，payload > 0.85×上限时 runner 如实 `UNIKERN_ERROR what=stream_refused` 拒绝（R10 无静默降级），如实标注） |
 | R9 HCS 导入 | 单测：必填缺失全量报告 + 无误报 + 指纹 | `[R9] complete missing-field rejection + fingerprint OK` | ✅ |
@@ -56,13 +56,13 @@ $ ./build/unikern_acceptance.exe
 [R1] canonical uniqueness + illegal type-name rejection OK
 ```
 
-**状态：✅ 本机已验（v12.1 据实改判；v8-v10 期间曾因执行半边未齐保留 🟡，本段旧文同 R1 行一并过期）**。R1.3 唯一性本机已验。R1.2 缺口在 v8 闭合：KML 文本前端落地（`kml_import`/`kml_export`），非法声明一次列全所有违规（未知/拼写错误字段、op 与 dtype 名、dims 个数与非整数与非正数、layout 不支持、子节点带路径前缀），拒绝即 rc=2 且不进求解。R1.1 的执行半边已按厂商逐家闭合：Apple 真机（v9 声明驱动 512³ COMMIT/HIT；Phase 13 conv/reduce 真机）；**AMD 真机（v11/Phase 15：conv/reduce/gemm 全 COMMIT→HIT，v12 复采含 migrations=0）**；**Intel 侧为编译级**（v10/Phase 14：三算子 .cl 过 clang 的 OpenCL 前端；本机无 Intel 设备——2026-10-28 实测 `run --hcs samples/hcs_amd.json --vendor intel --kml samples/conv.kml`（全量转录 `docs/evidence/phase15/intel-r1-command.txt`）以 `COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1 收场、solution 零落库，是诚实失败而非能力拒绝（转录内根因逐字可见：本机构建期无 OpenCL 导入库 → runner stub，且本机无 Intel 设备/平台），真机运行待 Intel 机器）。v8 也说清 layout 口径：只接受 "NT"（三后端 emitted kernel 实际按 A[M][K]/B[K][N]/C[M][N] 行主序索引的标签），其它值在**前端**就拒——不是收下后按行主序默默执行，那正是 G7 的同类静默。
+**状态：✅ 本机已验（v12.1 据实改判；v8-v10 期间曾因执行半边未齐保留 🟡，本段旧文同 R1 行一并过期）**。R1.3 唯一性本机已验。R1.2 缺口在 v8 闭合：KML 文本前端落地（`kml_import`/`kml_export`），非法声明一次列全所有违规（未知/拼写错误字段、op 与 dtype 名、dims 个数与非整数与非正数、layout 不支持、子节点带路径前缀），拒绝即 rc=2 且不进求解。R1.1 的执行半边已按厂商逐家闭合：Apple 真机（v9 声明驱动 512³ COMMIT/HIT；Phase 13 conv/reduce 真机）；**AMD 真机（v11/Phase 15：conv/reduce/gemm 全 COMMIT→HIT，v12 复采含 migrations=0）**；**Intel 侧为编译级**（v10/Phase 14：三算子 .cl 过 clang 的 OpenCL 前端；本机无 Intel 设备——2026-10-28 实测 `run --hcs samples/hcs_amd.json --vendor intel --kml samples/conv.kml`（全量转录 `docs/evidence/phase15/intel-r1-command.txt`）以 `COVER intel:ocl primitive=covered` + `RUN FAILED` rc=1 收场、solution 零落库，是诚实失败而非能力拒绝（转录内根因逐字可见：本机构建期无 OpenCL 导入库 → runner stub，且本机无 Intel 设备/平台），真机运行于 v13 在 Intel 机器上闭合：conv/reduce/gemm 三算子 verify=PASS max_rel=0 → COMMIT → HIT，`docs/evidence/phase17/`）。v8 也说清 layout 口径：只接受 "NT"（三后端 emitted kernel 实际按 A[M][K]/B[K][N]/C[M][N] 行主序索引的标签），其它值在**前端**就拒——不是收下后按行主序默默执行，那正是 G7 的同类静默。
 
 ### R2 — 多面体可行域判定（F）
 
 **要求**：R2.2 可行候选入 X；R2.3 不可行候选输出约束违反记录并淘汰；R2.4 报告 |X|。
 
-**验收方式**：构造 vram=200 KiB 的 HCS，使文档化的 5×5 tile 网格 {16,32,64,128,256}²（`tm`/`tn` 在 `sketch` `src/solver.cpp:16-17`）被谓词 `m*n*4B*3 ≤ cap`（`feasible` 在 `src/solver.cpp:42-57`）切成 22 可行 / 3 不可行；测试内**独立复算**该期望值（不复制 solver 状态），再断言 `feasible_count`、`worst` 违反记录（约束名 + `tile=/need=/cap=` 明细）。
+**验收方式**：构造 vram=200 KiB 的 HCS，使文档化的 5×5 tile 网格 {16,32,64,128,256}²（`src/solver.cpp:16-17`）被谓词 `m*n*4B*3 ≤ cap`（`src/solver.cpp:42-57`）切成 22 可行 / 3 不可行；测试内**独立复算**该期望值（不复制 solver 状态），再断言 `feasible_count`、`worst` 违反记录（约束名 + `tile=/need=/cap=` 明细）。
 
 **证据**：
 
@@ -70,7 +70,7 @@ $ ./build/unikern_acceptance.exe
 [R2] filter 22/25, violation records + |X| OK
 ```
 
-违反记录样例（首条，枚举序首个越界者）：`constraint="tile_working_set<=device_capacity"`，`detail` 含 `tile=128x256 need=393216B cap=204800B`。CLI 侧同口径：`solve` 输出 `|X|=25`（满容量）/ 不可行时 `INFEASIBLE` 退 3（`INFEASIBLE` 打印在 `src/main.cpp:269`，`print_infeasible`）。
+违反记录样例（首条，枚举序首个越界者）：`constraint="tile_working_set<=device_capacity"`，`detail` 含 `tile=128x256 need=393216B cap=204800B`。CLI 侧同口径：`solve` 输出 `|X|=25`（满容量）/ 不可行时 `INFEASIBLE` 退 3（`src/main.cpp:199-201`）。
 
 **状态：✅ 本机已验**。
 
@@ -150,9 +150,7 @@ Phase 10（2026-10-27）经 Metal 运行时 JIT 真编译真执行**（`newLibra
 
 **要求**：R6.1 与 CPU 参考比对；R6.2 分级容差（FP32 ≤ 2⁻⁵）；R6.3 比对失败拒绝入账本。
 
-**口径演进（Phase 47，用户选定 D8 口径 A）**：R6.1 的"CPU 参考"按 `requirements.md:10` 本是**两档**（标量 + 分块），reduce 自本相起以**分块档**为基准，分片数 `kRefReduceWidth=1024` 与内核 pass-1 宽度解耦；R6.2 的 2⁻⁵ 一字未改，Phase 19 记录的"更准的一方被判 FAIL"因此消失。真机五档仍全 `verify=PASS max_rel=0`，gemm/conv 产物空 diff（`docs/evidence/phase47/`）。
-
-**验收方式**：两个层面。**CPU 侧（单测）**：容差函数 `verify_fp32`（`src/runtime.cpp:182`，R6.2 策略本体）五条路径——逐元素相等 → ok 且 max_rel=0；1/1024 相对误差（< 2⁻⁵ 默认容差）→ ok 且报告 worst 误差；10% 相对误差 → 拒绝并点名 `index 3`；可配置更紧容差（1/4096）→ 拒绝默认通过者；尺寸不匹配 → 明确拒绝（"size mismatch"），绝不假通过。**真机侧**：生成的 AMD 程序自带确定性初始化 + CPU 参考实现 + 2⁻⁵ 分级对拍（`UNIKERN_RESULT ... verify=` 契约行）；CLI `run` 只在 `verified=PASS` 时 LEDGER COMMIT（P4 不变量的真身是 `r.verified` 那道拒绝，`src/main.cpp:540`；这里原本写的是 `ledger_commit_gates_on_verify`，Phase 58 全仓 grep 证明**该符号从不存在**，按现码改指）。真机执行两个尺寸：1024³（resident）与 32768³（streamed）。
+**验收方式**：两个层面。**CPU 侧（单测）**：容差函数 `verify_fp32`（`src/runtime.cpp:95`，R6.2 策略本体）五条路径——逐元素相等 → ok 且 max_rel=0；1/1024 相对误差（< 2⁻⁵ 默认容差）→ ok 且报告 worst 误差；10% 相对误差 → 拒绝并点名 `index 3`；可配置更紧容差（1/4096）→ 拒绝默认通过者；尺寸不匹配 → 明确拒绝（"size mismatch"），绝不假通过。**真机侧**：生成的 AMD 程序自带确定性初始化 + CPU 参考实现 + 2⁻⁵ 分级对拍（`UNIKERN_RESULT ... verify=` 契约行）；CLI `run` 只在 `verified=PASS` 时 LEDGER COMMIT（`src/main.cpp:274-282`，P4 不变量）。真机执行两个尺寸：1024³（resident）与 32768³（streamed）。
 
 **证据**（单测段 + 真机实测；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`run_1024_first.txt`）：
 
@@ -254,7 +252,7 @@ LEDGER COMMIT predicted_ms=3601.23 measured_ms=55354.1 epsilon_abs=51752.9 epsil
 [R9] complete missing-field rejection + fingerprint OK
 ```
 
-CLI 同口径：`HCS rejected: missing required fields: ...`（`rejected` `src/main.cpp:213`；被拒字段串本身在 `required` `src/hcs.cpp:95`）；`hcs` 子命令 `VALID amd/RDNA gfx103x ... fp=80394649`。
+CLI 同口径：`HCS rejected: missing required fields: ...`（`src/main.cpp:110`）；`hcs` 子命令 `VALID amd/RDNA gfx103x ... fp=80394649`。
 
 **状态：✅ 本机已验**。
 
@@ -276,20 +274,13 @@ apple     apple:metal     no        source-gen ready (Phase 5 full)
 intel     intel:ocl     yes        source-gen ready (Phase 5 full)
 ```
 
-（**下面是 Phase 8 时点、那台 Windows 开发机的读数**，不是"本机事实"的当前口径：当时该机
-无 hipcc → amd no；`__APPLE__` 编译期判定 → apple no；Intel OpenCL ICD 在位（System32
-OpenCL/ze_loader + oneAPI 2026.1，HKLM Khronos Vendors 注册 intelocl64.dll）→ intel yes。
-**2026-10-28 复核**：同一台机器现在实测为 `amd=yes / apple=no / intel=no`（ROCm 7.1 的 hipcc
-已装；oneAPI 安装目录不存在、`ocloc` 不在 PATH、无 Khronos Vendors 注册表键），
-`docs/evidence/phase15/README.md:52` 与 `findings.md` 的"本机画像"条目一致——**以实测为准，
-上方代码块只作历史时点保留**。
-**Apple 主机事实（Phase 10，在 macOS 机器上取得，见
+（Windows 本机事实：无 hipcc → amd no；`__APPLE__` 编译期判定 → apple no；Intel
+OpenCL ICD 在位（System32 OpenCL/ze_loader + oneAPI 2026.1，HKLM Khronos Vendors
+注册 intelocl64.dll）→ intel yes。**Apple 主机事实（Phase 10，见
 `docs/evidence/phase10/phase10-environment.txt`）：apple=yes——`available()` 改为
 运行时 `metal_available()`（`MTLCreateSystemDefaultDevice` 真实探测），非编译期
-`__APPLE__` 判定；AMD/Intel 在该主机为 no。**
-**Intel Arc B390 真机链路（Phase 9）在另一台 Windows 机器上完成**，证据见
-`docs/evidence/phase9/`；在当前这台机器上 `run --vendor intel` 必然 rc=1 且 solution 零落库，
-那是诚实拒绝而不是回归（见文末"真机执行边界"）。）
+`__APPLE__` 判定；AMD/Intel 在该主机为 no。Intel 真机链路见 Phase 9 证据，Apple
+真机链路见 Phase 10 证据。）
 
 **状态：✅ 本机已验（v6 三真机全闭合）**。能力映射与不静默退化语义本机已验；
 **Intel 真机链路已于 Phase 9（2026-10-27）全验**：ocloc AOT（bmg-g21 → .bin+.spv）、
@@ -302,7 +293,7 @@ runner 对拍/计时/账本闭环（LEDGER COMMIT/HIT），见 `docs/evidence/ph
 
 | # | 缺口 | 影响 | 去向 |
 |---|------|------|------|
-| G1 | ~~KML 无文本解析器，R1.2 结构校验无用户入口~~ **声明半边已闭合（v8）**；**执行半边 Apple（v9）+ Intel（v10）+ AMD（v11）已全部闭合 → G1 全闭合（v12 复采确认）** | 三算子可声明、可求解、可进键、可生成；Apple 真机三算子已验（M4）、AMD 真机三算子已验（RX 6600M，conv/reduce/gemm COMMIT→HIT；v12 复采含 `migrations=0`）、Intel 三算子实现 + 过 clang 的 OpenCL 前端语法检查（本机无 Intel 设备，backends 实测 intel=no，真机运行仍未验，如实标注） | 更复杂的原语树组合语法按 V1 |
+| G1 | ~~KML 无文本解析器，R1.2 结构校验无用户入口~~ **声明半边已闭合（v8）**；**执行半边 Apple（v9）+ Intel（v10）+ AMD（v11）已全部闭合 → G1 全闭合（v12 复采确认）** | 三算子可声明、可求解、可进键、可生成；Apple 真机三算子已验（M4）、AMD 真机三算子已验（RX 6600M，conv/reduce/gemm COMMIT→HIT；v12 复采含 `migrations=0`）、Intel 三算子真机运行已于 v13（Phase 17）在 B390 机器闭合：conv/reduce 首次真机执行 verify=PASS max_rel=0 → COMMIT → HIT（gemm 回归不变），顺带修复 E18/E19（`docs/evidence/phase17/`） | 更复杂的原语树组合语法按 V1 |
 | G2 | ~~`constants_version` 恒 1（stub）~~ **已闭合（v4）** | — | `calibrate` 递增版本号，实测 1→2 |
 | G3 | ~~生成产物头未含 HCS `toolchain` 字段~~ **已闭合（v4）** | — | 产物头 `toolchain=rocm-7.13`（三后端一致） |
 | G4 | ~~Apple 真机执行与对拍；Intel 真机执行与对拍~~ **已闭合（v6）** | ~~R5.2/R6/R8 的对应后端项~~ — | **Intel 半侧 2026-10-27 Phase 9 闭合**（ocloc AOT + 进程内 OpenCL runner 真机验证，见 `docs/evidence/phase9/`）；**Apple 半侧 2026-10-27 Phase 10 闭合**（Metal 运行时 JIT + 进程内 ObjC++ runner 真机验证，见 `docs/evidence/phase10/`）。G4 全闭合。 |
@@ -311,10 +302,6 @@ runner 对拍/计时/账本闭环（LEDGER COMMIT/HIT），见 `docs/evidence/ph
 | G7 | ~~非 GEMM 树被静默当作 GEMM 执行并按 `reduce:...` 键回写账本~~ **已闭合（v7 / Phase 11）** | 修复前会污染 R7.3 校准输入；R10.2"绝不静默降级"被破 | `op_support_gap()` + 生成物自拒 + runner 入口自拒 + CLI 门，三层各有"摘掉即红"证明（`docs/evidence/phase11/`）；conv/reduce **可用的**内核生成仍属 G1 |
 | G8 | ~~R10.3"输出每个解在各后端的原语覆盖情况"零实现~~ **已闭合（v8 / Phase 12）** | 修复前只有拒绝消息代偿，"不支持"不是可查产物 | `primitive_coverage()` + `COVER` 行进 solve/run/kml 报告；三轴（primitive / execution / toolchain）分别取自 `op_support_gap()`、`supports_streaming()`、`available()`，无第二张表可漂移；`[R10.3]` 库+CLI 臂守着，把 execution 轴写死即红（`docs/evidence/phase12/phase12-arm-probes.txt` 第 6 腿） |
 | G9 | ~~`op_signature` 只编进 dims[0..2]，conv 两种形状共用一个账本键~~ **已闭合（v8 / Phase 12）** | 修复前不是活故障（conv 在落库前即被 G7 拒绝），但 G1 的 conv 声明一落地就会变活 | 签名与 canonical_form 改按 `kml_arity()` 取维；`[R7.1]` 臂断言 gemm 键逐位不变（已入库证据无需迁移）+ conv 三形状互异 + reduce 未用槽位不泄漏进键或哈希 |
-| G10 | **reduce 的差分验证固定在 2²⁰ 实例**（发射点是 `Differential`（`src/codegen_hip.cpp:883`） 那句 `Differential verify: 2^20 …`），而折叠宽度 `width` 来自**声明的 L**（`:829`）⇒ 计时规模上的 fp32 折叠误差（Phase 31 实测 5.96e−08 ~ 1.60e−04，`docs/evidence/phase31/fold-exactness-grid.txt`）距门限 2⁻⁵=3.125e−02 有 ≥195 倍余量，**任何出厂门禁都不会红** | R6.2/R6.3 的**证据范围**：账本里的 `max_rel=0` 是"两趟结构正确"的证据，**不是"该工作负载的求和精确"**的证据；触发条件也不是"n 不被 nP 整除"，而是**`(n, 宽度)` 二维共同决定**（Phase 33 只测 2 的幂宽度即否证"2 的幂可保精确"：n=5×10⁷ 时四档全偏，含现役 4096 的 +5.44e−05；3×10⁷ 时反而只有 16384 偏 +2.41e−04） | 量级与机制已实测并入库（v24 / Phase 31），纯 CPU 臂 `[R6.5-blind]`（`tests/acceptance.cpp:1634/1639/1647`；Phase 31 当时是 :1454/1459/1467）把"三条可独立失败"钉进 ctest；**扩大验证实例 / 改容差 / 改宽度公式都属 D8、D9 口径，等用户定** |
-| G11 | ~~**发射内核的索引算术是 32 位，可行负载能让它溢出**~~ **Phase 37 撤销本条**：发射代码在乘法前就转 64 位——`A[(size_t)(bm + j) * K + k0 + i]`（conv 同形），未转型的只有共享内存 tile 下标；且 `shard_rows = shard_bytes / (K*4)`（`:963`）使流式索引空间恒 `<= 64MiB/4 = 16777216` 个元素（7 档 K x 3 档 M 实测，`docs/evidence/phase37/index-exposure.txt`）。**同一次扫描真正的发现**：`ledger` `src/main.cpp:304` 用 `std::atoi` 解析 `--dims`，超过 `INT32_MAX` 的维度**静默饱和成 2147483647**，`--dims 3000000000 0 0` 返回 rc=0 并打印 `LEDGER HIT`，发射产物写 `const int L = 2147483647;`——请求 3.0e9 个元素的用户拿到 2^31-1 的程序且无任何警告，且该请求与 `--dims 2147483647` **共用同一个账本键** | **输入边界（不是执行越界）**：声明维度是用户可控输入，饱和后求解/发射/记账全部按错误的 L 继续，账本里一条证据会被两个不同工作负载命中；求解谓词与生成器都没有 `2^31` 检查。reduce 的 `uk_reduce_part(..., int n, int nP)` 使可寻址长度上界就是 `2^31-1`，所以正确行为应是 loud 拒绝而不是饱和 | ~~未闭合~~ **已闭合（Phase 40：两入口显式上界校验 + 臂 `[R1.4-dimrange]`，发射字节未变；原 G11/D10 的“升索引类型”选项作废——不需要）**：修复点**不止** CLI `--dims` 分支的 `std::atoi`：KML 文件入口也饱和——实测 `"dims":[3000000000]` 同样 rc=0、同样发射 `const int L = 2147483647;`，并与 `2147483647` 的请求**共用同一个 ledger 键**（`LEDGER HIT c_cached_ms=570.425`，`docs/evidence/phase38.txt`）。文件侧的路径是 `src/kml_front.cpp:108` 的 `parse_int` 写入 `int v`，而 `:113` 的校验只有下界（`v <= 0`）与元数，**上界不在清单里** ⇒ 需两条之一：在 `parse_int` 内判 `> INT32_MAX` 即失败（一处覆盖两入口），或在 CLI 与 dims 循环各加一条违规；并把该谓词补进 R1.2 的违规类别。**不碰发射字节**（447/542/239 不受影响）。因改变用户可见的拒绝行为，按既有纪律待用户点头 = **D10（改写后）** |
-| G12 | **dtype 进入成本与规范键，但不进入生成产物**：前端明确允许 `fp32\|fp16\|int8`（`dt_txt` `src/kml_front.cpp:106` / `:93`），`dtype_size(t.dtype)` 参与字节与代价计算（`dtype_size` `src/kml.cpp:117`），`to_string(t.dtype)` 进规范键（`to_string` `src/kml.cpp:107`）；而 `src/codegen_hip.cpp` 与 `src/codegen_other.cpp` **通篇不出现 `dtype`** ⇒ 三种声明发射的是同一个 fp32 程序 | **证据口径 + 成本口径**：实测同形状 gemm 512³ 的 `c_ms` = fp32 `0.110506`、fp16 `0.0613536`、int8 `0.0367776`，三者发射行数同为 448、值类型只有 `float`/`double`（`docs/evidence/phase39/input-boundaries-deconfounded.txt`）⇒ 账本里 `gemm:fp16:…` 这条记录的成本描述的是一个并不存在的 fp16 内核；容差表里的 `fp16_rel = 2^-4`（`fp16_rel` `include/unikern/components.hpp:133`）目前只在该文件中出现，未见被读取，所以真正的错配发生在成本与产物之间，不在判定阈值上 | **未闭合（Phase 39 新增）**：三条路待用户定 = **D11**：①按 dtype 生成真实类型（`half`/`int8` 内核 + 对应容差，代价是三个算子全部重写发射与基线）；②前端只接受 `fp32` 并把 `fp16\|int8` 变成 `op_unsupported` 式 loud 拒绝（改动最小、与 layout 的既有拒绝口径一致）；③维持现状但在产物头与账本行标注 `dtype=fp16 -> emitted fp32`。本轮只取证，未动代码 **Phase 45 闭合（D11），走的是「拒绝 + 唯一的表」而非补齐生成能力**：`dtype_gap()` 接进三个后端谓词（`src/codegen_hip.cpp:71`），非 fp32 在 `run`/`verify`/`solve`/`--emit` 每条路径上点名 `dtype` 拒绝；R6.2 三档由 `tolerance_for()`（`src/runtime.cpp:182`）唯一给出，产物判定行与两个 runner 都从它取值。修这条时发现**账本才是漏得最狠的面**：`solve` 的拒绝原来挂在 `--emit` 上，不带 `--emit` 的 int8/fp16 树照常 `commit()`（实测 `solutions` 1 行），即上面那句「成本描述的是一个并不存在的内核」真的入了库；现已与 `--emit` 解耦并补 no-emit 腿 + 控制 C6。选项 ①（真类型内核）仍未做，FP16/INT8 的**生成能力**依旧不存在（见未闭合列表） |
-| G13 | **reduce 的 pass-1 宽度跨后端不一致（Phase 51 拆成两半）**：HIP 程序自 Phase 44 起向设备要容量；OpenCL runner 现在同样查 `CL_DEVICE_MAX_COMPUTE_UNITS × CL_DEVICE_MAX_WORK_GROUP_SIZE`（`plan_reduce_width` `src/runner_ocl.cpp:190`，同一套 2 的幂 + 256 地板，查询失败退回 4096 并打印 `source=props_unavailable`）；**Metal 保持常量**，但来源标签诚实写作 `metal_no_capacity_api`（`plan_reduce_width` `src/runner_metal.mm:136`）——Metal 公共 API 既不报 CU 数也不报每 CU 线程数 | R6/R8 跨后端可比性：三处现在共用一个钉值旋钮 `UK_REDUCE_WIDTH`（生效打印 `source=env width=`，不可用值 `what=reduce_width_pin_unfit` 拒绝执行），所以宽度 A/B 有共同词汇；**但本机无 Intel/Apple 设备，该侧没有任何数值读数** | **部分闭合（Phase 51）**：能落地的一半（共同词汇、OpenCL 设备查询、拒绝语义、门 #6 的编译检查、`[R15d-runner-width]` + 三条归属不同的控制）已做完；剩下的一半**不是工作项而是主机限制**——Metal 没有可诚实查询的容量 API，Intel/Apple 的数值验证要等有设备的相位。代理量够不够，等 Intel 真机第一次跑时按读数重判 |
 
 ## 独立审计补遗（2026-10-27，收尾审计）
 
@@ -359,443 +346,6 @@ LEDGER COMMIT predicted_ms=2.41533 measured_ms=2.70717 epsilon_abs=0.291837 epsi
 产出新 HCS 文件——`solve` 保持 (hcs, tree) 纯函数（P1/R4.2 不被账本状态污染），
 常量演进以 `constants_version` 1→2 显式留痕。转录入库：`calibrate.txt`、
 `run_calibrated.txt`、`hcs_amd.calibrated.json`、`ledger_dump.txt`（含 kernel_ms 列）。
-
-## Phase 18 补遗（v13）— R8.5 后半：迁移率告警 → 违规记录 → 重新求解
-
-R8.5 的第二半（"IF 运行时缺页迁移率超过告警阈值 THEN 记录违规事件并触发重新求解"）此前只有
-生成侧的信号——Phase 16 的注释写着 exit 5 是"the upper layer's re-solve signal"，但上层没有
-消费者：`cmd_run` 把 exit 5 与一切失败并成 `RUN FAILED` rc=1。本轮补上消费方并据实定口径：
-
-- **率的口径（D7）**：`rate = migrations / checks`。`checks` 是生成程序内驻留探针次数
-  （实测 reduce 干净跑 = 6：verify 3 + timed 3），`migrations` 是其中非设备驻留者。阈值
-  `--migration-threshold`（比率）默认 **0.0**——与 Phase 16"任一非驻留即退 5"语义等价，
-  放宽必须显式；`nan`/负数在 parse 即拒（rc=2，且不建账本）。
-- **不是缺页计数器**：gfx1032 的 Windows 应用运行时路径无可读缺页/迁移硬件计数器
-  （HSA perf counters 不在此路径），故该率是 R8.5 的**可测代理**（显式驻留探针率），
-  文档与代码注释都点名自己是代理；程序显式发起的 pinned 分片搬运不计入迁移。
-- **违规事件入库**：`ILedger::record_violation` + `violation_count()`（SQLite 新 `violations`
-  表；文件账本 `#VIOLATION` 前缀行），与 `size()` 严格分离——事件永远不会被读成一条解（R6.3）。
-- **重新求解只用实测量**：取生成程序打出的 `hipMemGetInfo` 空闲容量把 HCS 设备层改成实测值
-  （`confidence=Measured`）再解一次；取不到实测即 `RESOLVE STOP` 退 5，绝不用臆造常数（E13）。
-  重试行落在 `ledger_key(tightened, tree)` 下，不把另一容量上测得的行挂在旧指纹下（R7.1）。
-- **真机证据**（RX 6600M；`docs/evidence/phase18/`）：
-  ① 场景 B 流式在守卫落地后首次重跑无回归——`mode=streamed shards=64 shard_rows=512
-  prefetch_d=2`、`verify=PASS max_rel=0`、`migrations=0`、rc=0、COMMIT ε_rel=5.05902
-  （`phase18-streamed-round1.txt`）。序列里另两轮流式为 ε_rel=5.05066（`21789.8/20627.0` ms）
-  与 5.43178（`23162.3/31288.3` ms），见 `longtest-series.txt`。**kernel_ms 在本机流式路径不是
-  稳定量**：同一二进制相邻两轮就分别给出 kernel<e2e 与 kernel>e2e，与 Phase 8 记的
-  `55354.1/71354.8` 同形——所以这不是"Phase 8 旧缺陷被推翻"，而是该参考通道至今不可信，
-  任何由 kernel_ms 推导的量（含 `calibrate` 的链路带宽）都带着这条边界。旧转录不改写。
-  ② 干净驻留跑 `migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376`
-  （声明 8589934592）（`phase18-resident-tokens.txt`）。
-  ③ **开火控制**（本机正常路径不可能产生非驻留设备分配，所以 `migrations=0` 单独不可采信）：
-  `probe/phase18_alarm_probe.py` 把 `uk_mmalloc` 的 `hipMalloc` 注入成 `hipHostMalloc`，
-  实测整条链 `oversubscription(... migrations=1 checks=1 vram_free=8425177088)` →
-  `UNIKERN_VIOLATION rate=1 threshold=0 committed=no` → `RESOLVE re-solve
-  device_capacity=8589934592->8425177088` → 重试再违例 → `RESOLVE STOP`，**rc=5、solution
-  零落库、账本两条 `#VIOLATION` 事件行**；探针 try/finally 复原 + 残标断言（`alarm-firing-control.txt`）。
-  ④ **摘除即红**四条腿全承重（`removal-controls.txt`）：守卫拒绝行与三份程序的 result 行各删一次，
-  acceptance 都红。首版臂用的是 `find()!=npos`，删掉 result 行仍绿——因为守卫自己那份 token 满足了断言；
-  这条不承重事实被实测抓到后改成出现次数判据（每份程序 ` checks=`/` vram_free=`/` vram_total=` 各恰好 2 次）。
-- **行数锚点演进**：gemm 425→447、conv 253→275、reduce 217→239（各 +22 行）；v12 记录的是历史时点。
-- **长测序列已跑（如实）**：15 轮驻留 + 2 轮流式，全 rc=0，每轮 `migrations=0 checks=6`，
-  率的分布只有一个取值 0——本机正常路径不会产生非驻留设备分配，所以超阈行为必须由注入开火
-  控制证明（已证）。Apple/Intel 在 MVP 里是 resident-only，该率只在 HIP 路径上有意义。
-
-## Phase 20 补遗（v14）— `uk_conv` 输出通道分块，分块档由设备自报容量选
-
-R8 调优方向（计划开放项 ④ 的第二半）。基线是 Phase 19 的实测吞吐（`conv-baseline.txt`：
-256² 19.4 GFLOPS、128² 61.9 GFLOPS，同机寄存器分块 `uk_gemm` 512³ 为 2275 GFLOPS）。
-
-- **做法**：`uk_conv` 改为 `template <int OCB>`，一个线程算同一像素的 OCB 个输出通道，
-  于是一次 X 取值服务 OCB 个通道；**每个通道的累加次序一字未动**（`c→kh→kw` 升序、每步一次
-  FMA），所以结果与 OCB 无关。发射统一走 `uk_conv_launch`（verify/warm/timed/kernel-only
-  四处同一入口，验证档与计时档不可能不一致）。
-- **档不写死**：`uk_conv_pick_ocb` 从 {8,4,2,1} 取"仍能填满设备"的最大档，容量取
-  `hipOccupancyMaxActiveBlocksPerMultiprocessor(逐档实测) × dp.multiProcessorCount × 64`，
-  每档的 `threads / resident_capacity / cu` 与选中值都打进 `UNIKERN_INFO`；探针失败退回 1
-  并打 `UNIKERN_ERROR what=occupancy_probe`，不静默。规则本身是用程序自带的 `UK_CONV_OCB`
-  校准旋钮扫出来的（15 次运行全部入库 `docs/evidence/phase20/ocb-sweep.txt`）。
-- **实测（kernel_ms）**：256×256×32/Oc64 124.426(OCB=1) → **19.062**(OCB=8) ＝ **6.53×**，
-  吞吐 19.4 → **126.7 GFLOPS**；128×128×16/Oc32 2.361 → **0.547** ＝ 4.31×，61.9 → 276.3 GFLOPS；
-  32×32×8/Oc16 **符号相反**（0.01258(1) → 0.04311(8)＝0.29×，线程填不满 14 个 CU），自动档在此
-  尺寸退回 1，实测 0.01275 ms，仍优于 Phase 19 基线 0.01396。**自动档在三个尺寸上都选中了该尺寸
-  的实测最优档（1/8/8），没有一个靠猜。**
-- **硬事实**：15 次运行、四个档、三个尺寸，`max_rel` **恒为 0.000000e+00**。这是"分块只改访存
-  复用、不改加法顺序"的直接证据，因此本优化是可证明安全的性能改动。
-- **验收**：`[R20]` 臂按字节钉住整个 FMA 嵌套（含缩进）、钉住四档实例化与 occupancy 探测的
-  **出现次数**、钉住唯一发射点与 op 隔离；三条腿逐一摘除全红
-  （把容量式里的 `dp.multiProcessorCount` 换成抄来的标称 `14` / 换掉一次 occupancy 探针 /
-  反转 kw 循环），`probe/phase20_conv_arm_probe.py` rc=0，复原 byte-identical，ctest 2/2 绿。
-  过程记录了两条不承重断言的成因（E21/E24 同族：同一符号出现两处时 `find()` 恒真）。
-- **仍开放（性能）**：只做了通道维分块，**空间维/共享内存 tile 未做**——调优后 conv 126.7 GFLOPS
-  距同机 gemm 2275 GFLOPS 仍约 18×。conv 生成程序 275 → **372 行**（历史行数锚点按演进标注，不改写）。
-
-## Phase 21 补遗（v15）— conv 空间维共享内存 tile，(tile, OCB) 联合选档
-
-- 256×256×32/Oc64 的 kernel 时间 **124.571（Phase 19 基线）→ 19.062（Phase 20）→
-  7.153 / 7.167 / 7.175 ms**（重复三次，累计 **17.4×**，337.5 GFLOPS）；128×128×16/Oc32
-  0.547 → **0.287 ms**（8.5×，524.9 GFLOPS）；32×32×8/Oc16 为 10.70–14.18 µs，与 Phase 20 的
-  12.58/12.75 µs **同分布**——该尺寸上差值小于重复散布，如实报"分辨不出差别"。
-- 手段：带 halo 的输入 tile 协作搬进 `__shared__`（动态共享内存，尺寸只在 `uk_conv_smem` 一处算），
-  `__syncthreads()` 在边界 return **之前**，随后每线程仍按 `c→kh→kw` 升序累加，只把取数来源
-  从全局内存换成 LDS。**因此结果逐位不变：所有形状 × 所有 tile × 所有 OCB 的 24 次真机结果行
-  `max_rel` 恒为 0.000000e+00。**
-- 选档教训（第一版实测错的）：只按"共享内存装不装得下"选 tile，32² 上选了 `tile=16`
-  （仅 4 块＝1024 线程，而设备自报可常驻 21504 线程）→ 慢 25%。现在把
-  `tile∈{16,8,0} × ocb∈{8,4,2,1}` 当**一个组合空间**枚举，填满度由
-  `hipOccupancyMaxActiveBlocksPerMultiprocessor × dp.multiProcessorCount` 判，取其中复用度最大者，
-  全不填满则退回 `tile=0/ocb=1`。三个形状随后全部自动选中各自的实测最优组合；
-  `UK_CONV_TILE` / `UK_CONV_OCB` 两个校准旋钮保留了这套规则的复测路径。
-- 验收：`[R20]` 断言全部改为**出现次数 + 按字节钉住的两条 FMA 嵌套 + 屏障先于边界 return 的次序**，
-  四条腿逐一摘除全红（抄来的标称 14 / occupancy 探针指错内核变体 / 屏障移到 return 之后 /
-  LDS 索引错一元素），`probe/phase21_conv_arm_probe.py` rc=0、复原 byte-identical、ctest 2/2 绿。
-  转录 `docs/evidence/phase21/`（README + `tiled-sweep.txt` + `r20-arm-removal.txt`）。
-- 无交叉回归：gemm 447 / reduce 239 行未变，同批 gemm 512³ 与 reduce 1048576 真机
-  `verify=PASS max_rel=0 rc=0`；conv 生成程序 372 → 506 行（历史行数锚点按演进标注，不改写）。
-- 剩余性能空间：距同机寄存器分块 gemm 2275 GFLOPS 还差 6.7×（Phase 20 时是 18×），再往上需要
-  权重进 LDS 的完整隐式 GEMM 分块，属另开一相。
-
-## Phase 22 补遗（v16）— 主机口径标注、agent 入口、锚点机检门
-
-- **"本机"这个词**：R10 段里那段"Windows 本机事实：无 hipcc → amd no；… intel yes"是
-  **Phase 8 时点、那台开发机的读数**，现已标注为历史时点；同段补入 2026-10-28 实测
-  `amd=yes / apple=no / intel=no`（ROCm 7.1 的 hipcc 在位；oneAPI 目录不存在、`ocloc` 不在 PATH、
-  无 Khronos Vendors 注册表键）。规则：**任何"本机"结论前必须先跑 `./build/unikern.exe backends`
-  并在句子里点明主机**——Intel（Phase 9）与 Apple（Phase 10）的真机链路分别来自另外两台机器，
-  在当前这台机器上 `run --vendor intel|apple` 必然 rc=1 且 solution 零落库，那是诚实拒绝而非回归。
-  旧转录与旧读数一律保留原样，只加时点标注。
-- **agent 入口**：仓库根新增 `AGENTS.md`（三条命令、主机口径、改生成器的三条硬约束、
-  探针对被跟踪源码的恢复要求、记录纪律、待决的 D8 与 R8.5 代理口径）。
-- **锚点机检**：`probe/anchors_check.py` 注册为 ctest 第 3 门 `anchors`（**套件 2/2 → 3/3**；
-  无 Python 解释器时诚实不注册而不是报绿）。它检查 AGENTS.md/规划文件里每条 `path:line`
-  引用：文件存在、行号不越界、且引用行邻域点名的代码符号确实在该处 ±25 行内。
-  首跑即在 34 条锚点中查出 4 条真失效并据此改准（`verify_fp32`→`src/runtime.cpp:182`、
-  LEDGER COMMIT 门→`r.verified` 把关的 `src/main.cpp:540`、`INFEASIBLE`→`src/main.cpp:269`、`HCS rejected`→
-  `hcs_import` `src/main.cpp:213`，而被拒字段串本体在 `src/hcs.cpp:95`——那是归错文件而非行号漂移）。
-  门本身可失败已验证：把一处锚点改回失效值 → validator rc=1、`ctest -R anchors` Failed；复原后绿。
-- **写法约定**（本轮实践逼出的）：`path:line` 形式是"现在还能跳过去"的**活断言**，归这道门管；
-  记录历史时点的行号请写成"第 N 行"。理由很直接——同一条抽验记录里的行号在我自己一天三轮改动
-  之后又漂了一次（95→151→182）。
-
-## Phase 23 补遗（v17）— conv 2×2 输出微块：按预登记判负并回退，以及"回退"的举证口径
-
-- **验收方式（负结果同样要有仪器）**：256²×32/Oc64 上扫 `tile∈{16,8} × ocb∈{8,4,2}` 六组 + 自动档两跑，
-  保留线在跑之前写死为 `kernel_ms ≤ 5.97 ms`（Phase 21 的 7.16 ms / 1.2）。实测
-  59.650 / **29.272** / 37.649 / 80.167 / 40.786 / 52.251 ms（自动档 59.679 / 59.717——**这两格只取自
-  回退前的终端输出，不在任何转录里且已无法再采**，判负不依赖它们），
-  **七次全部 `max_rel=0.000000e+00`、全部比 1×1 慢**，最好的也比基线慢 4.1×，且 ocb 越大越糟
-  → 按预登记规则回退，**不因为"正确"而保留一份更慢的复杂度**。转录
-  `docs/evidence/phase23/microtile-sweep.txt`，判据与归因见同目录 `README.md`。
-- **"改对了但更慢"是性能决定，不是正确性事故**：微块只提升 LDS 取值的复用度（每线程累加器
-  `OCB → PY*PX*OCB`），每输出的 `c→kh→kw` 升序一格未动，所以 `max_rel` 恒 0 是预期的；
-  代价是块内线程 256→64（每 CU 常驻 warp 变少）与 px 循环的 LDS 步长/bank 行为。
-  三条与"ocb 越大越糟"的实测形状吻合，但**没有 profiler 把它们拆开，因此只作为归因记录，不写成结论**。
-  **（v18 更正：其中 bank 一条已被单独实验判负，见下面 v18 段。）**
-- **字节钉住的臂在真实改动上执行了门**：微块一落地 `ctest` 从 3/3 变 2/3
-  ——`[R20]` 的 `count_of("acc[o] += xv * Wt[") == 2` 与两条按字节钉住的 FMA 嵌套都不认这次改写，
-  回退后自动复原 3/3。这条臂此前只被"人为摘除"验过，这次是被一次非人为注入的（且错误的）优化验过的。
-- **"回退"从此要有可 diff 的产物，不能只给行数**（本节是对我自己一句过头话的更正）：
-  回退后重新发射的 conv HIP 程序三个形状都是 **508 行**，Phase 21 记的是 506 → 行数与 KML 形状无关，
-  所以 2 行是真实增量。微块代码零残留（`micro|2x2|px|PY|subtile` 全文 0 命中），增量落在 env 旋钮分支：
-  `src/codegen_hip.cpp:463` 的 ` source=env` 后缀（该 token 在 `docs/evidence/phase21/tiled-sweep.txt`
-  出现 0 次、在今天出现 1 次）与 `uk_conv_plan` 里钉 tile=0 后的 `smem` 重置 `src/codegen_hip.cpp:435`，二者作为诊断保留。
-  **因此"逐字节回到 Phase 21"不成立，成立的是"行为回到 Phase 21"**（补采原始转录
-  `docs/evidence/phase23/postrevert-verify.txt`：两次 fresh-ledger run `kernel_ms=7.158920 / 7.127580`，
-  加上回退当轮的 7.158620 / 7.173225 与 Phase 21 的 7.153/7.167/7.175，共 7 次读数全落在
-  7.1276–7.1750 ms；`conv_plan ocb=8 tile=16 smem=41472`、`max_rel=0.000000e+00`、rc=0）。
-  当前发射结果已入库为基线 `docs/evidence/phase23/conv-hip-postrevert.txt`
-  （508 行，`sha256=8464d86cf3f07beb733a874a7cae9b0d538adb091d858e69f74b4b5a8e42bb28`）。
-- **顺带修正一条取证习惯**：告警式打印在某份转录里 0 次命中，**不代表代码里没有它**——
-  `conv_tile_skip` 在 Phase 21 转录里就一次没出现，因为那个形状下它没开火。缺席只证明没触发，不证明不存在。
-
-## Phase 24 补遗（v18）— LDS bank 冲突假设被 A/B 判负，以及选档器与 smem 的耦合
-
-- **被检验的是 v17 自己写下的归因**，不是新想法：`uk_sX` 按像素的步长为 `C`，块 16×16、gfx1032 用 wave32
-  ⇒ 256² 用例（C=32、TW=18）里 `32 mod 32 = 0` 且 `18*32 = 576 mod 32 = 0`，模型上 32 条 lane 命中同一 bank。
-  改法只动地址（`CP = C + 1`，padding 槽不参与算术；kernel 索引与 host 侧 smem 用同一处规则）。
-- **四条预登记判据的结果**（先写死后跑，全文在 `task_plan.md` "Phase 24 预登记"）：
-  ① 保留线 **未达**——256² `kernel_ms=7.135740 / 7.145340 ms`，仍在未加 padding 的 7.1276–7.1750 ms 带内；
-  ② 判别性控制 **未获支持**——128²（C=16）`0.302160 / 0.295439 ms` 比未加 padding 的 0.287 ms **慢 2.9–5.3%**，
-  两个形状都没有增益；③ 负对照 **移动**（见下条）；④ 累加次序 **成立**——7 条结果行全部
-  `max_rel=0.000000e+00`。**结论：LDS 同 bank 冲突不是这个内核在这张卡上的限制因素。**
-- **本轮最耐用的发现是测量学而不是性能**：`uk_conv_plan` 把 `cand.smem` 交给
-  `hipOccupancyMaxActiveBlocksPerMultiprocessor`，接受条件是 `threads >= per_cu * multiProcessorCount`；
-  步长改成 `C+1` 后 32² 的 tile=8 smem 由 3200 → 3600，可常驻容量下降，谓词由假变真，
-  **选档从后备路径 `tile=0` 跳到 `tile=8`**，实测 0.016357 / 0.020372 / 0.015565 ms（慢约 1.5×）。
-  即：**任何改 smem 公式的布局实验都会顺带改选档**，"只改布局"在 tiny 形状上不是可观测的孤立变量——
-  后续同类实验必须先用 `UK_CONV_TILE` / `UK_CONV_OCB` 把方案钉住再计时。
-  反直觉方向也一并记下：smem 变大 → `per_cu` 变小 → 更容易被判成"填满设备"。
-- **回退的举证口径升级**（v17 承认过"只能说行为一致"）：本轮回退后重新发射
-  `diff` 与 `docs/evidence/phase23/conv-hip-postrevert.txt` **空输出**、`sha256` 相等
-  （`8464d86cf3f07beb733a874a7cae9b0d538adb091d858e69f74b4b5a8e42bb28`，508 行），真机复现
-  `kernel_ms=7.152313 / 7.152326`、`ctest` 3/3（`docs/evidence/phase24/postrevert-confirm.txt`）。
-  **规则：动手前先存基线，回退的举证才只是一条 `diff`。**
-- **`[R20]` 的字节钉住第二次在真实改动上开门**：padding 版让 `tests/acceptance.cpp:2633` 的 `nest_tile`
-  当场变红，处理方式与 v17 同——先让旧钉住红、再决定去留，绝不先把断言改得迁就实现。
-- **机制断言的边界（诚实）**：本机无 profiler——`rocprof` / `rocprofv2` / `rocgdb` 不在 PATH，
-  `therock/gfx103X-7.13.0/bin` 目录内也没有 profiler 二进制（本轮实测确认）。因此"冲突不存在/被掩盖"
-  这类话只能由 A/B 计时支撑，不能写成计数器结论。
-- **下一手（靶，非决定）**：读发射出的内循环，每步是 1 次 LDS 取值 + **8 次 `Wt` 全局（L2）取** + 8 次 FMA，
-  取指令比 FMA 多；本块权重只有 `ocb*Kh*Kw*C = 2304` 个字（≈9 KB）。该动的是权重的放置，
-  这也解释了 v17 微块为什么失败（它加的是 LDS 取值数，而大头在权重侧）。
-
-## Phase 25 补遗（v19）— conv"为什么慢"的三条解释全部由测量关闭；设备共享内存事实改口径
-
-本节不改任何验收断言，改的是**解释的口径**：v14–v18 把 conv 从 19.4 推到 337.5 GFLOPS 之后，
-剩下的差距需要一条机制说法，而三条候选说法现在都被真机读数否证了。
-
-- **设备事实（`probe/phase25_smem_probe.cpp`，独立程序，两种模式各 7 档，全 rc=0；
-  `docs/evidence/phase25/smem-preflight.txt`）**：RX 6600M / gfx1032 / ROCm 7.1 报
-  `sharedMemPerBlock = sharedMemPerMultiprocessor = maxSharedMemoryPerBlockOptin = 65536`、`warpSize=32`、
-  `maxThreadsPerMultiProcessor=2048`；occupancy 的 `per_cu` = 12800 B → **5**、≥41472 B → **1**。
-  因此现役 `tile=16/C=32`（41472 B）是**每 CU 常驻 1 块 = 256 线程 = 线程槽 12.5%**。
-- **v15 计划里那条"48 KB 默认上限、需 `hipFuncAttributeMaxDynamicSharedMemorySize`"在本机不成立**：
-  65536 B 动态请求在不做任何 opt-in 的进程里 launch+sync 都成功。已在 `task_plan.md` Phase 21 行就地划掉并登 E26；
-  **"tile 尺寸必须按设备自报值实测选、不许抄标称"这半条依然有效**（它来自 Phase 21 的那次 25% 反例）。
-- **三条候选解释的判决**（全部 `max_rel=0.000000e+00`，所以都不属正确性，只属性能解释）：
-  ① X 的复用度不足 → 2×2 输出微块把复用提到 4×OCB，**慢 4.1×**（v17）；
-  ② LDS bank 冲突 → `C → C+1` padding，256² 无变化、128² 慢 3–5%（v18）；
-  ③ 常驻块数/occupancy → 本轮钉住测 `tile=8`（5 块/CU、320 线程/CU）对 `tile=16`（1 块/CU、256 线程/CU）：
-  **ocb=8/4/2 分别慢 35.2% / 28.8% / 11.4%，ocb=1 差值在散布内**（`pinned-matrix.txt`，
-  tile=16 = 7.129367 / 10.514896 / 18.079030 / 31.571097 ms；tile=8 = 9.638396 / 13.543800 / 20.141341 / 31.416699 ms），
-  预登记保留线 `≤ 5.97 ms` 八组无一达到。
-- **仍然成立的只有 OCB 单轴的效应本身**：同一 tile 下 ocb 1 → 8 快 **4.43×**（次线性于 1/OCB）。
-  读码给出下一步的靶：每步 1 次 LDS 取值 + 8 次权重全局（L2）取 + 8 次 FMA ⇒ 要动的是**权重的放置**
-  （LDS/寄存器）或换算法（完整隐式 GEMM），`tile`/`ocb` 两个旋钮已榨干。
-  对照组同时给出选档规则的第二次独立确认：不钉旋钮时选档器选中 `tile=16/ocb=8`，实测 7.150933 ms
-  正是八组里的最优。
-- **一处注释口径的更正（E26，代码事实而非猜测）**：发射程序有**两处** `uk_conv_plan` 调用
-  （verify 段用内嵌小实例 C=8 → 打 `smem=10368`；计时段用真实 C=32 → `smem=41472`），
-  所以"任何一段都不会用与校验不同的方案发射"（`conv-hip-postrevert.txt:249-250`）说的只是发射函数单一。
-  真正被证明的性质是**所有 (tile, OCB) 方案逐位相同**——这才是"校验小实例、计时大形状"安全的依据。
-  注释重写会动发射字节，故必须与 `sha256` 基线重录绑成一个动作（下一相）。
-- **机制断言的仪器边界**：本机无 profiler（rocprof/rocprofv2/rocgdb 实测缺席），以上全部只由 A/B 计时与
-  occupancy API 自报值支撑；`per_cu` 是自报值而非实际驻留计数，这一点在证据里点名。
-
-## Phase 26 补遗（v20）— 验证覆盖口径：差分校验的必须是被计时的实例化
-
-- **这一相改的是"证据范围"，不是性能**。实测缺口（直接运行发射程序取到，`docs/evidence/phase26/README.md`）：
-  修复前 conv 程序里两处 `uk_conv_plan` 各推各的方案——verify 段按内嵌 32×32×8 实例（C=8）推得
-  `tile=0 ocb=1 smem=0 nothing fills the device`，计时段按声明形状（C=32）推得
-  `tile=16 ocb=8 smem=41472 fills=device`。于是默认流程里 **`max_rel=0.000000e+00` 证明的是后备内核
-  `uk_conv_g<1>`，被计时的却是 LDS 分块内核 `uk_conv<8>`**。
-- **对既有验收读数的口径修正（不推翻、只缩小到真实范围）**：R15/R20/R21 各段里"分块/分档后仍逐位一致"
-  的真机读数都是钉住 `UK_CONV_TILE`/`UK_CONV_OCB` 的扫描产物，那些运行里两段自然同方案，所以读数有效；
-  **但"不钉旋钮的默认流程也校验了分块实例化"这一条在 v19 之前不成立**，现在成立。
-- **修法与门**：`uk_plan` 在 `main()` 里从声明形状推导一次，verify/warm/timed/kernel-only 全用它
-  （`ocb` 有 `rem` 保护，`smem` 按真实 C 计算属超配、安全）。`[R20]` 增加四条计数腿——
-  `uk_conv_plan(` == 2（定义 + 唯一调用点）、`uk_conv_launch(uk_plan,` == 4、
-  `uk_conv_launch(uk_plan, VoW` == 1、`uk_conv_launch(plan,` 必须不存在；
-  三条摘除控制全部当场红（`[R6.6]` `tests/acceptance.cpp:1694`、`:1697`，rc=3221226505），复原 byte-identical，
-  `ctest` **3/3** 绿。旧腿 `count_of("<<<") == 8` 只保证**发射函数**唯一、不保证**方案**唯一，
-  缺口正是活在这两条的缝隙里——这是本相最值得留下的一条。
-- **回归读数**（全 `verify=PASS max_rel=0.000000e+00`、rc=0）：conv 256² `kernel_ms=7.160367`（在
-  7.1276–7.1750 带内）、128² 0.284069、32² 0.012980；gemm 512³ 0.123837、reduce 1048576 0.164954。
-  发射程序 508 → **517 行**，`diff` 恰 **+21/−12** 行且全部落在这一处设计变更上；gemm 447 / reduce 239 未变。
-- **基线换代**：新基线 `docs/evidence/phase26/conv-hip-single-plan.txt`
-  （517 行，`sha256=161d8e190da1286454e8429ea366b939bfcce54fe0c6e73890278ac92df27f3f`）取代
-  `docs/evidence/phase23/conv-hip-postrevert.txt`（508 行，`8464d86c…42bb28`）作为后续"是否真回退"的比对对象；
-  旧文件保留并标历史时点（转录不改写的既有约定）。
-- **两条测量学副产物**：① 同一个二进制**单独跑**读 7.024740 ms、**经 runner** 读 7.160367 ms（差约 1.9%）
-  ⇒ 带内比较必须同上下文；② 第四次踩 E22——`--dims 1048576` 单参数调用 reduce 时 CLI 打 usage 文本，
-  被 grep 过滤后转录静默少一格（正确形式是 `--dims 1048576 0 0`），
-  且**管道尾端的 `$?` 不是被测 CLI 的退出码**。
-
-## Phase 27 补遗（v21）— OCB=16 判负：选档规则的"越复用越好"前提第一次有反例
-
-- **测的是规则的前提，不是又一个旋钮**。v14/v15 把分块档定义成"仍能填满设备的最大复用档"，
-  其隐含前提是复用度单调改善时间；Phase 25 的钉住矩阵给出该前提在本机的量化形状
-  （256²、tile=16：ocb 1/2/4/8 = 31.571097 / 18.079030 / 10.514896 / 7.129367 ms，
-  局部指数 β = 0.803 / 0.781 / 0.561，递减）。本轮加一整档把外推推到会被否证的地方，
-  **两个分支与外推区间都先写死**（乐观 4.85 ms / 悲观 6.02 ms，保留线 5.97 ms）。
-- **结果**（`docs/evidence/phase27/ocb16-sweep.txt`，方案钉住、上下文固定为 runner、全 `max_rel=0.000000e+00`）：
-  256²（C=32）`ocb=16` = **7.858002 / 7.854852 ms** 对 `ocb=8` = 7.160519 ⇒ **慢 9.7%**，保留线未达；
-  **128²（C=16）`ocb=16` = 0.266870 对 0.288485 ⇒ 快 7.5%** ⇒
-  **最优 OCB 是 (C, Oc) 的函数**，v14/v15 那句"最大复用档"作为通用规则不成立，
-  但在**现役候选集 {8,4,2,1} 内**仍然给出实测最优（Phase 25/27 两次独立确认）。
-- **为什么不留这一档**（三条独立理由）：① 预登记保留线绑 256²，未达；② 候选集含 16 时自动档在 256²
-  会选中 16（7.833645，比该选的 8 慢 9.4%），等于把错误偏好写进 shipping 路径；③ 要让 16 生效需要一条
-  按 C 的规则，而证据是每个 C 只有一个形状的两个点——本项目的选择规则要求**由设备自报量推导**，
-  两点不足以定规则（也不允许在生成器里写死拟合阈值）。⇒ 整档回退。
-- **回退举证**（与 v17/v18 同一口径，第三次执行）：发射程序与
-  `docs/evidence/phase26/conv-hip-single-plan.txt` **`diff` 空**（517 行），生成器内
-  `uk_conv<16>` / `uk_conv_g<16>` / `step < 5` 全文 0 命中，`ctest` 3/3，
-  真机复现 256² **7.156521**、128² **0.284850** 且选档回到 `ocb=8 tile=16`（`postrevert-confirm.txt`）。
-- **验收矩阵不受影响**：本轮是性能实验且已回退，R8/R15/R20/R21 各臂的断言与计数一字未改；
-  conv 现役读数仍是 256² 337.5 GFLOPS、128² 524.9 GFLOPS（距同机 gemm 2275 GFLOPS 为 6.7× / 4.3×）。
-- **下一手已改成可判定的测量**：固定 tile=16，扫 `C ∈ {8,16,32,64} × ocb ∈ {8,16}`、每组合 ≥3 跑，
-  找符号翻转的位置、检验它是否与 `Oc/C` 一致——有那条曲线才有资格谈"按 C 分档"的选择规则。
-
-## Phase 28/29 补遗（v22）— 选档规则被曲线否证（不采纳）；校准旋钮必须过设备这一关（入库）
-
-- **v21 留了一句待验证的猜想**："最优 OCB 是 (C, Oc) 的函数"。Phase 28 把它测成曲线后**否证了它自己**：
-  tile=8、Oc=64、256² 固定，只变 C，`ocb ∈ {8,16}` 各 3 跑（极差 ≤2.21%，全 `max_rel=0.000000e+00`），
-  16 相对 8 的增益是 **C=8 +23.4% / C=16 +22.0% / C=32 −9.0% / C=64 +11.5%** ⇒ 符号 `+ + − +`，**非单调**。
-  不存在能用 C 表达的翻转点，也就没有"按 C 选档"这种规则可以进生成器；
-  能诚实写进的只有：**最优 OCB 取决于 (C, Oc, tile, 网格大小) 的联合作用，机制在本机未定**（无 profiler）。
-  ⇒ **候选集保持 `{8,4,2,1}`，`uk_conv_plan` 未因这两相改动**；R8/R20/R21 各臂与既有读数不受影响。
-  证据 `docs/evidence/phase28/`（README + `sweep.txt` + `sweep-tile8.txt`，脚本 `probe/phase28_ocb_c_sweep.py`）。
-- **验收方式的一条口径**：预登记的三条门槛里"每 C 极差 < 3%"与"C 上符号单调"是**两条独立判据**，
-  脚本第一版把它们合并成一个 `spread gate` 标签，导致 C=64 的**缺格**被读成**噪声**。
-  已改成分别报告；第一版转录保留不改（记录里写清哪个是证据、哪个是仪器缺陷造成的错标）。
-- **Phase 29 是这次测量暴露的真缺陷，已修并入库**：env 校准分支在 `hipGetDeviceProperties` 之前就返回，
-  于是 `UK_CONV_TILE=16` 在 C=64 上要求 82944 B（设备报 65536），运行死在
-  `UNIKERN_ERROR what=launch verify msg=invalid argument`、rc=4 —— 失败点既提名也让不出上限。
-  现在钉住的方案也要过**同一条** `smem > dp.sharedMemPerBlock` 判据：越限则打
-  `UNIKERN_ERROR what=knob_tile_unfit tile=… smem=… sharedMemPerBlock=… -> running the global-load path (OCB pin kept)`，
-  且**该行先于 `conv_plan` 行**；`hipGetDeviceProperties` 失败同样保守退回全局路径。
-- **三条对照（`docs/evidence/phase29/knob-refusal.txt`，全 rc=0、`verify=PASS max_rel=0.000000e+00`）**：
-  装不下（C=64/tile=16）→ 拒绝并继续跑；**装得下（C=64/tile=8）→ 不误报**；原形状（C=32/tile=16）→ 行为不变
-  （7.050036 ms，带内）。**"总是拒绝的检查"与"从不拒绝的检查"一样没用**，第二条是这次修改的主要证据。
-- **门禁**：`[R20]` 加两条腿——`count_of("what=knob_tile_unfit") == 1` 与顺序断言
-  `hc.find("knob_tile_unfit") < hc.find("source=env")`；`probe/phase29_knob_arm_probe.py`（rc=0）
-  证明两条各管一件事：改名拒绝 token 只红计数腿，在检查前多打一条 `source=env` **只红顺序腿**
-  （`[R6.6]` `tests/acceptance.cpp:1712`）。复原 byte-identical，`ctest` 3/3。
-- **发射基线（第 4 次换代，口径不变）**：`docs/evidence/phase29/conv-hip-knob-check.txt`
-  542 行，`sha256=599a4e7183982b7101ed9441a8582bec59f9ae23bf450dffc8323a2bf79e3f18`，
-  对 `docs/evidence/phase26/conv-hip-single-plan.txt`（517 行）`diff` 恰 **+25 / −0**。
-  入库过程中纠正了一次自己的错：第一次存的产物来自 **C=64 的 KML**（头部 `dims=` 与 `const int C` 两行不同，
-  diff 出现 −2）——**基线必须与它要比较的输入同源**，已按同一 C=32 KML 重发。gemm 447 / reduce 239 行未变。
-
-## Phase 30 补遗（v23）— reduce 首次归因；启动宽度与对拍精确性耦合（代码未动，升 D9）
-
-- **对象**：R6/R15 的 reduce 一线程一通道从未调优。发射程序跑 `uk_reduce_part`（nP 条线程跨步折叠）+
-  `uk_reduce_sum`（**一条线程**串行折叠 nP 个部分和），`nP = min(L, 4096)` 在生成期定死
-  （`:829`），运行期不看设备自报量。
-- **归因仪器**：`probe/uk_reduce_width_probe.cpp` —— 折叠次序与发射内核逐字一致；数据取全域 2⁻⁶ 使
-  **期望值可以先算**（精确和 = n/64），探针每行先报 `result`/`rel` 再报时间；n ∈ {2²⁰,2²²,2²⁴,2²⁶}、
-  nP ∈ {1024…32768}（`docs/evidence/phase30/`，三份转录）。
-- **预登记判据的对账（判据在跑之前写死）**：
-  ① 我预测 `sum_share < 30%` ⇒ **实测 68.2%**（n=2²⁰、nP=4096）——方向预测错，
-  **主项是串行 pass-2**，不是 pass-1 欠并行；② `part_GBps` 89.5 → 315.6（比值 3.53 ≥ 1.8）⇒ pass-1 确实欠并行；
-  ③ `sum` 随 nP 单调增但**次线性**；④ 采纳门槛**不满足** ⇒ **生成器与测试零改动**。
-- **√n 律被第四个点否证**：`T ≈ a·n/nP + b·nP ⇒ nP* ∝ √n`，锚在实测最优的现役 4096 后预测
-  4096/8192/16384/32768，实测最优 4096/4096/16384/**16384**（2²⁶ 处 32768 慢 38%），
-  因为 pass-1 时间随 nP **非单调**（1.4317 → 1.2665 → 1.6110 ms）。收益数字是真的：
-  **1.67×（2²⁴）与 2.49×（2²⁶），小 n 不退步（≤1.05%）**——但能锁住这些点的上限是**本机拟合常数**。
-- **本轮新增的验收口径（此前无文档记录）**：**启动宽度决定对拍是否精确**。
-  n=2²⁶ 时只有非 2 的幂的 nP 出现偏差（14336 → `rel=−1.602e−04`、28672 → `−1.373e−04`，
-  全部 2 的幂档 `rel=0`）。机制是算术：`n/nP` 非 2 的幂时，部分和折叠到 2²⁰ 量级需要超过 fp32 的 24 bit 尾数。
-  **偏差量仍在 2⁻⁵ 容差内 ⇒ 门禁不拦、账本照收，变的只是"全库 `max_rel=0`"这个口径**；
-  因此 `AGENTS.md` 新增第 7 条：改宽度之前必须先有一条"非幂档必须报红"的开火控制。
-  这也是"设备自报量"两条路线实测出局的原因——满载 `2048×14=28672` 慢 8.7% **且**破坏精确性，
-  `4 块/CU×256×14=14336` 与 16384 打平**但同样破坏精确性**。
-- **交给用户的 D9（新增，见 task_plan 决策表）**：三选一——接受拟合常数 16384（拿 1.67×~2.49×，
-  放弃"宽度只来自设备自报量"）、保持现状、或授权把 pass-2 并行化（消掉该取舍，但**改变最终和的折叠次序**，
-  与未决的 **D8** 同类）。本轮一律不擅动。
-- **现役读数与产物规模不变**：reduce 1048576 `kernel_ms=0.164954`、`verify=PASS max_rel=0`；
-  conv 542 行 / gemm 447 行 / reduce 239 行；`ctest` 3/3、anchors 全绿。
-
-## Phase 31 补遗（v24）— `max_rel=0` 的证据范围被量化：验证实例固定在 2²⁰
-
-- **本轮不改任何判据，改的是"这条证据证明到哪一步"的口径**（登记为新缺口 **G10**）。
-  读码事实：发射的 reduce 程序里差分验证段跑**固定 2²⁰ 个 2⁻⁶**（生成点是 `Differential`（`src/codegen_hip.cpp:883`） 那句
-  `Differential verify`），而折叠宽度 `width` 由**声明的 L** 决定（`:829`，
-  发射成 `UK_REDUCE_WIDTH` 的位置在 `src/codegen_hip.cpp:860`）——
-  所以 `UNIKERN_RESULT` 的 `max_rel` 从来描述不了计时规模上的折叠。
-- **网格实测**（18 格，`docs/evidence/phase31/fold-exactness-grid.txt`；仪器先报 `result`/`rel` 再报时间，
-  期望值 = n/64 提前算好）：现役宽度 4096 在 `n=2²⁴/2²⁵/2²⁶` 上 `rel=0`；
-  `n=2²⁶+4096` 上 `rel=−4.577e−05`；非幂宽度 14336 在 `2×10⁷ / 2²⁵ / 2²⁶` 上
-  `+1.154e−04 / −3.052e−05 / −1.602e−04`；3072 从 2²⁵ 起非 0。
-  **全部非零值与 2⁻⁵ 门限差 ≥195 倍** ⇒ 这类误差**不可能**被现有门禁拦住。
-- **判据被数据改写一次**（这是本轮最有教育意义的一条）：预登记里我写的触发条件是"`n` 不被 `nP` 整除"，
-  而 `n=2²⁶+4096` 与 4096 **是整除的**（67112960/4096 = 16385）却 `rel≠0`
-  ⇒ 真正的条件是**每线程 chunk 是否为 2 的幂**（16385 非幂 ⇒ 部分和 256.015625 ⇒ 累加到 2²⁰ 量级时
-  fp32 量子 2⁻⁵ 已经容不下 2⁻⁶ 的步长）。这条只在计时规模上可见——2²⁰ 实例里两种情况都是 0。
-- **机制不需要真机**：CPU 侧按同一次序折叠 fp32 复现到最后一位
-  （`4096 × 256.015625 → 4.57736e−05` 对真机 `−4.577e−05`；`14336 × 73.140625 → 1.60222e−04`
-  对真机 `−1.602e−04`；幂 chunk 两者都 0）⇒ 是 fp32 算术事实，不是驱动/硬件行为。
-- **进套件**：新增纯 CPU 臂 `[R6.5-blind]`，三条可独立失败的断言——
-  ①幂 chunk 必须逐位等于精确和；②非幂 chunk 必须 `rel>0` 且 `<1e−4`；
-  ③两者都必须低于 `Tolerance{}.fp32_rel / 100`（把"盲区是结构性的、不是调阈值能消的"钉住）。
-  摘除控制三条全红（`arm-removal.txt`，`probe/phase31_arm_probe.py` rc=0；
-  `[R15]` `tests/acceptance.cpp:1454`/`:1459`/`:1467`），复原 byte-identical，`ctest` **3/3**。
-- **与两个未决项的接口**（不代决）：D8 多一条同向事实（不止"CPU 参考更不准"，还有"验证实例规模让
-  折叠误差根本不出场"）；D9 多一条**硬约束**（任何候选宽度必须让 chunk 是 2 的幂，否则连
-  "验证实例恒精确"这层保护都会退化成对拍数据规模的偶然）。
-- **现役数字未变**：conv 542 / gemm 447 / reduce 239 行；reduce 1048576 `kernel_ms=0.164954`、
-  `verify=PASS max_rel=0`。**未改**验证实例规模、容差、宽度公式——三者任一都会让已入库的
-  `max_rel=0` 证据改含义。
-
-## Phase 32 补遗（v25）— `anchors` 门同时核表格列数；扩门首跑抓出三条真实文档缺陷
-
-- **v16 交付的门只管一半**：它核 `path:line` 锚点，**不核 Markdown 表格结构**。而本项目把工作记忆
-  （`task_plan.md` / `findings.md` / `progress.md` 的表）当交付物与索引读，一张渲染错列的表就是错的索引。
-  缺口是自己制造出来的：同一天里用"长单行表格行的**前缀**"当 Edit 锚点，把行撕开过三次（登记为 **E27**）。
-- **新增检查**：`probe/anchors_check.py` 的 `table_shape_problems()` —— 以"表头行 + 分隔行"记下列数基线，
-  往下逐行比较直到非 `|` 开头；``` 围栏内部跳过（证据转录里有管道字符）。
-  **必须处理的一处**：GFM 里代码段内的裸竖线**也是**分隔符，所以计数要把转义竖线当内容——
-  不加这条，错误台账里 E3 那行（键内含转义竖线）会被误判成 5 列；
-  **会误报的检查没有资格进 ctest**（与 Phase 22 定下的"过粗与过松同样无效"同一条）。
-- **首跑抓出的三条，均为真缺陷且已修**：
-  ①Phase 27 表行的行内代码之间是裸竖线 → 4 格 vs 表头 3 格；
-  ②D8 行里绝对值写法 `both−exact` 两侧裸竖线 → 5 格 vs 3 格；
-  ③G5 缺口行的正文写在三个物理行上 → 渲染成 1 格（表头 2 格）。
-  修法：前两条转义，第三条并回一行。**门第一次跑就值钱，与 Phase 22 首跑抓出 4 条失效锚点同类。**
-- **门能红**：给 Phase 31 表行故意补一格 → `rc=1` 并点名该行（该行第 172 行）；
-  复原 byte-identical → `rc=0`；`ctest` 3/3。双向验证沿用既有口径。
-- **门禁现状**：`ctest` = `smoke` / `acceptance` / `anchors` 三门；`anchors` 一次跑核
-  **93 条 `path:line` 锚点 + 全部规划与证据文档的表格列数**（27 份文档）。
-- **写记录的新约定**已写进 `AGENTS.md`：改 Markdown 记录时锚点必须取整行（含结尾竖线），
-  表格与代码段里的竖线一律转义。
-
-## Phase 33 补遗（v26）— "2 的幂宽度可保精确"被否证；G10 严重度上调；D9 换成纯速度取舍
-
-- **本轮只测 2 的幂宽度**，为的是把一个问题问干净：Phase 30/31 留下的可用说法是"2 的幂 ⇒ 折叠精确"，
-  而机制（运行和越过 `2²⁴·2⁻⁶ = 262144` 后 ulp 粗于数据步长 `2⁻⁶`）说明**精确性主要由 `n` 决定**。
-  32 格（8 个 n × 宽度 ∈ {2048, 4096, 8192, 16384}，`docs/evidence/phase33/pow2-widths.txt`）：
-
-| n | 期望和 | 2048 | 4096（现役） | 8192 | 16384 |
-|---|---|---|---|---|---|
-| 2²⁴ | 262144.0 | 0 | 0 | 0 | 0 |
-| 2²⁴+1 | 262144.0 | −5.96e−08 | −5.96e−08 | −5.96e−08 | −5.96e−08 |
-| 2×10⁷ | 312500.0 | −1.64e−05 | **0** | −6.60e−05 | **0** |
-| 3×10⁷ | 468750.0 | 0 | 0 | 0 | **+2.41e−04** |
-| 2²⁵ | 524288.0 | 0 | 0 | 0 | 0 |
-| 5×10⁷ | 781250.0 | +2.69e−05 | **+5.44e−05** | +7.94e−05 | +7.94e−05 |
-| 2²⁶ | 1048576.0 | 0 | 0 | 0 | 0 |
-| 2²⁶+4096 | 1048640.0 | −3.05e−05 | −4.58e−05 | −3.05e−05 | 0 |
-
-- **结论一（否证）**：**没有任何宽度全格精确**，n=5×10⁷ 时四档全偏，**包括出货在用的 4096**。
-  ⇒ 我此前"2 的幂可保精确"的说法过宽，已在 `AGENTS.md` 第 7 条、`findings.md` Phase 31 段、
-  本文件 G10 就地收窄（原文按"补遗不改写、只标演进"处理）。
-  **G10 的表述同时收紧**（初稿说过重，Phase 34 读码后改口）：不是"已出货的宽度就不精确而验证看不见"
-  ——计时段的 `Y` 拷回主机后没有任何代码使用（发射点 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），`max_rel` 只来自 2²⁰ 验证段；
-  准确说法是"**该规模的结果不在验证范围内**"，即**覆盖缺口**而非证据污染。
-- **结论二（精确性的正确表述）**：越过 `n ≈ 1.678×10⁷` 之后精确性是 `(n, 宽度)` 的二维函数——
-  3×10⁷ 只有 16384 偏、2×10⁷ 只有 2048/8192 偏，**不存在单变量法则**；本轮不外推。
-- **结论三（速度，与 D9 重述）**：`16384` 在**八个 n 上全部最快**，对现役 4096 为
-  **1.65× / 1.65× / 1.80× / 2.04× / 2.06× / 2.31× / 2.49× / 2.50×**；
-  且 `16384 = 2^floor(log2(maxThreadsPerMultiProcessor × multiProcessorCount)) = 2^floor(log2(28672))`
-  ——**可由设备自报量推导**（沿用 conv 选档"只用设备自报量"的同一口径）。
-  ⇒ D9 原有的两条反对理由（"拟合常数"、"会破坏精确性"）**同时消失**，剩下的只是纯取舍：
-  用 1.65×~2.50× 换一个从未在出货路径上验过的宽度。**本轮按预登记的分支 2 未动代码**，等用户定。
-- **门禁与证据不变**：`[R6.5-blind]`（三条断言只声称"存在精确的、存在不精确的、两者都远低于门限"，
-  在 Phase 33 之后仍然成立）、`[R20]`、`ctest` 3/3、`anchors`（`path:line` + 表格列数 + 必需章节标题）。
-  生成器、容差、验证实例规模、折叠次序：**一字未动**。
-
-## Phase 34 补遗（v27）— 折叠误差变成可预测模型；G10 的说法从"证据被污染"收回为"覆盖缺口"
-
-- **① 模型与对账**：`k_t = floor((n-1-t)/nP)+1`，pass-1 部分和 `k_t·fill` 在 `k_t < 2²⁴` 时精确
-  ⇒ 误差全部来自 pass-2 的串行 fp32 累加，**可在 CPU 上逐格预测**。
-  与 `docs/evidence/{phase30,phase31,phase33}` 里**全部 41 格真机 `rel` 读数对账 `mismatch=0`**
-  （零/非零一致、量级 5% 内，对应转录 4 位有效数字）。附带结论：真机 pass-2 未被编译器重结合。
-- **② 新臂 `[R6.6-model]`（纯 CPU，无设备）**：19 格实测三元组 + 两条结构断言
-  （2²⁰ 验证实例在任何可选宽度下精确；模型最坏偏离 `2.40667e−04` ≪ 门限 `3.125e−02`）。
-  摘除控制三条各自能红（`[R6.2/R6.4]` `tests/acceptance.cpp:1576`），复原 byte-identical，`ctest` 3/3。
-- **③ 一条方法学，写进验收口径**：控制的第一版（把填充换成 `0.5f`）**不会红，也不会 ever 红**——
-  按 2 的幂整体缩放不改变 fp32 的相对舍入。换成非 2 的幂 `0.1f` 后才会红。
-  ⇒ 本项目的"摘除即红"标准从此明确为：**必须说明"若实现错，这条为什么会红"**，
-  而不是"跑过了控制"。（这是"会误报的门"与"从不红的门"同族的第三种失效：看似严其实无判别力。）
-- **④ 修正 v26/G10 的严重性表述**（v26 正文与 G10 行已就地标注改口）：
-  计时段的 `Y` 拷回主机后**没有任何代码使用**（发射点 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），
-  账本记的是 ε 与时间，`max_rel` 只来自 2²⁰ 验证段
-  ⇒ G10 是**覆盖缺口**（该规模的结果不在验证范围内），**不是"已入库证据被污染"**。
-  模型与 `[R6.6-model]`、`[R6.5-blind]` 均不受此次改口影响（它们只声称误差可算/可存在）。
-- **⑤ 对 D9 的影响**：宽度选择从此可以在跑之前**算**出每格的精确性，
-  所以 D9 不再需要"保守怕破坏精确性"这一维——该维本来就是中性（两侧都不保证）。
-  仍是用户取舍，未动生成器、容差、验证实例规模、折叠次序。
 
 ## 真机执行边界（诚实声明）
 
@@ -859,7 +409,7 @@ Apple 半侧 G4 闭合的完整事实（命令输出转录在 `docs/evidence/pha
   却差 1.5 倍，本身就是它不是带宽测量的证据），比诚实 SKIP 更危险。默认
   `CALIBRATE SKIP`（rc=3），仅 `--allow-unified-calibrate` 显式强制，且产物如实
   标注为伪影。link_bw_gbps 本身是 scenario-B 常数（求解器仅在非 Unified 路径
-  使用，`link_bw_gbps` `src/solver.cpp:102`），对 Apple 预测无影响——**这条有实测背书**：强制
+  使用，`src/solver.cpp:75`），对 Apple 预测无影响——**这条有实测背书**：强制
   校准把 link 600→9.097、constants_version 1→2 之后，`PREDICTED demo c_ms
   5.28611 → 5.28611` 逐位不变。
 - **门控不只是文档事实，本机有单测约束**：`tests/acceptance.cpp` 新增 R7.3 四臂经真实
@@ -1011,7 +561,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   事实，不是能力拒绝；Intel 真机的运行时验证仍待做。**失败消息随构建而异**（v12.1 注记：
   本段原文引用的「no Intel GPU platform/device found」不在所引转录的捕获输出里，出处应
   写明）——该字串出自 Mac 侧构建（UK_HAS_OCL 已定义，`build-apple/unikern`，见
-  `phase14/README.md:25` 与源码 `uk_ocl_log`（`src/runner_ocl.cpp:516`）），转录
+  `phase14/README.md:25` 与源码 `src/runner_ocl.cpp:434`），转录
   `phase14-ocl-and-regression.txt:47-52` 只捕获了 rc=1 与 ledger_created=no；Windows
   MinGW 构建（UK_HAS_OCL 未定义）则报「OpenCL runner stub: no OpenCL import library was
   found at build time (UK_HAS_OCL undefined) …」（2026-10-28 本机实测 rc=1）。两种消息
@@ -1094,69 +644,44 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
 - **本机可做项已清零**：三厂商 × 三算子的生成、能力面、本机可执行的验证路径（AMD 真机
   / Apple 真机 / Intel 编译级）全部完成；ctest 2/2 绿（0.72 s，转录同上）。
 
-## Phase 35 补遗（v28）— out-of-sample 拆掉一个会说谎的模型：pass-1 越界是**冻结**
+## Phase 17 补遗：Intel 三算子真机运行验证（2026-10-28，v13）
 
-- **本轮动的是验收臂，不是产品**。Phase 34 的 `[R6.6-model]` 对 41 格真机读数"全中"，但那些格
-  全落在 `fill=2^-6 ∧ k <= 2^24` 区域，而该区域内"连加 k 次"与"乘一次"**逐位相同** ⇒ 那批通过
-  不含信息（E21/E24 家族：不能失败的对照本身就是缺陷）。
-- **真机否证**（RX 6600M，`docs/evidence/phase35/`）：naive 模型在 22 个新格上判错 5——
-  `fill=0.1` 一格把 `rel` 的**符号**算反（预测 `+4.8336e-06` / 实测 `-1.092e-05`），
-  `k=17500000` 一格差出七个数量级（预测 `0` / 实测 `-4.130e-02`）；忠实连加模型 29 格全中。
-  机制是悬崖不是斜坡：`2^-6` 加进 `2^18` 是 round-half-to-even 平局，部分和此后不动，
-  `rel` 随 `n` 无界（`L=33554433, width=1` 实测 `result=262144.0 / rel=-5.000e-01`）。
-- **臂的当前口径**（`[R6.6-model]`）：41 格 = in-sample 19 + out-of-sample 22；
-  `safe=34 / split=7`，naive 判错 7 格并作为活控制入库（`assert(naive_bad >= 5)`）。
-  打印件：`worst |rel| reachable=0.000240667 overall=0.5 vs gate=0.03125`。
-- **不新增 G 行，理由如实**：触发需 `ceil(n/width) > 2^24`，而现役 `width >= 256` **由发射产物自证**
-  （`L=100` 的树仍发 `const int UK_REDUCE_WIDTH = 256;`）⇒ 需 `n > 4.3e9` 元素 = 17.2 GB fp32，
-  是本仓最大 vram 档 8589934592 B（`docs/evidence/phase8/hcs_amd.calibrated.json:12`）的两倍
-  ⇒ 现役配置不可达，故这是**规格边界**而非 MVP 缺口；边界已写入生成器注释
-  `FREEZES`（`src/codegen_hip.cpp:762`）与臂的前置条件（`[R6.6]` `tests/acceptance.cpp:1777`、`:1632`），
-  并有两条**各自跑过**的摘除控制（边界 `2^24→2^20` 红在 `naive != pred`；地板 `256→4`
-  红在发射产物断言；两者均 byte-identical 复原、复跑 rc=0）。
-- **G10 口径不变**：计时规模的结果仍不在验证范围内。本轮改变的是"该规模会不会精确"这件事
-  从模糊变成可算，并证明我原先的算法在两个独立轴上都会错（可表示性上限、非 2 的幂填充）。
-- **仪器**：`probe/uk_reduce_width_probe.cpp` 新增 `argv[3]=fill`；所有 HIP 调用失败改印
-  `msg=hipGetErrorString` 并 `return 2`（`n=10^8 nP=4` 段两次都是 `unspecified launch failure`，
-  首版探针丢掉设备后还继续 `continue` 空转 = E29）；补测一 n 一进程。
-- **文档一致性**：给生成器加注释使 4 个被 5 份文档引用的行号锚点整体下移 12，`anchors` 的
-  ±25 行窗口**没有报红**——已按符号逐个重算（E30）。
-- **未动**：生成器发射字节（conv 542 / gemm 447 / reduce 239）、容差 `2^-5`、验证实例 `2^20`、
-  折叠次序、D8/D9 取舍。**本机可做项仍已清零**。
+**机器身份澄清（承 v12 的"本机无 Intel 设备"）**：本仓库由多台机器并行推进——
+v12 写下的"本机无 Intel 设备，backends 实测 intel=no"是 AMD 机器侧会话的
+机器相关读数（同一 `backends` 命令在 Intel 机器上实测 intel=yes，两份转录
+`docs/evidence/phase15/intel-r1-command.txt` 与 `docs/evidence/phase17/phase17-backends.txt`
+分别属实）。本会话运行于 Intel Arc B390 机器，开放缺口①（"需 Intel 机器"）由此闭合。
 
-## Phase 42 补遗（v30）— harness #5 闭合：复原保证成为 ctest 门禁，并揪出一条恒真的臂判据
+真机结果（命令与全文见 `docs/evidence/phase17/`，转录内含 UK_DEVICE 事实行与 COVER 行）：
 
-- **#5 范围纠正**：phase11-14 不是"缺 finally"，而是 ROOT 硬编码 macOS 路径 + `build-apple` + `/tmp`
-  产物，**本机无法运行**，复原路径从未被执行；phase15/16 可移植但复原靠显式调用。
-- **机械保证**：`probe/arm_probe_guard.py`（按字节快照 → 唯一写路径 → 退出重读比对 → 全 `src/`
-  残留 `ARM-PROBE` 扫描 → 与进入时的 `git status src/` 比较漂移）；六个探针统一 `guard_main(main)` 入口。
-  Apple 专属步骤由 `has_apple_toolchain()` 闸门打印 SKIPPED，把"没测"与"测过且过"分开写。
-- **新 ctest 测试 `probe_hygiene`**（第 4 条）：任何写 `src/` 的探针必须有守卫化写路径、守卫下入口、
-  推导式 ROOT。开火控制跑过：去守卫副本被点名 4 条并 rc=1，删除后 rc=0。
-- **真跑而非纸面**：`phase15`（2 腿）、`phase12`（6 腿，本机首次能跑）、`phase16`（2 腿）
-  每条腿都产生具名失败断言，收尾一律 byte-identical、无残留、无漂移。
-- **臂的真缺陷（E38）**：`[R8.5]` 判"结果行必须带 `migrations=`"用存在性 `find()`，
-  同程序拒绝行带同一 token ⇒ 移除结果行发射仍绿。改为按程序计数 `== 2` 后，
-  `phase16/reduce_migrations_token` 腿立即红在 `Assertion failed: n == 2`
-  （`[R6.8]` `tests/acceptance.cpp:1923`）。这是 E21/E24 家族第三次复发，潜伏 26 个相。
-  **固化：没跑过摘除控制的腿不算腿。**
-- 过期站点两处已重定位（`op_support_gap`→`msl_op_gap`、`UK_MIGRATIONS << std::endl`→拆链形状），
-  存活性盘点工具 `probe/phase42_probe_site_audit.py`：21/21 站点活。
-- 发射字节未动（conv 对 phase29 基线空 diff、gemm 447、reduce 239）；`ctest` 4/4。
-  harness 报告的本机可做项至此只剩 **#4**。
+- gemm 回归：`run --vendor intel --hcs samples/hcs_intel.json --dims 1024 1024 1024`
+  → `verify=PASS max_rel=0.000000e+00 measured_ms=1.67562` → `LEDGER COMMIT
+  epsilon_rel=2.4714` → 同键 `LEDGER HIT c_cached_ms=0.482694 tile=128x128`——
+  与 Phase 9 同键同 tile，行为不变。
+- conv 首次真机执行：`--kml samples/conv.kml` → `verify=PASS max_rel=0.000000e+00
+  measured_ms=0.841068`（64×64×32×3×3×64，位级一致）→ `LEDGER COMMIT
+  epsilon_rel=13.5646` → 同键 HIT。
+- reduce 首次真机执行：`--op reduce --dims 1048576 0 0` → `verify=PASS
+  max_rel=0.000000e+00 measured_ms=0.522089` → `LEDGER COMMIT epsilon_rel=0.883955`
+  → 同键 HIT。
+- ctest 2/2 绿（smoke + acceptance 2.07s，含 Phase 10-16 全部验收臂）。
 
-## Phase 43 补遗（v32）— harness #4 闭合：证据输入进版本控制，新增 `record_audit` 门禁
+真机暴露并修复的两个缺陷（全文与前后对照见
+`docs/evidence/phase17/phase17-defects-before-after.txt`；runner 层无 ctest 回归位，
+沿 Phase 11 d 先例以转录承载"摘除即红"）：
 
-- **实质**：`.gitignore` 忽略 `build/`、`uk_run/` 是正确的；错在**声明式输入住在被忽略的树里**——
-  六份证据 README 的复现命令依赖 `uk_run/phase19conv/conv_*.json`，克隆拿不到； （旧路径）
-  同时三件 Phase 9 Intel 证据被强制跟踪在忽略树 `build/phase9-emit/`（gitignore 不影响已跟踪文件， （旧路径）
-  因此它们在 `git status` 里隐形）。
-- **落地**：`git mv` 三件产物 → `docs/evidence/phase9/emit/`（搬前搬后 sha256 一致，索引里记为 rename，
-  **未提交**）；conv 声明输入 → `workloads/conv/`（`git add` + `git ls-files` 实证跟踪）；
-  README 复现命令改指新路径；从新路径重新发射 conv，与 `docs/evidence/phase29` 基线**空 diff**。
-- **新 ctest 测试 `record_audit`**（第 5 条）：扫规划文件与全部 `docs/evidence/*/README.md` 中
-  带扩展名的路径引用，报 MISSING / IGNORED INPUT。两轮收紧：首版 21 条噪声里只有 1 条真
-  （`docs/AGENTS.md`，该文件在仓库根，已改）；逐条 `git check-ignore` 慢至 21 s，
+- **E18（规格误读）**：runner 把 `CL_DEVICE_MAX_WORK_ITEM_SIZES`（本地工作组每维
+  上限）误当作全局网格上限（Phase 9 引入；此前证据维恰好未触发）。reduce 的
+  P=4096 发射被错误拒绝——而 verify 阶段同一发射在设备上真实执行且 max_rel=0
+  （"verify=PASS 与 refused 并存"即暴露点）。修复：删除错误检查，代之以对真实
+  限值的门（gemm 显式 local 16×16=256 按 CL_DEVICE_MAX_WORK_GROUP_SIZE 校验；
+  conv/reduce 传 nullptr local 由驱动自选，越界经 UK_OCL_CK 大声失败）。
+- **E19（计时竞态）**：time_passes 在事件完成前读 profiling 时间戳；本机 Intel NEO
+  驱动对未完成事件返回 CL_SUCCESS+全零（而非规格的
+  CL_PROFILING_INFO_NOT_AVAILABLE）→ 间歇性 measured_ms=0（Phase 9-16 的证据
+  恰好每次都赢了该竞态）。修复：读前 `clWaitForEvents` 等 pass 末尾标记——与
+  生成的 HIP 程序"hipEventSynchronize 后再读"同一纪律；e2e 与 kernel-only 两括号都加。
+
   改为一次 `--stdin` 批处理。开火控制：注入忽略树 `.json` 引用 ⇒ rc=1；清除后 rc=0。
 - **自酿错误**：E39（`.gitignore` 追加说明时目录名单独成行 = 忽略规则，新目录反而不被跟踪，
   靠真跑 `git add` 才暴露）、E40（目录级替换把同目录运行产物账本一起迁走，**被本相新门禁当场抓到**）。

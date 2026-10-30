@@ -1,0 +1,19 @@
+LEDGER HIT  c_cached_ms=0.0577475  tile=128x128  (from ledger)
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=0.841068 kernel_ms=0.562375 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+COVER intel:ocl primitive=covered execution=resident-only toolchain=present
+RUN intel:ocl built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.841068
+-- log tail --
+me=Intel(R) Arc(TM) B390 GPU
+UK_DEVICE_VENDOR vendor=Intel(R) Corporation
+UK_DEVICE_VERSION version=OpenCL 3.0 NEO 
+UK_DEVICE_DRIVER driver=32.0.101.9150
+UK_DEVICE_UNITS units=96
+UK_DEVICE_MEM gmem=27207761920
+UK_DEVICE_MEM lmem=131072
+UK_DEVICE_CLOCK clock_mhz=2500
+UK_DEVICE_UNIFIED host_unified=1
+UK_DEVICE_WG max_wg=1024
+UK_RUNNER plan op=conv perf=64x64x32x3x3x64 tile=96x96 vram_bytes=27207761920 payload_mb=1.508789 warm=2 iters=10
+UNIKERN_RESULT backend=intel:ocl verify=PASS max_rel=0.000000e+00 measured_ms=0.841068 kernel_ms=0.562375 mode=resident payload_mb=1.508789 perf=64x64x32x3x3x64
+LEDGER COMMIT predicted_ms=0.0577475 measured_ms=0.841068 epsilon_abs=0.78332 epsilon_rel=13.5646
