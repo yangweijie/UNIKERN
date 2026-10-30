@@ -18,9 +18,12 @@ ledger.sqlite3
 *.exe
 *.obj
 *.o
-uk_*.cpp
-# ... but probe sources under probe/ are tracked (the pattern above is for generated programs)
-!probe/uk_*.cpp
+# Generated programs land only in scratch (uk_run/, build/ — both ignored below).
+# The EVIDENCE emit baselines under docs/evidence/**/emit ARE tracked: the byte leg
+# [R5.4-artifact-bytes] compares fresh emissions against them, and a global uk_*.cpp
+# rule here used to swallow every HIP baseline (uk_amd*.cpp), which would have broken
+# that leg on any fresh clone (fixed Phase 62 提交日; the metal/.cl baselines never
+# matched the rule, which is why only the HIP half went missing).
 uk_evidence/
 uk_run/
 
