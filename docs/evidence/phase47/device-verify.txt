@@ -1,0 +1,31 @@
+# Phase 47 real-device check under the new differential basis (D8 option A)
+# host: Windows 11 + AMD RX 6600M (gfx1032), ROCm 7.1 hipcc; one fresh SQLite ledger per case (E35)
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --vendor amd --ledger build/p47_dev/reduce.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.77926 migrations=0 checks=6
+    UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=1048576
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.779260 kernel_ms=0.427398 mode=resident payload_mb=4.062504 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+    rc=0
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 16777216 0 0 --vendor amd --ledger build/p47_dev/reduce24.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.2429 migrations=0 checks=6
+    UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=16777216
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.242900 kernel_ms=0.771290 mode=resident payload_mb=64.062504 perf=16777216 migrations=0 checks=6 vram_free=8344633344 vram_total=8573157376
+    rc=0
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 67108864 0 0 --vendor amd --ledger build/p47_dev/reduce67m.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=2.42215 migrations=0 checks=6
+    UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=67108864
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.422150 kernel_ms=1.906380 mode=resident payload_mb=256.062504 perf=67108864 migrations=0 checks=6 vram_free=8143306752 vram_total=8573157376
+    rc=0
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op gemm --dims 512 512 512 --vendor amd --ledger build/p47_dev/gemm.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.12477 migrations=0 checks=6
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.124770 kernel_ms=0.118630 mode=resident payload_mb=3.000000 perf=512x512x512 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+    rc=0
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --kml workloads/conv/conv_256x256x32_k3x3_o64.json --vendor amd --ledger build/p47_dev/conv.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.8473 migrations=0 checks=6
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.847310 kernel_ms=7.210240 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+    rc=0
+

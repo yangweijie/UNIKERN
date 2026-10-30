@@ -1,0 +1,22 @@
+anchors checked: 428 in 55 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range checks 104, weak 8/8, unverifiable 11/11)  [2026-10-29]
+debt | weak | docs/acceptance-mvp.md:475 | src/hcs.cpp:95 | symbol:required
+debt | unverifiable | docs/acceptance-mvp.md:501 | src/codegen_hip.cpp:463 | symbol:source
+debt | unverifiable | docs\evidence\phase23\README.md:75 | src/codegen_hip.cpp:463 | symbol:source
+debt | unverifiable | docs\evidence\phase31\README.md:12 | src/codegen_hip.cpp:781 | symbol:iostream
+debt | unverifiable | docs\evidence\phase31\README.md:13 | src/codegen_hip.cpp:724 | symbol:payload_mb
+debt | unverifiable | docs\evidence\phase31\README.md:14 | src/codegen_hip.cpp:808 | (no suggestion)
+debt | weak | docs\evidence\phase36\README.md:9 | src/main.cpp:86 | (no suggestion)
+debt | weak | docs\evidence\phase37\README.md:12 | src/codegen_hip.cpp:924 | (no suggestion)
+debt | weak | docs\evidence\phase37\README.md:23 | src/main.cpp:86 | (no suggestion)
+debt | unverifiable | docs\evidence\phase44\README.md:7 | src/codegen_hip.cpp:809 | symbol:UK_REF_REDUCE_WIDTH
+debt | unverifiable | docs\evidence\phase44\README.md:53 | src/runner_ocl.cpp:164 | symbol:iters
+debt | unverifiable | docs\evidence\phase44\README.md:53 | src/runner_metal.mm:116 | symbol:ws_refuse
+debt | unverifiable | docs\evidence\phase45\README.md:13 | src/codegen_hip.cpp:638 | symbol:dtype_tol_literal
+debt | unverifiable | findings.md:699 | src/codegen_hip.cpp:463 | symbol:source
+debt | weak | findings.md:1783 | include/unikern/components.hpp:133 | symbol:fp16_rel
+debt | weak | progress.md:494 | src/hcs.cpp:95 | symbol:required
+debt | unverifiable | progress.md:527 | src/codegen_hip.cpp:463 | symbol:source
+debt | weak | progress.md:1209 | src/runner_metal.mm:623 | symbol:tolerance_for
+debt | weak | task_plan.md:323 | src/hcs.cpp:95 | symbol:required
+debt listed: 19  (unverifiable 11, weak 8)  caps in force: weak 8, unverifiable 11
+all doc->code anchors agree with the files they cite

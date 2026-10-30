@@ -1,0 +1,440 @@
+# Phase 59 triage sheet - every counted debt row next to what its number points at
+# gate rc=0  rows=69  anchors checked: 413 in 54 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range c
+
+### docs/acceptance-mvp.md:3  [weak]  -> src/runner_ocl.cpp:434   (suggested:symbol)
+    DOC  - 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner +
+    CODE   double total = 0.0;
+    CODE(stripped of comments) double total = 0.0;
+    SUGGESTION symbol:total
+
+### docs/acceptance-mvp.md:65  [weak]  -> src/solver.cpp:16   (manual)
+    DOC  **验收方式**：构造 vram=200 KiB 的 HCS，使文档化的 5×5 tile 网格 {16,32,64,128,256}²（`tm`/`tn` 在 `src/solver.cpp:16-17`）被谓词 `m*n*4B*3 ≤ cap`（`feasible` 在 `src/solver.cpp:42-57`）切成 22 可行 
+    CODE   const int tm[] = {16, 32, 64, 128, 256};
+    CODE(stripped of comments) const int tm[] = {16, 32, 64, 128, 256};
+    SUGGESTION (no suggestion)
+
+### docs/acceptance-mvp.md:316  [weak]  -> src/kml_front.cpp:89   (suggested:symbol)
+    DOC  | G12 | **dtype 进入成本与规范键，但不进入生成产物**：前端明确允许 `fp32\|fp16\|int8`（`src/kml_front.cpp:89` / `:93`），`dtype_size(t.dtype)` 参与字节与代价计算（`dtype_size` `src/kml.cpp:117`），`to_string(t
+    CODE     if (!known) bad("unknown field '" + k + "' (typo would otherwise be ignored)");
+    CODE(stripped of comments) if (!known) bad( + k + );
+    SUGGESTION symbol:known
+
+### docs/acceptance-mvp.md:316  [weak]  -> include/unikern/components.hpp:133   (suggested:symbol)
+    DOC  | G12 | **dtype 进入成本与规范键，但不进入生成产物**：前端明确允许 `fp32\|fp16\|int8`（`src/kml_front.cpp:89` / `:93`），`dtype_size(t.dtype)` 参与字节与代价计算（`dtype_size` `src/kml.cpp:117`），`to_string(t
+    CODE   double fp16_rel = 0.0625;   // 2^-4
+    CODE(stripped of comments) double fp16_rel = 0.0625;
+    SUGGESTION symbol:fp16_rel
+
+### docs/acceptance-mvp.md:317  [weak]  -> src/runner_ocl.cpp:190   (suggested:symbol)
+    DOC  | G13 | **reduce 的 pass-1 宽度跨后端不一致（Phase 51 拆成两半）**：HIP 程序自 Phase 44 起向设备要容量；OpenCL runner 现在同样查 `CL_DEVICE_MAX_COMPUTE_UNITS × CL_DEVICE_MAX_WORK_GROUP_SIZE`（`src/runner
+    CODE ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### docs/acceptance-mvp.md:474  [weak]  -> src/main.cpp:557   (manual)
+    DOC  LEDGER COMMIT 门→`src/main.cpp:557`、`INFEASIBLE`→`src/main.cpp:269`、`HCS rejected`→
+    CODE   return 0;
+    CODE(stripped of comments) return 0;
+    SUGGESTION (no suggestion)
+
+### docs/acceptance-mvp.md:475  [weak]  -> src/main.cpp:213   (suggested:symbol)
+    DOC  `src/main.cpp:213`，而被拒字段串本体在 `src/hcs.cpp:95`——那是归错文件而非行号漂移）。
+    CODE   if (!h) std::cerr << "HCS rejected: " << err << "\n";
+    CODE(stripped of comments) if (!h) std::cerr << HCS rejected:  << err << \n;
+    SUGGESTION symbol:rejected
+
+### docs/acceptance-mvp.md:475  [weak]  -> src/hcs.cpp:95   (suggested:symbol)
+    DOC  `src/main.cpp:213`，而被拒字段串本体在 `src/hcs.cpp:95`——那是归错文件而非行号漂移）。
+    CODE     os << "missing required fields:";
+    CODE(stripped of comments) os << missing required fields:;
+    SUGGESTION symbol:required
+
+### docs/acceptance-mvp.md:501  [unverifiable]  -> src/codegen_hip.cpp:415   (suggested:symbol)
+    DOC  `src/codegen_hip.cpp:415` 的 ` source=env` 后缀（该 token 在 `docs/evidence/phase21/tiled-sweep.txt`
+    CODE     << "      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0)" << '\n'
+    CODE(stripped of comments) <<       ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0) << '\n'
+    SUGGESTION symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+
+### docs/acceptance-mvp.md:764  [weak]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  ——计时段的 `Y` 拷回主机后没有任何代码使用（发射点 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），`max_rel` 只来自 2²⁰ 验证段；
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### docs/acceptance-mvp.md:792  [unverifiable]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  计时段的 `Y` 拷回主机后**没有任何代码使用**（发射点 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### docs/acceptance-mvp.md:862  [unverifiable]  -> src/solver.cpp:75   (suggested:symbol)
+    DOC  使用，`src/solver.cpp:75`），对 Apple 预测无影响——**这条有实测背书**：强制
+    CODE   if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    CODE(stripped of comments) if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    SUGGESTION symbol:link_bw_gbps
+
+### docs/acceptance-mvp.md:1014  [unverifiable]  -> src/runner_ocl.cpp:434   (suggested:symbol)
+    DOC  `phase14/README.md:25` 与源码 `src/runner_ocl.cpp:434`），转录
+    CODE   double total = 0.0;
+    CODE(stripped of comments) double total = 0.0;
+    SUGGESTION symbol:total
+
+### docs/acceptance-mvp.md:1264  [unverifiable]  -> src/runner_ocl.cpp:190   (suggested:symbol)
+    DOC  - **能落地的部分先落地**：`src/runner_ocl.cpp:190` 用 `CL_DEVICE_MAX_COMPUTE_UNITS ×
+    CODE ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### docs/acceptance-mvp.md:1269  [weak]  -> src/runner_metal.mm:136   (suggested:symbol)
+    DOC  `src/runner_metal.mm:136` **保持常量**并把来源标签写成 `metal_no_capacity_api`。把常量包装成
+    CODE ReduceWidthPlan plan_reduce_width(int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### docs\evidence\phase10\README.md:56  [unverifiable]  -> src/solver.cpp:75   (suggested:symbol)
+    DOC  （`src/solver.cpp:75`：拷贝项仅在 `x.path != Path::Unified` 时计入），改它不会污染 Apple 的预测。
+    CODE   if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    CODE(stripped of comments) if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    SUGGESTION symbol:link_bw_gbps
+
+### docs\evidence\phase23\README.md:75  [unverifiable]  -> src/codegen_hip.cpp:415   (suggested:symbol)
+    DOC  - `src/codegen_hip.cpp:415` 的 ` source=env` 后缀——该 token 在 `docs/evidence/phase21/tiled-sweep.txt`
+    CODE     << "      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0)" << '\n'
+    CODE(stripped of comments) <<       ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0) << '\n'
+    SUGGESTION symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+
+### docs\evidence\phase31\README.md:12  [unverifiable]  -> src/codegen_hip.cpp:781   (suggested:symbol)
+    DOC  src/codegen_hip.cpp:781   // Differential verify: 2^20 values of 2^-6 sum to 16384 in ANY fp32
+    CODE     << "#include <iostream>" << '\n'
+    CODE(stripped of comments) << #include <iostream> << '\n'
+    SUGGESTION symbol:iostream
+
+### docs\evidence\phase31\README.md:13  [unverifiable]  -> src/codegen_hip.cpp:724   (suggested:symbol)
+    DOC  src/codegen_hip.cpp:724   int width = L < 4096 ? L : 4096;
+    CODE     << "            << \" payload_mb=\" << payload_mb" << '\n'
+    CODE(stripped of comments) <<             << \" payload_mb=\" << payload_mb << '\n'
+    SUGGESTION symbol:payload_mb
+
+### docs\evidence\phase31\README.md:14  [unverifiable]  -> src/codegen_hip.cpp:808   (manual)
+    DOC  src/codegen_hip.cpp:808   const int UK_REDUCE_WIDTH = " << width << ";
+    CODE     << "  float acc = 0.f;" << '\n'
+    CODE(stripped of comments) <<   float acc = 0.f; << '\n'
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase33\README.md:54  [unverifiable]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  它不是"已入库证据被污染"：计时段的 `Y` 拷回主机后没有任何代码使用（发射点是 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）那句 `"d2h tY"`；本 README 原文写 844 是当时的位置），
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### docs\evidence\phase34\README.md:40  [unverifiable]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  读码核对：计时段的 `Y` 拷回主机后**没有任何代码使用它**（发射点是 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）那句 `"d2h tY"`；原文写的 844 是当时的位置），
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### docs\evidence\phase36\README.md:9  [weak]  -> src/main.cpp:86   (manual)
+    DOC  > saturation in `src/main.cpp:86` (see docs/evidence/phase37/).
+    CODE   return true;
+    CODE(stripped of comments) return true;
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase37\README.md:12  [weak]  -> src/codegen_hip.cpp:924   (manual)
+    DOC  (`src/codegen_hip.cpp:924`), so it shrinks as K grows. Across the sweep `SR*K` stayed in
+    CODE     << "    float *dX, *dP, *dY;" << '\n'
+    CODE(stripped of comments) <<     float *dX, *dP, *dY; << '\n'
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase37\README.md:23  [weak]  -> src/main.cpp:86   (manual)
+    DOC  `src/main.cpp:86` parses `--dims` with `std::atoi`, so an out-of-range dimension saturates
+    CODE   return true;
+    CODE(stripped of comments) return true;
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase39\README.md:26  [unverifiable]  -> src/kml.cpp:117   (suggested:symbol)
+    DOC  Two consequences worth stating precisely. G12: dtype feeds the cost model (`src/kml.cpp:117`) and the
+    CODE   const int64_t es = int64_t(dtype_size(t.dtype));
+    CODE(stripped of comments) const int64_t es = int64_t(dtype_size(t.dtype));
+    SUGGESTION symbol:dtype_size
+
+### docs\evidence\phase39\README.md:27  [unverifiable]  -> src/kml.cpp:107   (suggested:symbol)
+    DOC  canonical ledger key (`src/kml.cpp:107`) but not the generated artifact, so a ledger row keyed
+    CODE   std::string s = std::string(to_string(t.op)) + ":" + to_string(t.dtype) + ":";
+    CODE(stripped of comments) std::string s = std::string(to_string(t.op)) +  + to_string(t.dtype) + ;
+    SUGGESTION symbol:to_string
+
+### docs\evidence\phase44\README.md:7  [unverifiable]  -> src/codegen_hip.cpp:809   (suggested:symbol)
+    DOC  static int uk_reduce_width_plan(int n)      // emitted, src/codegen_hip.cpp:809
+    CODE     << "  const size_t w = (size_t)UK_REF_REDUCE_WIDTH;" << '\n'
+    CODE(stripped of comments) <<   const size_t w = (size_t)UK_REF_REDUCE_WIDTH; << '\n'
+    SUGGESTION symbol:UK_REF_REDUCE_WIDTH
+
+### docs\evidence\phase44\README.md:53  [unverifiable]  -> src/runner_ocl.cpp:164   (suggested:symbol)
+    DOC  `src/runner_ocl.cpp:164` and `src/runner_metal.mm:116` still return `min(L, 4096)`. No Apple or Intel
+    CODE   int warm = 2, iters = 10;
+    CODE(stripped of comments) int warm = 2, iters = 10;
+    SUGGESTION symbol:iters
+
+### docs\evidence\phase44\README.md:53  [unverifiable]  -> src/runner_metal.mm:116   (suggested:symbol)
+    DOC  `src/runner_ocl.cpp:164` and `src/runner_metal.mm:116` still return `min(L, 4096)`. No Apple or Intel
+    CODE   bool ws_refuse = false;       // payload > the device's working-set cap
+    CODE(stripped of comments) bool ws_refuse = false;
+    SUGGESTION symbol:ws_refuse
+
+### docs\evidence\phase45\README.md:13  [unverifiable]  -> src/codegen_hip.cpp:638   (suggested:symbol)
+    DOC  3. 三个 HIP 发射器把 `0.03125f` **写死**在产物里（`src/codegen_hip.cpp:638`、`:878`、`:1212`）；
+    CODE     << "    if (max_rel > " << dtype_tol_literal(tree) << "f) rc = 1;" << '\n'
+    CODE(stripped of comments) <<     if (max_rel >  << dtype_tol_literal(tree) << f) rc = 1; << '\n'
+    SUGGESTION symbol:dtype_tol_literal
+
+### docs\evidence\phase45\README.md:23  [weak]  -> src/runner_ocl.cpp:583   (suggested:symbol)
+    DOC  两个不能在本机编译的进程内 runner（`src/runner_ocl.cpp:583`、`src/runner_metal.mm:559`）
+    CODE       for (size_t i = 0; i < vA.size(); ++i) vA[i] = initA((int)i);
+    CODE(stripped of comments) for (size_t i = 0; i < vA.size(); ++i) vA[i] = initA((int)i);
+    SUGGESTION symbol:initA
+
+### docs\evidence\phase45\README.md:23  [weak]  -> src/runner_metal.mm:559   (suggested:symbol)
+    DOC  两个不能在本机编译的进程内 runner（`src/runner_ocl.cpp:583`、`src/runner_metal.mm:559`）
+    CODE       id<MTLBuffer> dY = [dev newBufferWithLength:vY.size() * sizeof(float)
+    CODE(stripped of comments) id<MTLBuffer> dY = [dev newBufferWithLength:vY.size() * sizeof(float)
+    SUGGESTION symbol:newBufferWithLength
+
+### docs\evidence\phase45\README.md:39  [weak]  -> src/main.cpp:297   (suggested:symbol)
+    DOC  现在该条件与 `--emit` 无关（`src/main.cpp:297` 那段）：非覆盖树在 `ledger_key()` 之前退出，
+    CODE     std::cerr << "UNSUPPORTED: " << gap << " — solve emits nothing AND files no ledger row for a "
+    CODE(stripped of comments) std::cerr << UNSUPPORTED:  << gap <<  — solve emits nothing AND files no ledger row for a
+    SUGGESTION symbol:UNSUPPORTED
+
+### docs\evidence\phase51\README.md:12  [weak]  -> src/runner_ocl.cpp:190   (suggested:symbol)
+    DOC  | Intel（`src/runner_ocl.cpp:190`） | 原先是写死的 `min(L,4096)` | `CL_DEVICE_MAX_COMPUTE_UNITS × CL_DEVICE_MAX_WORK_GROUP_SIZE` → 同一套 2 的幂 + 256 地板；查询失败退回 4096 且 `source=props_u
+    CODE ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### docs\evidence\phase51\README.md:13  [unverifiable]  -> src/runner_metal.mm:136   (suggested:symbol)
+    DOC  | Apple（`src/runner_metal.mm:136`） | 原先同上写死 | **保持常量但改名标注** `source=metal_no_capacity_api`：Metal 公共 API 既不报 CU 数也不报每 CU 线程数，没有可诚实查询的量，于是把它写成"这是常量"而不是伪装成测量 |
+    CODE ReduceWidthPlan plan_reduce_width(int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### docs\evidence\phase52\README.md:49  [unverifiable]  -> src/codegen_hip.cpp:1054   (suggested:symbol)
+    DOC  `GEMM_ARG found 2 times`——`int M, int N, int K) {` 在 `src/codegen_hip.cpp:1054` 与 `:1089` 各一次，
+    CODE     << "                        float* __restrict__ C, int M, int N, int K) {" << '\n'
+    CODE(stripped of comments) <<                         float* __restrict__ C, int M, int N, int K) { << '\n'
+    SUGGESTION symbol:__restrict__
+
+### findings.md:223  [unverifiable]  -> src/runner_metal.mm:65   (suggested:symbol)
+    DOC  `maxThreadsPerThreadgroup.width=1024`（`src/runner_metal.mm:65-66`）；**本 SDK 无 CU 数量 API**，
+    CODE       uk_os << "UNIKERN_ERROR what=" << what << "\n";                        \
+    CODE(stripped of comments) uk_os << UNIKERN_ERROR what= << what << \n;                        \
+    SUGGESTION symbol:UNIKERN_ERROR
+
+### findings.md:240  [unverifiable]  -> src/solver.cpp:75   (suggested:symbol)
+    DOC  （`src/solver.cpp:75` 仅在非 Unified 路径取链路项）
+    CODE   if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    CODE(stripped of comments) if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    SUGGESTION symbol:link_bw_gbps
+
+### findings.md:449  [unverifiable]  -> src/runner_ocl.cpp:434   (suggested:symbol)
+    DOC  UK_HAS_OCL 已定义；源码 `src/runner_ocl.cpp:434`），转录
+    CODE   double total = 0.0;
+    CODE(stripped of comments) double total = 0.0;
+    SUGGESTION symbol:total
+
+### findings.md:454  [unverifiable]  -> src/main.cpp:604   (suggested:symbol)
+    DOC  - **自捉：`unikern ledger <path>` 静默忽略路径参数**（`src/main.cpp:604` 硬编码
+    CODE   const std::vector<MeasuredRow> rows = ledger->measured_rows(fp);
+    CODE(stripped of comments) const std::vector<MeasuredRow> rows = ledger->measured_rows(fp);
+    SUGGESTION symbol:measured_rows
+
+### findings.md:651  [weak]  -> src/main.cpp:557   (manual)
+    DOC  （`verify_fp32` → `src/runtime.cpp:182`；LEDGER COMMIT 门 → `src/main.cpp:557`；`INFEASIBLE` → `src/main.cpp:269`；
+    CODE   return 0;
+    CODE(stripped of comments) return 0;
+    SUGGESTION (no suggestion)
+
+### findings.md:655  [unverifiable]  -> src/runtime.cpp:182   (suggested:symbol)
+    DOC  摘除即红：把 `src/runtime.cpp:182` 改回 `:95` → validator rc=1 且 `ctest -R anchors` Failed(8)，
+    CODE double tolerance_for(DType dtype, const Tolerance& tol) {
+    CODE(stripped of comments) double tolerance_for(DType dtype, const Tolerance& tol) {
+    SUGGESTION symbol:tolerance_for
+
+### findings.md:699  [unverifiable]  -> src/codegen_hip.cpp:415   (suggested:symbol)
+    DOC  `src/codegen_hip.cpp:415` 的 ` source=env` 后缀与 `:412` 的 `if (p.tile == 0 && p.smem != 0) p.smem = 0;`，
+    CODE     << "      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0)" << '\n'
+    CODE(stripped of comments) <<       ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0) << '\n'
+    SUGGESTION symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+
+### findings.md:950  [weak]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  计时段的 `Y` 拷回主机后**没有任何代码使用**（发射点 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），`max_rel` 只来自 2²⁰ 验证段
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### findings.md:971  [unverifiable]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  读码：计时段的 `Y` 拷回主机后**没有任何代码使用**（发射点 `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### findings.md:1093  [unverifiable]  -> src/codegen_hip.cpp:963   (suggested:symbol)
+    DOC  `shard_rows = int(shard_bytes / (K*4))`（`src/codegen_hip.cpp:963`）随 K 反比收缩。7 档 K
+    CODE     << "    kms = double(ke) / iters;" << '\n'
+    CODE(stripped of comments) <<     kms = double(ke) / iters; << '\n'
+    SUGGESTION symbol:iters
+
+### findings.md:1156  [unverifiable]  -> include/unikern/components.hpp:133   (suggested:symbol)
+    DOC  容差表的 `fp16_rel = 2^-4` 只出现在 `fp16_rel` `include/unikern/components.hpp:133`，
+    CODE   double fp16_rel = 0.0625;   // 2^-4
+    CODE(stripped of comments) double fp16_rel = 0.0625;
+    SUGGESTION symbol:fp16_rel
+
+### findings.md:1311  [unverifiable]  -> include/unikern/components.hpp:133   (suggested:symbol)
+    DOC  - **改前的三个事实**（都是实测，不是推断）：`fp16_rel` `include/unikern/components.hpp:133` 的 `fp16_rel`
+    CODE   double fp16_rel = 0.0625;   // 2^-4
+    CODE(stripped of comments) double fp16_rel = 0.0625;
+    SUGGESTION symbol:fp16_rel
+
+### findings.md:1482  [unverifiable]  -> src/runner_metal.mm:136   (suggested:symbol)
+    DOC  - **Metal 侧**：`src/runner_metal.mm:136` **保持常量**，来源标签改成
+    CODE ReduceWidthPlan plan_reduce_width(int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### findings.md:1513  [weak]  -> src/runner_ocl.cpp:190   (suggested:symbol)
+    DOC  - **`.cl` 是纯 kernel 源码，没有宿主 `main`**：所以 `UK_REDUCE_WIDTH` 在 `uk_intel.cl` 里出现 **0** 次 （HIP 那份 9 次）。**这不是硬约束第 4 条的洞**——Intel 侧宽度自报/拒绝在 `src/runner_ocl.cpp:190`
+    CODE ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### progress.md:337  [unverifiable]  -> src/runner_ocl.cpp:434   (suggested:symbol)
+    DOC  失败消息改注出处（Mac 侧构建 + `src/runner_ocl.cpp:434`，转录只捕获 rc=1/零落库），
+    CODE   double total = 0.0;
+    CODE(stripped of comments) double total = 0.0;
+    SUGGESTION symbol:total
+
+### progress.md:339  [unverifiable]  -> src/main.cpp:604   (suggested:symbol)
+    DOC  - [x] 自捉修复：`unikern ledger <path>` 静默忽略路径参数（`src/main.cpp:604` 硬编码
+    CODE   const std::vector<MeasuredRow> rows = ledger->measured_rows(fp);
+    CODE(stripped of comments) const std::vector<MeasuredRow> rows = ledger->measured_rows(fp);
+    SUGGESTION symbol:measured_rows
+
+### progress.md:493  [weak]  -> src/runtime.cpp:182   (suggested:symbol)
+    DOC  （`src/runtime.cpp:182`、`src/main.cpp:557`、`src/main.cpp:269`、`src/main.cpp:213` +
+    CODE double tolerance_for(DType dtype, const Tolerance& tol) {
+    CODE(stripped of comments) double tolerance_for(DType dtype, const Tolerance& tol) {
+    SUGGESTION symbol:tolerance_for
+
+### progress.md:493  [weak]  -> src/main.cpp:557   (manual)
+    DOC  （`src/runtime.cpp:182`、`src/main.cpp:557`、`src/main.cpp:269`、`src/main.cpp:213` +
+    CODE   return 0;
+    CODE(stripped of comments) return 0;
+    SUGGESTION (no suggestion)
+
+### progress.md:493  [weak]  -> src/main.cpp:269   (suggested:symbol)
+    DOC  （`src/runtime.cpp:182`、`src/main.cpp:557`、`src/main.cpp:269`、`src/main.cpp:213` +
+    CODE   std::cerr << "INFEASIBLE: "
+    CODE(stripped of comments) std::cerr << INFEASIBLE:
+    SUGGESTION symbol:INFEASIBLE
+
+### progress.md:493  [weak]  -> src/main.cpp:213   (suggested:symbol)
+    DOC  （`src/runtime.cpp:182`、`src/main.cpp:557`、`src/main.cpp:269`、`src/main.cpp:213` +
+    CODE   if (!h) std::cerr << "HCS rejected: " << err << "\n";
+    CODE(stripped of comments) if (!h) std::cerr << HCS rejected:  << err << \n;
+    SUGGESTION symbol:rejected
+
+### progress.md:494  [unverifiable]  -> src/hcs.cpp:95   (suggested:symbol)
+    DOC  字段串实际在 `src/hcs.cpp:95`——那一条是归错文件）；当前 29 条全绿
+    CODE     os << "missing required fields:";
+    CODE(stripped of comments) os << missing required fields:;
+    SUGGESTION symbol:required
+
+### progress.md:527  [unverifiable]  -> src/codegen_hip.cpp:415   (suggested:symbol)
+    DOC  （`src/codegen_hip.cpp:415` / `:412`）；前者在 Phase 21 转录里 **0 次**、今天 **1 次**（token 计数取证）。
+    CODE     << "      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0)" << '\n'
+    CODE(stripped of comments) <<       ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0) << '\n'
+    SUGGESTION symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+
+### progress.md:803  [unverifiable]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  计时段的 `Y` 拷回后无人使用（`hipMemcpyAsync`（`src/codegen_hip.cpp:946`）），账本记 ε 与时间 ⇒ 准确说法是
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### progress.md:1081  [unverifiable]  -> src/runner_ocl.cpp:190   (suggested:symbol)
+    DOC  - `src/runner_ocl.cpp:190` 改为按 `CL_DEVICE_MAX_COMPUTE_UNITS × CL_DEVICE_MAX_WORK_GROUP_SIZE`
+    CODE ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### progress.md:1084  [unverifiable]  -> src/runner_metal.mm:136   (suggested:symbol)
+    DOC  - `src/runner_metal.mm:136` **不假装查询**：Metal 公共 API 没有 CU 数/每 CU 线程数，
+    CODE ReduceWidthPlan plan_reduce_width(int64_t L) {
+    CODE(stripped of comments) ReduceWidthPlan plan_reduce_width(int64_t L) {
+    SUGGESTION symbol:plan_reduce_width
+
+### progress.md:1209  [weak]  -> src/runner_metal.mm:623   (suggested:symbol)
+    DOC  `tolerance_for`（`src/runner_ocl.cpp:683`、`src/runner_metal.mm:623`）。
+    CODE     r.verified = max_rel <= tolerance_for(tree.dtype);
+    CODE(stripped of comments) r.verified = max_rel <= tolerance_for(tree.dtype);
+    SUGGESTION symbol:tolerance_for
+
+### task_plan.md:323  [weak]  -> src/main.cpp:557   (manual)
+    DOC  | 22 | Phase 17 Harness 复核的修复（本次做三条不碰代码的：High 主机口径 / Medium agent 入口 / Medium 锚点机检） | **complete（2026-10-28；①`docs/acceptance-mvp.md` 的"Windows 本机事实"段改为**带时点的历史读数**并补 202
+    CODE   return 0;
+    CODE(stripped of comments) return 0;
+    SUGGESTION (no suggestion)
+
+### task_plan.md:323  [weak]  -> src/hcs.cpp:95   (suggested:symbol)
+    DOC  | 22 | Phase 17 Harness 复核的修复（本次做三条不碰代码的：High 主机口径 / Medium agent 入口 / Medium 锚点机检） | **complete（2026-10-28；①`docs/acceptance-mvp.md` 的"Windows 本机事实"段改为**带时点的历史读数**并补 202
+    CODE     os << "missing required fields:";
+    CODE(stripped of comments) os << missing required fields:;
+    SUGGESTION symbol:required
+
+### task_plan.md:335  [unverifiable]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  | 34 | 把 Phase 33 的「二维、无法则」变成**可预测的模型**，并收回我上一相写宽的 G10 说法 | **complete（2026-10-28）**；模型：部分和 `= k_t·fill`（`k_t = floor((n-1-t)/nP)+1`）在 `k_t < 2²⁴` 时精确 ⇒ **误差全部来自 pass-2 的
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### task_plan.md:339  [weak]  -> src/kml_front.cpp:127   (suggested:symbol)
+    DOC  | 38 | 把 Phase 37 的输入边界缺陷问到底：**只有一个入口，还是两个入口都有** | **complete（2026-10-28）**：**两个入口都有**。CLI 侧是 `CLI `--dims` 分支（原 `main.cpp:86`）` 的 `std::atoi`；文件侧是 kml_front 的 108 行把 JSO
+    CODE       if (!parse_int_wide(toks[i], &wide)) {
+    CODE(stripped of comments) if (!parse_int_wide(toks[i], &wide)) {
+    SUGGESTION symbol:parse_int_wide
+
+### task_plan.md:1555  [weak]  -> src/codegen_hip.cpp:946   (suggested:symbol)
+    DOC  | D9 | **reduce 的 pass-1 宽度上限是规格级开放决策（Phase 30 实测逼出）**：现役 `UK_REDUCE_WIDTH = min(L, 4096)` 在 n ≥ 2²⁴ 上留出 **1.67×~2.49×** 的时间（实测最优 16384），但能把数据说对的规则形如 `nP = clamp(2^round(
+    CODE     << "      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4;" << '\n'
+    CODE(stripped of comments) <<       if (!uk_ok(hipMemcpyAsync(Y.data(), dY, sizeof(float), hipMemcpyDeviceToHost, st), \"d2h tY\")) return 4; << '\
+    SUGGESTION symbol:hipMemcpyDeviceToHost
+
+### task_plan.md:1670  [weak]  -> src/codegen_hip.cpp:418   (suggested:symbol)
+    DOC  | E67 | **配符号要先过长度再过窗口；控制注入要照抄文档真实形状**：Phase 59 给 `smem` 重置行配的符号是 `smem`——4 个字母，过不了 `code_tokens` 的 ≥5 规则，于是"修过了"而债一字未降（改了但没降＝假完工）。同相新写的 L6 把臂名注入成 `` `R1.1/R1.2` ``（**没有方
+    CODE     << "static ConvPlan uk_conv_plan(int Wo, int Ho, int Oc, int C, int Kh," << '\n'
+    CODE(stripped of comments) << static ConvPlan uk_conv_plan(int Wo, int Ho, int Oc, int C, int Kh, << '\n'
+    SUGGESTION symbol:uk_conv_plan
+
+== rows per document ==
+   15  docs/acceptance-mvp.md
+   14  findings.md
+   12  progress.md
+    6  task_plan.md
+    4  docs\evidence\phase45\README.md
+    3  docs\evidence\phase31\README.md
+    3  docs\evidence\phase44\README.md
+    2  docs\evidence\phase37\README.md
+    2  docs\evidence\phase39\README.md
+    2  docs\evidence\phase51\README.md
+    1  docs\evidence\phase10\README.md
+    1  docs\evidence\phase23\README.md
+    1  docs\evidence\phase33\README.md
+    1  docs\evidence\phase34\README.md
+    1  docs\evidence\phase36\README.md
+    1  docs\evidence\phase52\README.md
+== classes ==
+   60  suggested:symbol
+    9  manual
+== the DEAD list: cited line has no code identifier and the file has no arm table at all ==
+
+triage complete: 69 rows, 16 docs, 0 dead, 0 pointing at a line with no code identifier

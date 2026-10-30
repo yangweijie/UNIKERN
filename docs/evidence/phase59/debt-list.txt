@@ -1,0 +1,86 @@
+anchors checked: 383 in 53 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range checks 99, weak 37/37, unverifiable 46/46)  [2026-10-29]
+debt | weak | docs/acceptance-mvp.md:3 | src/runner_ocl.cpp:434 | symbol:total
+debt | weak | docs/acceptance-mvp.md:65 | src/solver.cpp:16 | (no suggestion)
+debt | weak | docs/acceptance-mvp.md:316 | src/kml_front.cpp:89 | symbol:known
+debt | weak | docs/acceptance-mvp.md:316 | include/unikern/components.hpp:133 | symbol:fp16_rel
+debt | weak | docs/acceptance-mvp.md:317 | src/runner_ocl.cpp:190 | symbol:plan_reduce_width
+debt | weak | docs/acceptance-mvp.md:474 | src/main.cpp:557 | (no suggestion)
+debt | weak | docs/acceptance-mvp.md:475 | src/main.cpp:213 | symbol:rejected
+debt | weak | docs/acceptance-mvp.md:475 | src/hcs.cpp:95 | symbol:required
+debt | unverifiable | docs/acceptance-mvp.md:501 | src/codegen_hip.cpp:415 | symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+debt | unverifiable | docs/acceptance-mvp.md:502 | src/codegen_hip.cpp:412 | (no suggestion)
+debt | weak | docs/acceptance-mvp.md:764 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt | weak | docs/acceptance-mvp.md:786 | tests/acceptance.cpp:1512 | label:R6.2/R6.4
+debt | unverifiable | docs/acceptance-mvp.md:792 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt | unverifiable | docs/acceptance-mvp.md:862 | src/solver.cpp:75 | symbol:link_bw_gbps
+debt | unverifiable | docs/acceptance-mvp.md:1014 | src/runner_ocl.cpp:434 | symbol:total
+debt | unverifiable | docs/acceptance-mvp.md:1114 | src/codegen_hip.cpp:739 | (no suggestion)
+debt | unverifiable | docs/acceptance-mvp.md:1264 | src/runner_ocl.cpp:190 | symbol:plan_reduce_width
+debt | weak | docs/acceptance-mvp.md:1269 | src/runner_metal.mm:136 | symbol:plan_reduce_width
+debt | unverifiable | docs\evidence\phase10\README.md:56 | src/solver.cpp:75 | symbol:link_bw_gbps
+debt | unverifiable | docs\evidence\phase23\README.md:75 | src/codegen_hip.cpp:415 | symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+debt | unverifiable | docs\evidence\phase23\README.md:78 | src/codegen_hip.cpp:412 | (no suggestion)
+debt | unverifiable | docs\evidence\phase31\README.md:12 | src/codegen_hip.cpp:781 | symbol:iostream
+debt | unverifiable | docs\evidence\phase31\README.md:13 | src/codegen_hip.cpp:724 | symbol:payload_mb
+debt | unverifiable | docs\evidence\phase31\README.md:14 | src/codegen_hip.cpp:808 | (no suggestion)
+debt | unverifiable | docs\evidence\phase33\README.md:54 | src/codegen_hip.cpp:844 | (no suggestion)
+debt | unverifiable | docs\evidence\phase34\README.md:25 | tests/acceptance.cpp:1512 | label:R6.2/R6.4
+debt | unverifiable | docs\evidence\phase34\README.md:40 | src/codegen_hip.cpp:844 | (no suggestion)
+debt | weak | docs\evidence\phase36\README.md:9 | src/main.cpp:86 | (no suggestion)
+debt | weak | docs\evidence\phase37\README.md:12 | src/codegen_hip.cpp:924 | (no suggestion)
+debt | weak | docs\evidence\phase37\README.md:23 | src/main.cpp:86 | (no suggestion)
+debt | unverifiable | docs\evidence\phase39\README.md:26 | src/kml.cpp:117 | symbol:dtype_size
+debt | unverifiable | docs\evidence\phase39\README.md:27 | src/kml.cpp:107 | symbol:to_string
+debt | unverifiable | docs\evidence\phase44\README.md:7 | src/codegen_hip.cpp:809 | symbol:UK_REF_REDUCE_WIDTH
+debt | unverifiable | docs\evidence\phase44\README.md:53 | src/runner_ocl.cpp:164 | symbol:iters
+debt | unverifiable | docs\evidence\phase44\README.md:53 | src/runner_metal.mm:116 | symbol:ws_refuse
+debt | unverifiable | docs\evidence\phase45\README.md:13 | src/codegen_hip.cpp:638 | symbol:dtype_tol_literal
+debt | weak | docs\evidence\phase45\README.md:23 | src/runner_ocl.cpp:583 | symbol:initA
+debt | weak | docs\evidence\phase45\README.md:23 | src/runner_metal.mm:559 | symbol:newBufferWithLength
+debt | weak | docs\evidence\phase45\README.md:39 | src/main.cpp:297 | symbol:UNSUPPORTED
+debt | weak | docs\evidence\phase47\README.md:12 | src/codegen_hip.cpp:805 | (no suggestion)
+debt | weak | docs\evidence\phase47\README.md:13 | src/runner_ocl.cpp:562 | symbol:Reduction
+debt | weak | docs\evidence\phase47\README.md:13 | src/runner_metal.mm:530 | symbol:enc_gemm
+debt | weak | docs\evidence\phase51\README.md:12 | src/runner_ocl.cpp:190 | symbol:plan_reduce_width
+debt | unverifiable | docs\evidence\phase51\README.md:13 | src/runner_metal.mm:136 | symbol:plan_reduce_width
+debt | unverifiable | docs\evidence\phase52\README.md:49 | src/codegen_hip.cpp:1054 | symbol:__restrict__
+debt | unverifiable | findings.md:223 | src/runner_metal.mm:65 | symbol:UNIKERN_ERROR
+debt | unverifiable | findings.md:240 | src/solver.cpp:75 | symbol:link_bw_gbps
+debt | unverifiable | findings.md:241 | src/main.cpp:311 | (no suggestion)
+debt | unverifiable | findings.md:449 | src/runner_ocl.cpp:434 | symbol:total
+debt | unverifiable | findings.md:454 | src/main.cpp:604 | symbol:measured_rows
+debt | weak | findings.md:651 | src/main.cpp:557 | (no suggestion)
+debt | unverifiable | findings.md:655 | src/runtime.cpp:182 | symbol:tolerance_for
+debt | unverifiable | findings.md:699 | src/codegen_hip.cpp:415 | symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+debt | weak | findings.md:950 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt | unverifiable | findings.md:966 | tests/acceptance.cpp:1512 | label:R6.2/R6.4
+debt | unverifiable | findings.md:971 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt | unverifiable | findings.md:1093 | src/codegen_hip.cpp:963 | symbol:iters
+debt | weak | findings.md:1121 | src/kml_front.cpp:108 | (no suggestion)
+debt | unverifiable | findings.md:1155 | include/unikern/components.hpp:133 | symbol:fp16_rel
+debt | unverifiable | findings.md:1310 | include/unikern/components.hpp:133 | symbol:fp16_rel
+debt | unverifiable | findings.md:1481 | src/runner_metal.mm:136 | symbol:plan_reduce_width
+debt | weak | findings.md:1512 | src/runner_ocl.cpp:190 | symbol:plan_reduce_width
+debt | weak | progress.md:185 | src/runner_metal.mm:110 | (no suggestion)
+debt | unverifiable | progress.md:335 | src/runner_ocl.cpp:434 | symbol:total
+debt | unverifiable | progress.md:337 | src/main.cpp:604 | symbol:measured_rows
+debt | weak | progress.md:491 | src/runtime.cpp:182 | symbol:tolerance_for
+debt | weak | progress.md:491 | src/main.cpp:557 | (no suggestion)
+debt | weak | progress.md:491 | src/main.cpp:269 | symbol:INFEASIBLE
+debt | weak | progress.md:491 | src/main.cpp:213 | symbol:rejected
+debt | unverifiable | progress.md:492 | src/hcs.cpp:95 | symbol:required
+debt | unverifiable | progress.md:525 | src/codegen_hip.cpp:415 | symbol:hipOccupancyMaxActiveBlocksPerMultiprocessor
+debt | weak | progress.md:684 | src/codegen_hip.cpp:829 | (no suggestion)
+debt | weak | progress.md:796 | tests/acceptance.cpp:1512 | label:R6.2/R6.4
+debt | unverifiable | progress.md:801 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt | unverifiable | progress.md:1079 | src/runner_ocl.cpp:190 | symbol:plan_reduce_width
+debt | unverifiable | progress.md:1082 | src/runner_metal.mm:136 | symbol:plan_reduce_width
+debt | weak | progress.md:1207 | src/runner_metal.mm:623 | symbol:tolerance_for
+debt | weak | task_plan.md:323 | src/main.cpp:557 | (no suggestion)
+debt | weak | task_plan.md:323 | src/hcs.cpp:95 | symbol:required
+debt | unverifiable | task_plan.md:335 | tests/acceptance.cpp:1512 | label:R6.2/R6.4
+debt | unverifiable | task_plan.md:335 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt | weak | task_plan.md:339 | src/kml_front.cpp:108 | (no suggestion)
+debt | weak | task_plan.md:1508 | src/codegen_hip.cpp:946 | symbol:hipMemcpyDeviceToHost
+debt listed: 83  (unverifiable 46, weak 37)  caps in force: weak 37, unverifiable 46
+all doc->code anchors agree with the files they cite

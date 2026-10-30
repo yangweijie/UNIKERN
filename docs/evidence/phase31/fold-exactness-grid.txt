@@ -1,0 +1,30 @@
+# Phase 31 — how big is the shipped verify's blind spot? (RX 6600M) 2026-10-28T20:11:44+08:00
+# shipped differential verify = fixed 2^20 elements of 2^-6; UK_REDUCE_WIDTH comes from the declared L
+# so max_rel in UNIKERN_RESULT cannot see fold error at timing sizes. This grid measures the magnitude at those sizes.
+# pre-registered predictions: divisible pow2 cases rel=0; non-divisible cases rel in 1e-7..1e-4; ALL nonzero rel << 2^-5=3.125e-02 (gate structurally blind)
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=   3072 part=  1.5376 ms sum=  0.0803 ms both=  1.6152 ms part_GBps=  43.64 sum_share=  5.0% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  1.1516 ms sum=  0.1069 ms both=  1.2552 ms part_GBps=  58.28 sum_share=  8.5% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  14336 part=  0.3764 ms sum=  0.3565 ms both=  0.7317 ms part_GBps= 178.31 sum_share= 48.7% result=262144.0 rel=0.000e+00
+UNIKERN_INFO n=16777217 n_bytes=67108868 exact=262144.0
+UNIKERN_INFO nP=   3072 part=  1.5213 ms sum=  0.0867 ms both=  1.6184 ms part_GBps=  44.11 sum_share=  5.4% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO nP=   4096 part=  1.1399 ms sum=  0.1060 ms both=  1.2479 ms part_GBps=  58.87 sum_share=  8.5% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO nP=  14336 part=  0.3870 ms sum=  0.3601 ms both=  0.7281 ms part_GBps= 173.39 sum_share= 49.5% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO n=20000000 n_bytes=80000000 exact=312500.0
+UNIKERN_INFO nP=   3072 part=  1.8333 ms sum=  0.0821 ms both=  1.9120 ms part_GBps=  43.64 sum_share=  4.3% result=312500.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  1.3695 ms sum=  0.1092 ms both=  1.4632 ms part_GBps=  58.42 sum_share=  7.5% result=312500.0 rel=0.000e+00
+UNIKERN_INFO nP=  14336 part=  0.4489 ms sum=  0.3677 ms both=  0.8344 ms part_GBps= 178.22 sum_share= 44.1% result=312536.1 rel=1.154e-04
+UNIKERN_INFO n=33554432 n_bytes=134217728 exact=524288.0
+UNIKERN_INFO nP=   3072 part=  3.0390 ms sum=  0.0839 ms both=  3.1416 ms part_GBps=  44.16 sum_share=  2.7% result=524296.0 rel=1.526e-05
+UNIKERN_INFO nP=   4096 part=  2.2843 ms sum=  0.1095 ms both=  2.3865 ms part_GBps=  58.76 sum_share=  4.6% result=524288.0 rel=0.000e+00
+UNIKERN_INFO nP=  14336 part=  0.7746 ms sum=  0.3615 ms both=  1.1837 ms part_GBps= 173.28 sum_share= 30.5% result=524272.0 rel=-3.052e-05
+UNIKERN_INFO n=67108864 n_bytes=268435456 exact=1048576.0
+UNIKERN_INFO nP=   3072 part=  6.0790 ms sum=  0.0813 ms both=  6.1621 ms part_GBps=  44.16 sum_share=  1.3% result=1048544.0 rel=-3.052e-05
+UNIKERN_INFO nP=   4096 part=  4.5388 ms sum=  0.1056 ms both=  4.6670 ms part_GBps=  59.14 sum_share=  2.3% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=  14336 part=  1.5459 ms sum=  0.3575 ms both=  1.9692 ms part_GBps= 173.64 sum_share= 18.2% result=1048408.0 rel=-1.602e-04
+UNIKERN_INFO n=67112960 n_bytes=268451840 exact=1048640.0
+UNIKERN_INFO nP=   3072 part=  6.0755 ms sum=  0.0823 ms both=  6.1707 ms part_GBps=  44.19 sum_share=  1.3% result=1048692.0 rel=4.959e-05
+UNIKERN_INFO nP=   4096 part=  4.5524 ms sum=  0.1066 ms both=  4.6572 ms part_GBps=  58.97 sum_share=  2.3% result=1048592.0 rel=-4.577e-05
+UNIKERN_INFO nP=  14336 part=  1.5688 ms sum=  0.3574 ms both=  1.9659 ms part_GBps= 171.12 sum_share= 18.2% result=1048512.0 rel=-1.221e-04
+probe rc=0

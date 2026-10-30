@@ -1,0 +1,17 @@
+# Phase 48 stored-artifact inventory + the byte-identity leg's own report
+# reproduce: set SOURCE_DIR to the repo root, then
+#            ./build/unikern_acceptance.exe | grep R5.4        (ctest --test-dir build does this too)
+
+gemm: lines=447 bytes=22543 sha256=7a451491ed9b28f8c02ebe00159dc5b5a7ed8f85816755ec3cef79f43d1d6479
+conv: lines=542 bytes=26956 sha256=09e9b5706cba661cbc861bb4d96d450dd62520d21c2c3b602f09ce3ec7c80d3f
+reduce: lines=276 bytes=13280 sha256=44231aef0e9567eb96a015bc18272fa24b861f65691577524b6111845387c5e4
+
+$ SOURCE_DIR=<repo root> ./build/unikern_acceptance.exe | grep R5.4
+    [R5.4-artifact-bytes] 3/3 stored evidence artifacts are byte-identical to what this binary emits today (gemm 512^3 / conv 256x256x32x3x3x64 / reduce 2^20)
+
+# runner-produced numbers for the same three shapes (Phase 47, for cross-check):
+    gemm kernel_ms=0.118630  conv kernel_ms=7.210240  reduce kernel_ms=0.459194  (all verify=PASS max_rel=0)
+# same bytes compiled and run standalone here (artifact-build-run.txt):
+     run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=1.088805 kernel_ms=0.115690 migrations=0 checks=6 perf=512x512x512 OK
+     run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=10.865160 kernel_ms=7.253811 migrations=0 checks=6 perf=256x256x32x3x3x64 OK
+     run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=0.707010 kernel_ms=0.468358 migrations=0 checks=6 perf=1048576 OK

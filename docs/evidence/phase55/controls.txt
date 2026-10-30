@@ -1,0 +1,67 @@
+# Phase 55 controls -- [R20-nonhip] (accumulation order of the two non-HIP backends)
+# date: 2026-10-29T14:16:20.446131
+# host: Windows 11 + AMD RX 6600M. assertion owner is mapped by line number to the arm
+# headers in tests/acceptance.cpp, read at run time:
+#   R1.1/R1.2      281-382
+#   R1.4           383-865
+#   R7.1 / G9      866-906
+#   R7.3 scenario-A honesty gate 907-1252
+#   R13            1253-1343
+#   R14            1344-1385
+#   R15            1386-1477
+#   R6.2/R6.4      1478-1546
+#   R6.5           1547-1588
+#   R6.6           1589-1762
+#   R6.7           1763-1840
+#   R6.8           1841-2013
+#   R5.4           2014-2074
+#   R15c           2075-2130
+#   R15d           2131-2198
+#   R6.9           2199-2306
+#   R8.5           2307-2371
+#   R8.5 long-test half (Phase 18) 2372-2486
+#   R20 (Phase 20) 2487-2609
+#   R10.3          2610-2746
+#   R20-nonhip     2747-2845
+#   R5.4-cl        2846-2909
+#   R5.4-msl       2910-2976
+
+baseline build rc=0
+baseline acceptance rc=0 gate#7 rc=0 nesting verdict lines=6
+
+[N1 reverse the conv channel loop inside ocl_conv_kernel (order moves, Metal untouched)]
+  acceptance RED want RED | assert expr='order_ok == 6' owner='R20-nonhip'
+  nesting verdict lines=6 (order=ok 5) want 6 (ok 5) | broken=['[R20-nonhip] ocl/conv order=missing:for (int c = 0; c < C; ++c) acc=1/1 anchors=5']
+  gate#7 rc=0 want rc=0
+
+[N2 reword a comment in the emitted OpenCL text (bytes move, order does not)]
+  acceptance RED want RED | assert expr='drift == 0' owner='R5.4-cl'
+  nesting verdict lines=6 (order=ok 6) want 6 (ok 6) | broken=(none)
+  gate#7 rc=0 want rc=0
+
+[N2b reword a comment in the emitted Metal text (the other backend's byte axis)]
+  acceptance RED want RED | assert expr='drift == 0' owner='R5.4-msl'
+  nesting verdict lines=6 (order=ok 6) want 6 (ok 6) | broken=(none)
+  gate#7 rc=0 want rc=0
+
+[N3 reword a comment in the emitted HIP text (the byte leg that runs first)]
+  acceptance RED want RED | assert expr='fresh.size() == stored.size()' owner='R5.4'
+  nesting verdict lines=0 (order=ok 0) want 0 (ok 0) | broken=(none)
+  gate#7 rc=0 want rc=0
+
+[N4 reword a comment in the generator source that is never emitted (neutral)]
+  acceptance GREEN want GREEN | assert expr='' owner='(no assert)'
+  nesting verdict lines=6 (order=ok 6) want 6 (ok 6) | broken=(none)
+  gate#7 rc=0 want rc=0
+
+--- restoring and rebuilding ---
+sources back byte-identical: YES  build rc=0  ctest rc=0
+  1/7 Test #1: smoke ............................   Passed    0.08 sec
+  2/7 Test #2: acceptance .......................   Passed    2.36 sec
+  3/7 Test #3: anchors ..........................   Passed    0.12 sec
+  4/7 Test #4: probe_hygiene ....................   Passed    0.05 sec
+  5/7 Test #5: record_audit .....................   Passed    0.12 sec
+  6/7 Test #6: runner_tu ........................   Passed    1.49 sec
+  7/7 Test #7: generated_programs ...............   Passed    8.58 sec
+  100% tests passed out of 7
+all 5 controls matched (N1 order axis naming ONE backend, N2/N2b the two byte axes, N3 the earlier HIP byte leg, N4 neutral)

@@ -1,0 +1,35 @@
+# Phase 59 controls -- bounded trailing attribution
+# date: 2026-10-29T18:33:03.699854
+# numbers re-grepped this run: order_ok=2802 count_of-line=2584 tolerance_for=683
+
+baseline gate rc=0  anchors checked: 413 in 54 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range checks 104, weak 30/3
+caps in force: weak 30, unverifiable 39 -> a newly counted row reddens the gate: True
+
+[H1 number-then-symbol inside one clause is CHECKED (green, not counted)]
+  injected: - （`tests/acceptance.cpp:2802` 那行 `order_ok` 的初始化）。
+  gate GREEN want GREEN | debt rows 69 -> 69 (delta 0)
+[H2 the same shape with a wrong number must be REPORTED]
+  injected: - （`tests/acceptance.cpp:120` 那行 `order_ok` 的初始化）。
+  gate RED want RED | debt rows 69 -> 69 (delta 0)
+  report naming 'order_ok': YES
+    docs\evidence\phase59\tmp_trailing_control.md:3: tests/acceptance.cpp:120-120 names ['order_ok'], but the nearest match sits at tests/acceptance.cpp:2802 — outside +-25 l
+[H3 two claims on one line: first reported, second untouched]
+  injected: - （`tests/acceptance.cpp:2584` 那行 `order_ok` 的初始化）、`tolerance_for`（`src/runner_ocl.cpp:683`）。
+  gate RED want RED | debt rows 69 -> 69 (delta 0)
+  report naming 'order_ok': YES
+    docs\evidence\phase59\tmp_trailing_control.md:3: tests/acceptance.cpp:2584-2584 names ['order_ok'], but the nearest match sits at tests/acceptance.cpp:2802 — outside +-25
+[H4 a symbol past the clause delimiter is NOT attributed (bound holds)]
+  injected: - （`tests/acceptance.cpp:120`）、`order_ok` 其实定义在别处。
+  gate RED want RED | debt rows 69 -> 70 (delta 1)
+  must NOT name 'order_ok': CLEAN
+[H5 a symbol 40+ characters after the number is NOT attributed]
+  injected: - （`tests/acceptance.cpp:120` 后面跟一段足够长的中文说明，用来把符号推到四十字以外，后面跟一段足够长的中文说明，用来把符号推到四十字以外，`order_ok`）。
+  gate RED want RED | debt rows 69 -> 70 (delta 1)
+  must NOT name 'order_ok': CLEAN
+
+
+
+
+
+temp file removed; gate back to rc=0 debt=69/69
+all 5 controls matched (trailing symbol checked, wrong number reported, no cross-attribution across clauses, both bounds hold)

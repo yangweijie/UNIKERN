@@ -1,0 +1,12 @@
+# Phase 35: the generator got a comment, so the emitted bytes had to be re-proved (AGENTS rule 5: a diff is the evidence, 'I reverted' is not)
+# command (identical to docs/evidence/phase24/README.md):
+  ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml uk_run/phase19conv/conv_256x256x32_k3x3_o64.json --emit /tmp/p35c
+  ./build/unikern.exe solve --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --emit /tmp/p35r
+  ./build/unikern.exe solve --hcs samples/hcs_amd.json --op gemm --dims 4096 4096 4096 --emit /tmp/p35g
+diff /tmp/p35c/uk_amd.cpp docs/evidence/phase29/conv-hip-knob-check.txt   -> rc=0, EMPTY OUTPUT
+lines: conv 542 / reduce 239 / gemm 447  (recorded baselines: phase29 542, phase21 447+239)
+baseline sha256 (unchanged on disk): 599a4e7183982b7101ed9441a8582bec59f9ae23bf450dffc8323a2bf79e3f18
+# the new comment is host-side C++ (src/codegen_hip.cpp:726-737), outside any << chain, hence byte-identical output.
+# emitted reduce program keeps the two constants the Phase 35 precondition talks about:
+132:    const int VL = 1 << 20;
+154:  const int UK_REDUCE_WIDTH = 4096;

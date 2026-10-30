@@ -1,0 +1,35 @@
+# Phase 18 removal controls — R8.5 alarm emission legs
+# date: 2026-10-28T17:57:50.578835
+# host: Windows 11 + MinGW g++ 13.2.0 + AMD RX 6600M (gfx1032), ROCm 7.1
+# shape: delete ONE emission line -> cmake --build build -> run acceptance
+#        -> restore in finally + byte-identical assert
+# exit 3221226505 = 0xC0000409, the assert abort on this platform (RED)
+
+$ baseline: build rc=0 acceptance rc=0
+
+=== leg removed: guard refusal-line emission (line 219) ===
+build rc=0 acceptance rc=3221226505 -> RED (load-bearing)
+restored byte-identical=True; build rc=0 acceptance rc=0 (GREEN)
+
+=== leg removed: result-line emission (conv) (line 440) ===
+build rc=0 acceptance rc=3221226505 -> RED (load-bearing)
+restored byte-identical=True; build rc=0 acceptance rc=0 (GREEN)
+
+=== leg removed: result-line emission (reduce) (line 612) ===
+build rc=0 acceptance rc=3221226505 -> RED (load-bearing)
+restored byte-identical=True; build rc=0 acceptance rc=0 (GREEN)
+
+=== leg removed: result-line emission (gemm) (line 1047) ===
+build rc=0 acceptance rc=3221226505 -> RED (load-bearing)
+restored byte-identical=True; build rc=0 acceptance rc=0 (GREEN)
+
+$ ctest --test-dir build (after full restore)
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.13 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    1.14 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   1.27 sec

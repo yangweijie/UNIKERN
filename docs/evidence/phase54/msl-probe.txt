@@ -1,0 +1,22 @@
+# Phase 54 - the Metal front-end question, measured on this host (Windows 11 + RX 6600M)
+
+$ python probe/generated_program_check.py | grep msl
+PROG probe msl 7.1/clang.exe=no clang.exe (no Metal language in this clang): clang: error: language not recognized: 'metal'
+PROG probe msl wasi-sdk-34.0-rc.3-x86_64-windows/clang.EXE=no clang.EXE (no Metal language in this clang): clang: error: language not recognized: 'metal'
+PROG gap msl reason=no clang here recognizes -x metal (probed 2 front end(s), see the PROG probe lines above); this artifact is parsed only on a host whose clang carries the Metal language
+
+# the same question asked by hand, both clang installs on this box:
+--- D:/Program Files/AMD/ROCm/7.1/bin/clang.exe
+clang version 21.0.0git (git@github.com:Compute-Mirrors/llvm-project 5dcc622b51ecd499912c1062ce2b0ecda60d8e93)
+clang: error: language not recognized: 'metal'
+  rc=1
+--- same clang, -x metalpp:
+clang: error: language not recognized: 'metalpp'
+
+--- D:/git/c/wasi-sdk-34.0-rc.3-x86_64-windows/bin/clang.exe
+clang version 23.1.0-rc3 (https://github.com/llvm/llvm-project 7196f931f212fc7c406066b2628a0ff4ea0ee344)
+clang: error: language not recognized: 'metal'
+  rc=1
+--- same clang, -x metalpp:
+clang: error: language not recognized: 'metalpp'
+

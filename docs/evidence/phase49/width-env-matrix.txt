@@ -1,0 +1,52 @@
+# Phase 49: reduce pass-1 width A/B through the SHIPPED program's own pin (UK_REDUCE_WIDTH)
+# host: Windows 11 + AMD RX 6600M (gfx1032). One compile per size; the width is chosen at RUNTIME
+# by uk_reduce_width_plan and self-reported as source=env width=<w> - the treatment can no longer
+# silently fail to take (that is exactly how Phase 44 lost 1.7x-2.5x). Alternating rounds so a
+# clock/L2 trend cannot fall on one side. kernel_ms is the shipped program's own number.
+Thu Oct 29 11:26:36     2026
+
+=== n=16777216 ===
+  round1 pin=4096  [source=env width=4096]  kernel_ms=1.261150  verify=PASS max_rel=0.000000e+00
+  round1 pin=8192  [source=env width=8192]  kernel_ms=0.807441  verify=PASS max_rel=0.000000e+00
+  round1 pin=16384  [source=env width=16384]  kernel_ms=0.746870  verify=PASS max_rel=0.000000e+00
+  round1 pin=32768  [source=env width=32768]  kernel_ms=1.235462  verify=PASS max_rel=0.000000e+00
+  round2 pin=4096  [source=env width=4096]  kernel_ms=1.317183  verify=PASS max_rel=0.000000e+00
+  round2 pin=8192  [source=env width=8192]  kernel_ms=0.811224  verify=PASS max_rel=0.000000e+00
+  round2 pin=16384  [source=env width=16384]  kernel_ms=0.748460  verify=PASS max_rel=0.000000e+00
+  round2 pin=32768  [source=env width=32768]  kernel_ms=1.227821  verify=PASS max_rel=0.000000e+00
+  round3 pin=4096  [source=env width=4096]  kernel_ms=1.252259  verify=PASS max_rel=0.000000e+00
+  round3 pin=8192  [source=env width=8192]  kernel_ms=0.805160  verify=PASS max_rel=0.000000e+00
+  round3 pin=16384  [source=env width=16384]  kernel_ms=0.750664  verify=PASS max_rel=0.000000e+00
+  round3 pin=32768  [source=env width=32768]  kernel_ms=1.237546  verify=PASS max_rel=0.000000e+00
+  round4 no-pin: source=device width=16384 cap=28672  kernel_ms=0.800083
+
+=== n=67108864 ===
+  round1 pin=4096  [source=env width=4096]  kernel_ms=4.696540  verify=PASS max_rel=0.000000e+00
+  round1 pin=8192  [source=env width=8192]  kernel_ms=2.798420  verify=PASS max_rel=0.000000e+00
+  round1 pin=16384  [source=env width=16384]  kernel_ms=1.879845  verify=PASS max_rel=0.000000e+00
+  round1 pin=32768  [source=env width=32768]  kernel_ms=2.765154  verify=PASS max_rel=0.000000e+00
+  round2 pin=4096  [source=env width=4096]  kernel_ms=4.675271  verify=PASS max_rel=0.000000e+00
+  round2 pin=8192  [source=env width=8192]  kernel_ms=2.666289  verify=PASS max_rel=0.000000e+00
+  round2 pin=16384  [source=env width=16384]  kernel_ms=1.868136  verify=PASS max_rel=0.000000e+00
+  round2 pin=32768  [source=env width=32768]  kernel_ms=2.897040  verify=PASS max_rel=0.000000e+00
+  round3 pin=4096  [source=env width=4096]  kernel_ms=5.138610  verify=PASS max_rel=0.000000e+00
+  round3 pin=8192  [source=env width=8192]  kernel_ms=2.671098  verify=PASS max_rel=0.000000e+00
+  round3 pin=16384  [source=env width=16384]  kernel_ms=1.910792  verify=PASS max_rel=0.000000e+00
+  round3 pin=32768  [source=env width=32768]  kernel_ms=2.578362  verify=PASS max_rel=0.000000e+00
+  round4 no-pin: source=device width=16384 cap=28672  kernel_ms=1.867227
+
+=== n=134217728 ===
+  round1 pin=4096  [source=env width=4096]  kernel_ms=9.296329  verify=PASS max_rel=0.000000e+00
+  round1 pin=8192  [source=env width=8192]  kernel_ms=5.139877  verify=PASS max_rel=0.000000e+00
+  round1 pin=16384  [source=env width=16384]  kernel_ms=3.332324  verify=PASS max_rel=0.000000e+00
+  round1 pin=32768  [source=env width=32768]  kernel_ms=4.263956  verify=PASS max_rel=0.000000e+00
+  round2 pin=4096  [source=env width=4096]  kernel_ms=9.328640  verify=PASS max_rel=0.000000e+00
+  round2 pin=8192  [source=env width=8192]  kernel_ms=5.122100  verify=PASS max_rel=0.000000e+00
+  round2 pin=16384  [source=env width=16384]  kernel_ms=3.329135  verify=PASS max_rel=0.000000e+00
+  round2 pin=32768  [source=env width=32768]  kernel_ms=4.277618  verify=PASS max_rel=0.000000e+00
+  round3 pin=4096  [source=env width=4096]  kernel_ms=9.260841  verify=PASS max_rel=0.000000e+00
+  round3 pin=8192  [source=env width=8192]  kernel_ms=5.128338  verify=PASS max_rel=0.000000e+00
+  round3 pin=16384  [source=env width=16384]  kernel_ms=3.322180  verify=PASS max_rel=0.000000e+00
+  round3 pin=32768  [source=env width=32768]  kernel_ms=4.259440  verify=PASS max_rel=0.000000e+00
+  round4 no-pin: source=device width=16384 cap=28672  kernel_ms=3.327540
+

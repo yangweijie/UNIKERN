@@ -1,0 +1,17 @@
+[R1 remove the mmap twin from sketch()]
+  acceptance RED (want RED) | assert owner='R2' want 'R2' | expr='sol.feasible_count == expect_feasible'
+[R2 remove the nvme-tier F constraint]
+  acceptance RED (want RED) | assert owner='R8.4' want 'R8.4' | expr='nv.feasible_count == 25'
+[R3 comment-only edit]
+  acceptance GREEN (want GREEN) | assert owner='(no assert)' want '(no assert)'
+[restore] src/solver.cpp byte-identical: True
+2026-10-30T08:08:34
+  PASS R1 mmap-candidate removal
+  PASS R2 nvme-tier F constraint removal
+  PASS R3 comment-only neutral
+
+--- arm-probe guard: restore verification ---
+snapshotted files : 1
+byte-identical    : YES
+residual markers  : none
+git drift vs entry: none

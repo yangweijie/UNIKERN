@@ -53,7 +53,7 @@ Apple 真机验证（G4 Apple 半闭合 → **G4 全闭合**）的**命令输出
 - **门控的正确性有实测支撑，不只是说辞**：强制校准把 `link_bw_gbps` 从
   600 改到 9.097（constants_version 1→2），而 `PREDICTED demo c_ms 5.28611 →
   5.28611` **逐位不变**——说明该常数在统一内存（场景 A）求解路径上确实不被使用
-  （`src/solver.cpp:75`：拷贝项仅在 `x.path != Path::Unified` 时计入），改它不会污染 Apple 的预测。
+  （`link_bw_gbps` `src/solver.cpp:102`：拷贝项仅在 `x.path != Path::Unified` 时计入），改它不会污染 Apple 的预测。
 - **伪影读数本身也抖**：同一份账本，强制校准上一轮得 5.986 GB/s、本轮得
   9.097 GB/s（`usable_rows=1`）——两次都"精确"却差 1.5 倍，正是"主机调度开销
   不是链路带宽"的直接证据，也是默认拒绝的理由。

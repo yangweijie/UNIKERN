@@ -1,0 +1,15 @@
+# Phase 19 conv performance baseline (uk_conv: one thread per output element, implicit GEMM over C*Kh*Kw)
+# captured: 2026-10-28T18:13:58.042918
+# device: AMD RX 6600M (gfx1032), ROCm 7.1; command per row in the kml file name
+# reference: uk_gemm uses register block tiling (D6: tile clamped to [32,96], multiple of 16)
+
+$ shape conv_32x32x8_k3x3_o16.json rc=0
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.299840 kernel_ms=0.013960 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+$ shape conv_128x128x16_k3x3_o32.json rc=0
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=3.477090 kernel_ms=2.438981 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+$ shape conv_256x256x32_k3x3_o64.json rc=0
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=127.416571 kernel_ms=124.570947 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.062910 kernel_ms=0.117979 mode=resident payload_mb=3.000000 perf=512x512x512 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376

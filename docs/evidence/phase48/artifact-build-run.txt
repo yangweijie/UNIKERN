@@ -1,0 +1,10 @@
+# Phase 48: the stored evidence artifacts, compiled and run as themselves
+2026-10-29T09:44:12.035295
+host: win32  hipcc=D:\Program Files\AMD\ROCm\7.1\bin\hipcc.exe  --offload-arch=gfx1032
+[gemm] docs/evidence/phase47/emit/gemm/uk_amd.cpp  bytes=22543  build rc=0
+  run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=1.088805 kernel_ms=0.115690 migrations=0 checks=6 perf=512x512x512 OK
+[conv] docs/evidence/phase47/emit/conv/uk_amd.cpp  bytes=26956  build rc=0
+  run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=10.865160 kernel_ms=7.253811 migrations=0 checks=6 perf=256x256x32x3x3x64 OK
+[reduce] docs/evidence/phase47/emit/reduce/uk_amd.cpp  bytes=13280  build rc=0
+  run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=0.707010 kernel_ms=0.468358 migrations=0 checks=6 perf=1048576 OK
+ARTIFACT_BUILD_RUN PASS - the stored bytes build, run, and verify on this device

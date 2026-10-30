@@ -1,0 +1,70 @@
+# probe: hipcc -O3 --offload-arch=gfx1032 probe/uk_reduce_order_probe.cpp -o probe/uk_reduce_order_probe.exe
+# run: ./probe/uk_reduce_order_probe.exe   (device: RX 6600M / gfx1032, ROCm 7.1)
+# captured: 2026-10-28T18:10:56+08:00
+
+REDUCE_ORDER tol_2^-5=0.031250 sizes=2^20,2^24 nP=1024,16384,65536
+n=1048576 case=A_uniform_2^-6     exact=16384 cpu_fp32_seq=16384 cpu_vs_exact_rel=0.000e+00
+  nP=1024   gpu=16384 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=16384  gpu=16384 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=65536  gpu=16384 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+n=1048576 case=B_half_1_and_2^-24 exact=524288.031 cpu_fp32_seq=524288 cpu_vs_exact_rel=5.960e-08
+  nP=1024   gpu=524288 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.960464e-08
+  nP=16384  gpu=524288 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.960464e-08
+  nP=65536  gpu=524288 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.960464e-08
+n=1048576 case=C_desc_spread24    exact=87381.9948 cpu_fp32_seq=87382 cpu_vs_exact_rel=5.995e-08
+  nP=1024   gpu=87381.8516 max_rel_vs_cpu=1.698719e-06 inside_tol=yes gpu_vs_exact_rel=1.638767e-06
+  nP=16384  gpu=87382 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.995253e-08
+  nP=65536  gpu=87382 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.995253e-08
+n=1048576 case=D_asc_spread24     exact=87381.9948 cpu_fp32_seq=87381.9766 cpu_vs_exact_rel=2.083e-07
+  nP=1024   gpu=87381.8516 max_rel_vs_cpu=1.430501e-06 inside_tol=yes gpu_vs_exact_rel=1.638767e-06
+  nP=16384  gpu=87382 max_rel_vs_cpu=2.682189e-07 inside_tol=yes gpu_vs_exact_rel=5.995253e-08
+  nP=65536  gpu=87382 max_rel_vs_cpu=2.682189e-07 inside_tol=yes gpu_vs_exact_rel=5.995253e-08
+n=1048576 case=E_desc_spread100   exact=20972 cpu_fp32_seq=20972 cpu_vs_exact_rel=0.000e+00
+  nP=1024   gpu=20972 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=16384  gpu=20972 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=65536  gpu=20972 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+n=1048576 case=F_asc_spread100    exact=20972 cpu_fp32_seq=20971.998 cpu_vs_exact_rel=9.313e-08
+  nP=1024   gpu=20971.998 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=9.313013e-08
+  nP=16384  gpu=20972 max_rel_vs_cpu=9.313013e-08 inside_tol=yes gpu_vs_exact_rel=1.734684e-16
+  nP=65536  gpu=20972 max_rel_vs_cpu=9.313013e-08 inside_tol=yes gpu_vs_exact_rel=1.734684e-16
+n=1048576 case=G_alt_1e6_1e-6     exact=5.24288e+11 cpu_fp32_seq=5.28083223e+11 cpu_vs_exact_rel=7.187e-03
+  nP=1024   gpu=5.24288e+11 max_rel_vs_cpu=7.186789e-03 inside_tol=yes gpu_vs_exact_rel=4.691537e-14
+  nP=16384  gpu=5.24258869e+11 max_rel_vs_cpu=7.241952e-03 inside_tol=yes gpu_vs_exact_rel=5.556250e-05
+  nP=65536  gpu=5.2419815e+11 max_rel_vs_cpu=7.356932e-03 inside_tol=yes gpu_vs_exact_rel=1.713750e-04
+n=1048576 case=H_1_and_2^-60      exact=524288 cpu_fp32_seq=524288 cpu_vs_exact_rel=0.000e+00
+  nP=1024   gpu=524288 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=16384  gpu=524288 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=65536  gpu=524288 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+n=16777216 case=A_uniform_2^-6     exact=262144 cpu_fp32_seq=262144 cpu_vs_exact_rel=0.000e+00
+  nP=1024   gpu=262144 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=16384  gpu=262144 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=65536  gpu=262144 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+n=16777216 case=B_half_1_and_2^-24 exact=8388608.5 cpu_fp32_seq=8388608 cpu_vs_exact_rel=5.960e-08
+  nP=1024   gpu=8388608 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.960464e-08
+  nP=16384  gpu=8388608 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.960464e-08
+  nP=65536  gpu=8388608 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.960464e-08
+n=16777216 case=C_desc_spread24    exact=1398101.92 cpu_fp32_seq=1398102 cpu_vs_exact_rel=5.963e-08
+  nP=1024   gpu=1398081.5 max_rel_vs_cpu=1.466274e-05 inside_tol=yes gpu_vs_exact_rel=1.460311e-05
+  nP=16384  gpu=1398101.88 max_rel_vs_cpu=8.940692e-08 inside_tol=yes gpu_vs_exact_rel=2.978054e-08
+  nP=65536  gpu=1398102 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=5.962639e-08
+n=16777216 case=D_asc_spread24     exact=1398101.92 cpu_fp32_seq=1398101.62 cpu_vs_exact_rel=2.086e-07
+  nP=1024   gpu=1398081.5 max_rel_vs_cpu=1.439452e-05 inside_tol=yes gpu_vs_exact_rel=1.460311e-05
+  nP=16384  gpu=1398101.88 max_rel_vs_cpu=1.788139e-07 inside_tol=yes gpu_vs_exact_rel=2.978054e-08
+  nP=65536  gpu=1398102 max_rel_vs_cpu=2.682208e-07 inside_tol=yes gpu_vs_exact_rel=5.962639e-08
+n=16777216 case=E_desc_spread100   exact=335546 cpu_fp32_seq=335546 cpu_vs_exact_rel=9.095e-11
+  nP=1024   gpu=335542.938 max_rel_vs_cpu=9.126916e-06 inside_tol=yes gpu_vs_exact_rel=9.126825e-06
+  nP=16384  gpu=335546 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=9.094901e-11
+  nP=65536  gpu=335546 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=9.094901e-11
+n=16777216 case=F_asc_spread100    exact=335546 cpu_fp32_seq=335545.906 cpu_vs_exact_rel=2.793e-07
+  nP=1024   gpu=335542.938 max_rel_vs_cpu=8.847523e-06 inside_tol=yes gpu_vs_exact_rel=9.126825e-06
+  nP=16384  gpu=335546 max_rel_vs_cpu=2.793955e-07 inside_tol=yes gpu_vs_exact_rel=9.094919e-11
+  nP=65536  gpu=335546 max_rel_vs_cpu=2.793955e-07 inside_tol=yes gpu_vs_exact_rel=9.094919e-11
+n=16777216 case=G_alt_1e6_1e-6     exact=8.388608e+12 cpu_fp32_seq=8.73707078e+12 cpu_vs_exact_rel=3.988e-02
+  nP=1024   gpu=8.39016566e+12 max_rel_vs_cpu=3.970497e-02 inside_tol=NO gpu_vs_exact_rel=1.856875e-04
+  nP=16384  gpu=8.38814191e+12 max_rel_vs_cpu=3.993660e-02 inside_tol=NO gpu_vs_exact_rel=5.556250e-05
+  nP=65536  gpu=8.3871704e+12 max_rel_vs_cpu=4.004779e-02 inside_tol=NO gpu_vs_exact_rel=1.713750e-04
+n=16777216 case=H_1_and_2^-60      exact=8388608 cpu_fp32_seq=8388608 cpu_vs_exact_rel=0.000e+00
+  nP=1024   gpu=8388608 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=16384  gpu=8388608 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+  nP=65536  gpu=8388608 max_rel_vs_cpu=0.000000e+00 inside_tol=yes gpu_vs_exact_rel=0.000000e+00
+WORST max_rel_vs_cpu over the whole grid = 4.004779e-02 (tol 3.125e-02)

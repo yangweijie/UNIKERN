@@ -27,6 +27,9 @@ std::string key_str(const Key& k) { return k.op_sig + "|" + k.hcs_fp + "|" + k.t
 }  // namespace
 
 class FileLedger : public ILedger {
+  // R8.5: violation events share the file with solution rows but must never be
+  // readable as one — they carry a prefix and are excluded from size().
+  static constexpr const char* kViolation = "#VIOLATION";
 public:
   explicit FileLedger(std::string path) : path_(std::move(path)) {}
 
@@ -136,8 +139,36 @@ public:
 
   int size() const override {
     std::ifstream in(path_);
-    return int(std::count(std::istreambuf_iterator<char>(in),
-                          std::istreambuf_iterator<char>(), '\n'));
+    int n = 0;
+    std::string line;
+    while (std::getline(in, line)) {
+      if (!line.empty() && line.rfind(kViolation, 0) != 0) ++n;  // R8.5: not a solution
+    }
+    return n;
+  }
+
+  // R8.5 (Phase 18): record the migration alarm as an event line — the same
+  // fields the CLI decided on, so a violation stays auditable after the run.
+  void record_violation(const Key& key, double rate, double threshold,
+                        int migrations, int checks,
+                        unsigned long long vram_free) override {
+    std::ofstream out(path_, std::ios::app);
+    out.precision(std::numeric_limits<double>::max_digits10);  // exact round-trip
+    out << kViolation << kSep << key_str(key) << kSep << rate << kSep
+        << threshold << kSep << migrations << kSep << checks << kSep << vram_free
+        << "\n";
+    out.flush();
+  }
+
+  // R8.5: violation events counted apart from solution rows.
+  int violation_count() override {
+    std::ifstream in(path_);
+    int n = 0;
+    std::string line;
+    while (std::getline(in, line)) {
+      if (line.rfind(kViolation, 0) == 0) ++n;
+    }
+    return n;
   }
 
 private:
@@ -146,6 +177,15 @@ private:
 
 std::unique_ptr<ILedger> make_file_ledger(const std::string& path) {
   return std::make_unique<FileLedger>(path);
+}
+
+double tolerance_for(DType dtype, const Tolerance& tol) {
+  switch (dtype) {
+    case DType::F16: return tol.fp16_rel;
+    case DType::I8: return 0.0;  // R6.2: integer and index results are bit-level
+    case DType::F32: break;
+  }
+  return tol.fp32_rel;
 }
 
 Verdict verify_fp32(const std::vector<float>& got, const std::vector<float>& ref,

@@ -1,0 +1,542 @@
+// unikern generated — AMD HIP / RDNA (independent generation, R5.1)
+// hcs=amd/RDNA gfx103x (8GB discrete) fp=8039464947ce toolchain=rocm-7.13 constants_v=1
+// op=conv dims=256x256x32x3x3x64 (valid padding, one thread per output; the
+//   solved block tile does not parameterize this kernel)
+// placement: placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+// R8: conv/reduce programs are resident-only in this MVP: a timing
+// payload above 0.85 * vram_bytes refuses (UNIKERN_ERROR, exit 4)
+// instead of a silent streaming fallback — the R8.2/R8.3
+// double-buffered path stays a gemm-program feature (per-op
+// streaming is milestone 1; stated here, not assumed away).
+// R8 timing basis: measured_ms = end-to-end per pass (H2D + kernel +
+// D2H, the same byte movement the C(x) copy term charges); kernel_ms is
+// a kernel-only reference pass (iters launches between two events).
+// R8: payload > 2GiB runs 1 warmup + 1 timed pass, else 2 + 10.
+#include <hip/hip_runtime.h>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <vector>
+
+// uk_conv: register-blocked over output channels (Phase 20, R8 tuning).
+#include <cstdlib>  // std::getenv for the OCB calibration knob below
+// One thread computes OCB channels of the SAME output pixel, so each X
+// value is fetched once for OCB weights instead of OCB times. The
+// per-channel accumulation order is deliberately UNCHANGED (c -> kh -> kw
+// ascending, one FMA per step) and is identical for every OCB, so the
+// result is bitwise the same whichever blocking the chooser picks: any
+// max_rel != 0 means the rewrite changed the arithmetic, not the traffic.
+// Shared-memory spatial tiling (Phase 21). A block of T x T threads loads
+// the (T+Kh-1) x (T+Kw-1) x C haloed input tile once, then every thread
+// still walks c -> kh -> kw ASCENDING, reading X from the tile instead of
+// from global memory. The accumulation order -- and therefore the result
+// bits -- is identical to uk_conv_g below and to cpu_conv_ref, which is why
+// max_rel must stay 0.000000e+00 for every tile and every OCB; a nonzero
+// reading here would mean the tile indexing changed the arithmetic.
+extern __shared__ float uk_sX[];  // haloed tile: TH * TW * C floats
+template <int OCB>
+__global__ void uk_conv(const float* __restrict__ X,
+                        const float* __restrict__ Wt,
+                        float* __restrict__ Y, int H, int W, int C,
+                        int Kh, int Kw, int Oc, int T) {
+  const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+  const int ho0 = blockIdx.y * T, wo0 = blockIdx.x * T;
+  const int TH = T + Kh - 1, TW = T + Kw - 1;
+  const int elems = TH * TW * C;
+  for (int i = threadIdx.y * blockDim.x + threadIdx.x; i < elems;
+       i += blockDim.x * blockDim.y) {
+    const int c = i % C;
+    const int hw = i / C;
+    const int gh = ho0 + hw / TW, gw = wo0 + hw % TW;
+    // Out-of-tile rows are zero-filled but never read by a valid output:
+    // ho < Ho implies ho + Kh - 1 < H.
+    uk_sX[i] = (gh < H && gw < W) ? X[((size_t)gh * W + gw) * C + c] : 0.f;
+  }
+  __syncthreads();  // every thread reaches this: the bounds return is below
+  const int wo = wo0 + threadIdx.x;
+  const int ho = ho0 + threadIdx.y;
+  const int oc0 = (blockIdx.z * blockDim.z + threadIdx.z) * OCB;
+  if (wo >= Wo || ho >= Ho || oc0 >= Oc) return;
+  const int rem = Oc - oc0;  // channels left in this group (<= OCB)
+  float acc[OCB];
+  for (int o = 0; o < OCB; ++o) acc[o] = 0.f;
+  for (int c = 0; c < C; ++c)
+    for (int kh = 0; kh < Kh; ++kh)
+      for (int kw = 0; kw < Kw; ++kw) {
+        const float xv =
+            uk_sX[((size_t)(threadIdx.y + kh) * TW + (threadIdx.x + kw)) * C + c];
+        const size_t wbase = ((size_t)oc0 * Kh + kh) * Kw + kw;
+        for (int o = 0; o < OCB; ++o) {
+          if (o >= rem) break;
+          acc[o] += xv * Wt[(wbase + (size_t)o * Kh * Kw) * C + c];
+        }
+      }
+  for (int o = 0; o < OCB; ++o) {
+    if (o >= rem) break;
+    Y[(((size_t)oc0 + o) * Ho + ho) * Wo + wo] = acc[o];
+  }
+}
+
+// Phase 20 path, kept as the fallback for workloads whose channel count
+// makes even the smallest tile exceed what the device reports it can hold:
+// one thread per output pixel x OCB channels, reading X from global memory.
+// Same ascending order, same bits.
+template <int OCB>
+__global__ void uk_conv_g(const float* __restrict__ X,
+                          const float* __restrict__ Wt,
+                          float* __restrict__ Y, int H, int W, int C,
+                          int Kh, int Kw, int Oc) {
+  const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+  const int wo = blockIdx.x * blockDim.x + threadIdx.x;
+  const int ho = blockIdx.y * blockDim.y + threadIdx.y;
+  const int oc0 = (blockIdx.z * blockDim.z + threadIdx.z) * OCB;
+  if (wo >= Wo || ho >= Ho || oc0 >= Oc) return;
+  const int rem = Oc - oc0;  // channels left in this group (<= OCB)
+  float acc[OCB];
+  for (int o = 0; o < OCB; ++o) acc[o] = 0.f;
+  for (int c = 0; c < C; ++c)
+    for (int kh = 0; kh < Kh; ++kh)
+      for (int kw = 0; kw < Kw; ++kw) {
+        const float xv = X[((size_t)(ho + kh) * W + (wo + kw)) * C + c];
+        const size_t wbase = ((size_t)oc0 * Kh + kh) * Kw + kw;
+        for (int o = 0; o < OCB; ++o) {
+          if (o >= rem) break;
+          acc[o] += xv * Wt[(wbase + (size_t)o * Kh * Kw) * C + c];
+        }
+      }
+  for (int o = 0; o < OCB; ++o) {
+    if (o >= rem) break;
+    Y[(((size_t)oc0 + o) * Ho + ho) * Wo + wo] = acc[o];
+  }
+}
+
+// Tile and blocking factor chosen from what THIS device reports:
+//  - tile: the largest T in {16,8} whose haloed input tile fits the
+//    measured dp.sharedMemPerBlock; 0 means do not tile (global-load
+//    kernel) instead of launching past what the device says it holds;
+//  - ocb: the largest factor in {8,4,2,1} whose grid still fills the device
+//    (hipOccupancyMaxActiveBlocksPerMultiprocessor x
+//    multiProcessorCount). Every candidate is printed, so both picks are
+//    auditable and no threshold or device label is copied into the source.
+struct ConvPlan {
+  int ocb = 1;
+  int tile = 0;      // 0 = global-load fallback path
+  size_t smem = 0;
+};
+static size_t uk_conv_smem(int tile, int C, int Kh, int Kw) {
+  if (tile <= 0) return 0;
+  return (size_t)(tile + Kh - 1) * (size_t)(tile + Kw - 1) *
+         (size_t)C * sizeof(float);
+}
+// Resident blocks per CU for a given plan (the block shape differs between
+// the tiled and the fallback path, so the probe has to name the variant).
+static hipError_t uk_conv_occ(const ConvPlan& p, int* per_cu) {
+  const int threads =
+      p.tile > 0 ? p.tile * p.tile : 64;
+  if (p.tile > 0)
+    return p.ocb == 8
+        ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv<8>, threads, p.smem)
+      : p.ocb == 4
+        ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv<4>, threads, p.smem)
+      : p.ocb == 2
+        ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv<2>, threads, p.smem)
+        : hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv<1>, threads, p.smem);
+  return p.ocb == 8
+      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<8>, 64, 0)
+      : p.ocb == 4
+      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<4>, 64, 0)
+      : p.ocb == 2
+      ? hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<2>, 64, 0)
+      : hipOccupancyMaxActiveBlocksPerMultiprocessor(per_cu, uk_conv_g<1>, 64, 0);
+}
+static ConvPlan uk_conv_plan(int Wo, int Ho, int Oc, int C, int Kh,
+                             int Kw) {
+  ConvPlan p;
+  const char* ft = std::getenv("UK_CONV_TILE");  // calibration knobs:
+  // both rules below were fitted from sweeps taken through these very
+  // options, so a sweep stays reproducible. 0 pins the fallback path.
+  const char* fb = std::getenv("UK_CONV_OCB");
+  if (ft != nullptr || fb != nullptr) {
+    if (ft != nullptr) {
+      const long v = std::strtol(ft, nullptr, 10);
+      p.tile = (v == 16 || v == 8 || v == 0) ? (int)v : 0;
+      p.smem = uk_conv_smem(p.tile, C, Kh, Kw);
+    }
+    if (fb != nullptr) {
+      const long v = std::strtol(fb, nullptr, 10);
+      p.ocb = (v == 8 || v == 4 || v == 2 || v == 1) ? (int)v : 1;
+    }
+    if (p.tile == 0 && p.smem != 0) p.smem = 0;
+    // A pinned plan is a request, not a device fact. The automatic path
+    // below checks smem against dp.sharedMemPerBlock; a pin must not skip
+    // that check. Measured: UK_CONV_TILE=16 at C=64 asks for 82944 bytes on
+    // a device reporting 65536, and the run died later inside `launch
+    // verify` with 'invalid argument' -- a message naming neither the knob
+    // nor the limit. Refuse the pin loudly, keep the OCB pin (the global
+    // path needs no shared memory), and print the limit that was crossed.
+    if (p.smem != 0) {
+      hipDeviceProp_t kd{};
+      const hipError_t ke = hipGetDeviceProperties(&kd, 0);
+      if (ke != hipSuccess) {
+        std::cerr << "UNIKERN_ERROR what=props msg="
+                  << hipGetErrorString(ke) << " -> dropping pinned tile" << std::endl;
+        p.tile = 0;
+        p.smem = 0;
+      } else if (p.smem > kd.sharedMemPerBlock) {
+        std::cerr << "UNIKERN_ERROR what=knob_tile_unfit tile=" << p.tile
+                  << " smem=" << p.smem
+                  << " sharedMemPerBlock=" << kd.sharedMemPerBlock
+                  << " -> running the global-load path (OCB pin kept)"
+                  << std::endl;
+        p.tile = 0;
+        p.smem = 0;
+      }
+    }
+    std::cerr << "UNIKERN_INFO conv_plan ocb=" << p.ocb
+              << " tile=" << p.tile << " smem=" << p.smem
+              << " source=env" << std::endl;
+    return p;
+  }
+  hipDeviceProp_t dp{};
+  const hipError_t pe = hipGetDeviceProperties(&dp, 0);
+  if (pe != hipSuccess) {  // checked here, not via uk_ok: this block is
+                         // emitted above the helper, so it cannot depend
+                         // on ordering that the gemm program happens to have
+    std::cerr << "UNIKERN_ERROR what=props msg=" << hipGetErrorString(pe)
+              << std::endl;
+    return p;  // no tiling, no blocking: correct on any device
+  }
+  // Joint search: a bigger tile AND a bigger OCB both buy reuse, but both
+  // cut the number of threads, so the pair is chosen as a unit -- the most
+  // reusable pair whose grid still fills the device wins. Choosing the tile
+  // on shared memory alone was measured to be wrong: at 32x32x8 it picked
+  // tile=16 (4 blocks of 256 threads = 1024 on a 14-CU device) and ran
+  // 0.0157 ms against tile=8/OCB=1's 0.0126 ms.
+  const int tiles[3] = {16, 8, 0};       // 0 = global-load fallback path
+  ConvPlan best{};                      // most parallel candidate seen
+  bool filled = false;
+  for (int ti = 0; ti < 3; ++ti) {
+    ConvPlan cand;
+    cand.tile = tiles[ti];
+    cand.smem = uk_conv_smem(cand.tile, C, Kh, Kw);
+    if (cand.smem > dp.sharedMemPerBlock) {  // cannot ever run this tile
+      std::cerr << "UNIKERN_INFO conv_tile_skip tile=" << cand.tile
+                << " smem=" << cand.smem
+                << " sharedMemPerBlock=" << dp.sharedMemPerBlock << std::endl;
+      continue;
+    }
+    const int t = cand.tile > 0 ? cand.tile : 8;
+    const long long xy =
+        (long long)((Wo + t - 1) / t) * ((Ho + t - 1) / t);
+    const int blkth =
+        cand.tile > 0 ? cand.tile * cand.tile : 64;
+    for (int step = 0; step < 4; ++step) {
+      cand.ocb = step == 0 ? 8 : step == 1 ? 4 : step == 2 ? 2 : 1;
+      int perCu = 0;
+      const hipError_t e = uk_conv_occ(cand, &perCu);
+      if (e != hipSuccess) {
+        std::cerr << "UNIKERN_ERROR what=occupancy_probe msg="
+                  << hipGetErrorString(e) << std::endl;
+        p.ocb = 1;
+        p.tile = 0;
+        p.smem = 0;
+        return p;
+      }
+      const long long threads =
+          xy * ((Oc + cand.ocb - 1) / cand.ocb) * blkth;
+      const long long cap =
+          (long long)perCu * dp.multiProcessorCount * blkth;
+      std::cerr << "UNIKERN_INFO conv_probe tile=" << cand.tile
+                << " ocb=" << cand.ocb << " smem=" << cand.smem
+                << " threads=" << threads
+                << " resident_capacity=" << cap
+                << " cu=" << dp.multiProcessorCount << std::endl;
+      if (threads >= cap && (!filled ||
+          (long long)cand.tile * cand.ocb > (long long)best.tile * best.ocb)) {
+        best = cand;
+        filled = true;
+      }
+    }
+  }
+  // Nothing fills the device: take the most parallel shape there is -- the
+  // global-load path at OCB=1, which is what the tiny 32x32x8 case measured
+  // fastest (0.01258 ms vs 0.0157 ms tiled).
+  if (filled) { p = best; }
+  else { p.tile = 0; p.smem = 0; p.ocb = 1; }
+  if (p.tile == 0) p.smem = 0;
+  std::cerr << "UNIKERN_INFO conv_plan ocb=" << p.ocb
+            << " tile=" << p.tile << " smem=" << p.smem
+            << (filled ? " fills=device" : " nothing fills the device")
+            << std::endl;
+  return p;
+}
+
+// One launch function for every pass (verify / warm / timed / kernel-only):
+// no pass carries its own copy of the grid/block math, and every pass uses
+// the single uk_plan taken from the declared workload, so the
+// configuration that gets differentially verified is the one that gets timed.
+static void uk_conv_launch(const ConvPlan& p, int Wo, int Ho, int Oc,
+                           const float* dX, const float* dWt, float* dY,
+                           int H, int W, int C, int Kh, int Kw,
+                           hipStream_t st) {
+  const int t = p.tile > 0 ? p.tile : 8;
+  const dim3 blk(t, t, 1);
+  const dim3 grd((Wo + t - 1) / t, (Ho + t - 1) / t,
+                 (Oc + p.ocb - 1) / p.ocb);
+  if (p.tile > 0) {
+    switch (p.ocb) {
+      case 8: uk_conv<8><<<grd, blk, p.smem, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc, p.tile); break;
+      case 4: uk_conv<4><<<grd, blk, p.smem, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc, p.tile); break;
+      case 2: uk_conv<2><<<grd, blk, p.smem, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc, p.tile); break;
+      default: uk_conv<1><<<grd, blk, p.smem, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc, p.tile); break;
+    }
+    return;
+  }
+  switch (p.ocb) {
+    case 8: uk_conv_g<8><<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc); break;
+    case 4: uk_conv_g<4><<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc); break;
+    case 2: uk_conv_g<2><<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc); break;
+    default: uk_conv_g<1><<<grd, blk, 0, st>>>(dX, dWt, dY, H, W, C, Kh, Kw, Oc); break;
+  }
+}
+
+// Deterministic init + scalar CPU reference, embedded so the program
+// is independent (no core-library include). Same loop order and
+// indexing as the shared unikern::cpu_conv — X[H][W][C],
+// Wt[Oc][Kh][Kw][C], Y[Oc][Ho][Wo], valid padding.
+static float initA(int idx) { return ((idx % 17) - 8) * 0.0625f; }
+static float initB(int idx) { return ((idx % 13) - 6) * 0.0625f; }
+
+static void cpu_conv_ref(const std::vector<float>& X,
+                         const std::vector<float>& Wt,
+                         std::vector<float>& Y, int H, int W, int C,
+                         int Kh, int Kw, int Oc) {
+  const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+  for (int oc = 0; oc < Oc; ++oc)
+    for (int ho = 0; ho < Ho; ++ho)
+      for (int wo = 0; wo < Wo; ++wo) {
+        float acc = 0.f;
+        for (int c = 0; c < C; ++c)
+          for (int kh = 0; kh < Kh; ++kh)
+            for (int kw = 0; kw < Kw; ++kw) {
+              const float xv = X[((size_t)(ho + kh) * W + (wo + kw)) * C + c];
+              const float wv = Wt[((size_t)(oc * Kh + kh) * Kw + kw) * C + c];
+              acc += xv * wv;
+            }
+        Y[((size_t)oc * Ho + ho) * Wo + wo] = acc;
+      }
+}
+
+// Every HIP call is checked: a launch that fails must abort with a
+// UNIKERN_ERROR line instead of leaving zeroed device memory for the
+// comparison to silently misread as a wrong answer.
+static bool uk_ok(hipError_t e, const char* what) {
+  if (e == hipSuccess) return true;
+  std::cerr << "UNIKERN_ERROR what=" << what
+            << " msg=" << hipGetErrorString(e) << std::endl;
+  return false;
+}
+
+// R8.5 residency guard: explicit streaming is the only path, so every
+// device allocation must actually be device-resident. hipPointerGetAttributes
+// asserts type == hipMemoryTypeDevice after every successful hipMalloc;
+// managed/host residency is implicit oversubscription — loud refusal,
+// never silent paging. exit 5 = the upper layer's re-solve signal (R8.5).
+// R8.5 alarm rate (D7): migrations / checks over the device allocations this
+// program probed. checks=<m> is emitted on BOTH the result line and the
+// oversubscription error so the upper layer always has the denominator.
+static int UK_MIGRATIONS = 0;  // non-device-resident allocations seen
+static int UK_RESIDENT_CHECKS = 0;  // device allocations probed (rate denominator)
+// R8.5 re-solve input: the device's OWN reported capacity, never a copied
+// platform label (same discipline as the UK_DEVICE probe). f=0/t=0 when the
+// query fails, and the consumer must not re-solve on an unmeasured value.
+static unsigned long long UK_VRAM_FREE = 0, UK_VRAM_TOTAL = 0;
+static void uk_vram_snapshot() {
+  unsigned long long f = 0, t = 0;
+  if (hipMemGetInfo(&f, &t) == hipSuccess) { UK_VRAM_FREE = f; UK_VRAM_TOTAL = t; }
+}
+static int uk_resident(const void* p, const char* name) {
+  ++UK_RESIDENT_CHECKS;
+  uk_vram_snapshot();  // measured headroom, taken on every probe so both
+                       // the result line and a refusal carry it
+  hipPointerAttribute_t a{};
+  const hipError_t e = hipPointerGetAttributes(&a, p);
+  if (e != hipSuccess) {
+    std::cerr << "UNIKERN_ERROR what=residency_probe ptr=" << name
+              << " msg=" << hipGetErrorString(e) << std::endl;
+    return 4;
+  }
+  if (a.type != hipMemoryTypeDevice) {
+    ++UK_MIGRATIONS;
+    std::cerr << "UNIKERN_ERROR what=oversubscription ptr=" << name
+              << " type=" << (int)a.type
+              << " migrations=" << UK_MIGRATIONS
+              << " checks=" << UK_RESIDENT_CHECKS
+              << " vram_free=" << UK_VRAM_FREE
+              << " vram_total=" << UK_VRAM_TOTAL
+              << " (managed/host residency is oversubscription;"
+              << " explicit streaming is the only path; R8.5)" << std::endl;
+    return 5;
+  }
+  return 0;
+}
+// hipMalloc + the R8.5 residency assertion folded together, so an
+// allocation cannot exist unchecked. Returns 0, or the abort code
+// (4 = HIP/probe failure, 5 = oversubscription) after printing
+// UNIKERN_ERROR.
+template <typename T>
+static int uk_mmalloc(T** p, size_t bytes, const char* what, const char* ptr) {
+  if (!uk_ok(hipMalloc((void**)p, bytes), what)) return 4;
+  return uk_resident(*p, ptr);
+}
+
+int main() {
+  int rc = 0;
+  float max_rel = 0.f;
+  const int H = 256, W = 256, C = 32, Kh = 3, Kw = 3, Oc = 64;
+  const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+  // ONE plan for the whole run, derived from the declared workload shape:
+  // the instantiation that gets differentially verified is then the
+  // instantiation that gets timed. Deriving it per pass looked harmless
+  // while both passes happened to pick the same pair, but the embedded
+  // verify instance has C=8, and at conv 256x256x32 it measured a
+  // different pick from the real shape (tile=0/OCB=1 vs tile=16/OCB=8),
+  // which would leave max_rel=0 as evidence about a kernel we never time.
+  const ConvPlan uk_plan = uk_conv_plan(Wo, Ho, Oc, C, Kh, Kw);
+  // Differential verify: 32x32x8 input, 3x3 kernel, 16 output channels
+  // (the verify structure the Metal and OpenCL runners use). The
+  // 2^-4-multiple init keeps every FP32 partial sum exact, so max_rel=0
+  // is achievable and a wrong kernel cannot hide inside the 2^-5
+  // tolerance.
+  {
+    const int VH = 32, VW = 32, VC = 8, VKh = 3, VKw = 3, VOc = 16;
+    const int VoH = VH - VKh + 1, VoW = VW - VKw + 1;
+    std::vector<float> X((size_t)VH * VW * VC);
+    std::vector<float> Wt((size_t)VOc * VKh * VKw * VC);
+    std::vector<float> Y((size_t)VOc * VoH * VoW, 0.f), R(Y.size());
+    for (size_t i = 0; i < X.size(); ++i) X[i] = initA((int)i);
+    for (size_t i = 0; i < Wt.size(); ++i) Wt[i] = initB((int)i);
+    cpu_conv_ref(X, Wt, R, VH, VW, VC, VKh, VKw, VOc);
+    float *dX, *dWt, *dY;
+    if (const int mrc = uk_mmalloc(&dX, X.size() * sizeof(float), "hipMalloc vX", "vX")) return mrc;
+    if (const int mrc = uk_mmalloc(&dWt, Wt.size() * sizeof(float), "hipMalloc vWt", "vWt")) return mrc;
+    if (const int mrc = uk_mmalloc(&dY, Y.size() * sizeof(float), "hipMalloc vY", "vY")) return mrc;
+    if (!uk_ok(hipMemcpy(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice), "hipMemcpy vX")) return 4;
+    if (!uk_ok(hipMemcpy(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice), "hipMemcpy vWt")) return 4;
+    uk_conv_launch(uk_plan, VoW, VoH, VOc, dX, dWt, dY, VH, VW, VC, VKh, VKw, 0);
+    if (!uk_ok(hipGetLastError(), "launch verify")) return 4;
+    if (!uk_ok(hipDeviceSynchronize(), "sync verify")) return 4;
+    if (!uk_ok(hipMemcpy(Y.data(), dY, Y.size() * sizeof(float), hipMemcpyDeviceToHost), "hipMemcpy vY")) return 4;
+    for (size_t i = 0; i < Y.size(); ++i) {
+      float den = std::fabs(R[i]);
+      if (den < 1e-6f) den = 1e-6f;
+      float rel = std::fabs(Y[i] - R[i]) / den;
+      if (rel > max_rel) max_rel = rel;
+    }
+    if (max_rel > 0.03125f) rc = 1;
+    hipFree(dX); hipFree(dWt); hipFree(dY);
+  }
+  // Timing at the declared dims (H/W/C/Kh/Kw/Oc and uk_plan are declared
+  // above, before verify -- the verify instance is fixed at 32x32x8/3x3/16,
+  // the timing workload is what the tree declared).
+  const unsigned long long UK_VRAM_BYTES = 8589934592ULL;
+  const double UK_STREAM_FRAC = 0.85;
+  const unsigned long long UK_PAYLOAD_BYTES =
+      (unsigned long long)H * W * C * 4 +
+      (unsigned long long)Oc * Kh * Kw * C * 4 +
+      (unsigned long long)Oc * Ho * Wo * 4;
+  if (UK_VRAM_BYTES == 0ULL) {
+    std::cerr << "UNIKERN_ERROR what=vram_unknown"
+              << " (no vram tier in the HCS: residency cannot be "
+              << "decided; R10 refuses instead of guessing)" << std::endl;
+    return 4;
+  }
+  if (UK_PAYLOAD_BYTES > UK_STREAM_FRAC * (double)UK_VRAM_BYTES) {
+    std::cerr << "UNIKERN_ERROR what=stream_refused payload_bytes="
+              << UK_PAYLOAD_BYTES << " vram_bytes=" << UK_VRAM_BYTES
+              << " (conv/reduce programs are resident-only in this MVP;"
+              << " the timing payload exceeds 0.85 * vram; R10: no"
+              << " silent fallback)" << std::endl;
+    return 4;
+  }
+  // gridDim.y/z are bounded (65535 on this platform): refuse loudly
+  // instead of launching an invalid configuration.
+  if ((Ho + 7) / 8 > 65535 || Oc > 65535) {
+    std::cerr << "UNIKERN_ERROR what=grid_too_large gy=" << (Ho + 7) / 8
+              << " gz=" << Oc << " max_z=65535" << std::endl;
+    return 4;
+  }
+  const bool UK_BIG_WS = UK_PAYLOAD_BYTES > (2ULL << 30);
+  const int warm = UK_BIG_WS ? 1 : 2;
+  const int iters = UK_BIG_WS ? 1 : 10;
+  double ms = 0.0;
+  double kms = 0.0;
+  {
+    std::vector<float> X((size_t)H * W * C, 0.5f);
+    std::vector<float> Wt((size_t)Oc * Kh * Kw * C, 0.25f);
+    std::vector<float> Y((size_t)Oc * Ho * Wo, 0.f);
+    float *dX, *dWt, *dY;
+    if (const int mrc = uk_mmalloc(&dX, X.size() * sizeof(float), "hipMalloc tX", "tX")) return mrc;
+    if (const int mrc = uk_mmalloc(&dWt, Wt.size() * sizeof(float), "hipMalloc tWt", "tWt")) return mrc;
+    if (const int mrc = uk_mmalloc(&dY, Y.size() * sizeof(float), "hipMalloc tY", "tY")) return mrc;
+    hipStream_t st;
+    if (!uk_ok(hipStreamCreate(&st), "hipStreamCreate t")) return 4;
+    hipEvent_t t0, t1, k0, k1;
+    if (!uk_ok(hipEventCreate(&t0), "hipEventCreate t0")) return 4;
+    if (!uk_ok(hipEventCreate(&t1), "hipEventCreate t1")) return 4;
+    if (!uk_ok(hipEventCreate(&k0), "hipEventCreate k0")) return 4;
+    if (!uk_ok(hipEventCreate(&k1), "hipEventCreate k1")) return 4;
+    for (int w = 0; w < warm; ++w) {
+      if (!uk_ok(hipMemcpyAsync(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice, st), "warm h2d tX")) return 4;
+      if (!uk_ok(hipMemcpyAsync(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice, st), "warm h2d tWt")) return 4;
+      uk_conv_launch(uk_plan, Wo, Ho, Oc, dX, dWt, dY, H, W, C, Kh, Kw, st);
+      if (!uk_ok(hipGetLastError(), "launch warm")) return 4;
+      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, Y.size() * sizeof(float), hipMemcpyDeviceToHost, st), "warm d2h tY")) return 4;
+    }
+    if (!uk_ok(hipStreamSynchronize(st), "warm sync")) return 4;
+    double total = 0.0;
+    for (int i = 0; i < iters; ++i) {
+      if (!uk_ok(hipEventRecord(t0, st), "record t0")) return 4;
+      if (!uk_ok(hipMemcpyAsync(dX, X.data(), X.size() * sizeof(float), hipMemcpyHostToDevice, st), "h2d tX")) return 4;
+      if (!uk_ok(hipMemcpyAsync(dWt, Wt.data(), Wt.size() * sizeof(float), hipMemcpyHostToDevice, st), "h2d tWt")) return 4;
+      uk_conv_launch(uk_plan, Wo, Ho, Oc, dX, dWt, dY, H, W, C, Kh, Kw, st);
+      if (!uk_ok(hipGetLastError(), "launch timed")) return 4;
+      if (!uk_ok(hipMemcpyAsync(Y.data(), dY, Y.size() * sizeof(float), hipMemcpyDeviceToHost, st), "d2h tY")) return 4;
+      if (!uk_ok(hipEventRecord(t1, st), "record t1")) return 4;
+      if (!uk_ok(hipEventSynchronize(t1), "sync t1")) return 4;
+      float e = 0.f;
+      if (!uk_ok(hipEventElapsedTime(&e, t0, t1), "elapsed e2e")) return 4;
+      total += e;
+    }
+    ms = total / iters;
+    // kernel-only reference on the already-resident operands.
+    if (!uk_ok(hipEventRecord(k0, st), "record k0")) return 4;
+    for (int i = 0; i < iters; ++i) {
+      uk_conv_launch(uk_plan, Wo, Ho, Oc, dX, dWt, dY, H, W, C, Kh, Kw, st);
+      if (!uk_ok(hipGetLastError(), "launch kref")) return 4;
+    }
+    if (!uk_ok(hipEventRecord(k1, st), "record k1")) return 4;
+    if (!uk_ok(hipEventSynchronize(k1), "sync k1")) return 4;
+    float ke = 0.f;
+    if (!uk_ok(hipEventElapsedTime(&ke, k0, k1), "elapsed kref")) return 4;
+    kms = double(ke) / iters;
+    hipEventDestroy(t0); hipEventDestroy(t1);
+    hipEventDestroy(k0); hipEventDestroy(k1);
+    hipStreamDestroy(st);
+    hipFree(dX); hipFree(dWt); hipFree(dY);
+  }
+  const double payload_mb = double(UK_PAYLOAD_BYTES) / (1024.0 * 1024.0);
+  std::cout << "UNIKERN_RESULT backend=amd verify=" << (rc == 0 ? "PASS" : "FAIL")
+            << " max_rel=" << std::scientific << std::setprecision(6) << (double)max_rel
+            << std::fixed << std::setprecision(6)
+            << " measured_ms=" << ms
+            << " kernel_ms=" << kms
+            << " mode=resident"
+            << " payload_mb=" << payload_mb
+            << " perf=" << H << "x" << W << "x" << C << "x" << Kh << "x" << Kw
+            << "x" << Oc << " migrations=" << UK_MIGRATIONS
+            << " checks=" << UK_RESIDENT_CHECKS
+            << " vram_free=" << UK_VRAM_FREE
+            << " vram_total=" << UK_VRAM_TOTAL << std::endl;
+  return rc;
+}

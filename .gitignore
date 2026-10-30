@@ -28,3 +28,18 @@ uk_run/
 probe/uk_metal_probe
 probe/uk_op_gap_probe
 probe/uk_op_refuse_probe
+
+# Evidence and workloads must live where git can see them.
+# uk_run/ is scratch (emitted programs, per-run ledgers, compiled probes): it is ignored on
+# purpose, which is why the DECLARED workload inputs moved to workloads/ in Phase 43 - six
+# evidence READMEs reproduced conv runs by pointing at a file no clone would ever contain.
+# Rule: if a docs/evidence README names a path as a required input, that path is tracked
+# (workloads/ is deliberately NOT ignored - the line that used to be here ignored it).
+
+# python probe caches (py_compile / imports) - generated, never evidence
+__pycache__/
+*.pyc
+
+# machine-local tool session dirs (serena MCP, qoder runs)
+.serena/
+.qoder/

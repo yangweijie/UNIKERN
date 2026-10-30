@@ -1,0 +1,4 @@
+vendor    backend      available  note
+amd       amd:hip     yes        source-gen ready (Phase 5 full)
+apple     apple:metal     no        source-gen ready (Phase 5 full)
+intel     intel:ocl     no        source-gen ready (Phase 5 full)

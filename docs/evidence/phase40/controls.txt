@@ -1,0 +1,10 @@
+# Phase 40 removal controls - each mutation must turn the new leg red, then restore byte-identical
+# method: cp src/{main,kml_front}.cpp to /tmp, mutate, cmake --build, run unikern_acceptance.exe, restore, diff -q
+C1  src/main.cpp: --dims branch back to std::atoi (parse_dim bypassed)
+    acceptance rc=127  Assertion failed: r.first != 0            <- the CLI refusal leg accuses
+C2  src/kml_front.cpp: `if (wide > INT_MAX)` -> `if (false)` (upper bound dropped)
+    acceptance rc=127  Assertion failed: kcap.find("exceeds 2147483647") ...  <- the KML leg accuses
+C3  src/main.cpp: `v > INT_MAX` -> `v >= INT_MAX` (off-by-one at the boundary)
+    acceptance rc=127  Assertion failed: edge.first == 0          <- the boundary-value leg accuses
+restored: diff -q clean for both files; cmake --build clean; ctest 3/3 after restore
+# note C3 is the control that a "stricter is always safer" implementation would silently pass

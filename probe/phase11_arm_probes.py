@@ -5,7 +5,8 @@ the script refuses to leave a marker behind."""
 import subprocess
 import sys
 
-ROOT = "/Volumes/data/git/c/UNIKERN"
+from arm_probe_guard import (ROOT, BUILD, GUARD, acceptance_cmd, build_cmd,
+                         ctest_cmd, guard_main, has_apple_toolchain)
 
 PATCHES = {
     # Anchor syncs (fail-closed convention, Phase 12): the predicate leg
@@ -33,8 +34,8 @@ PATCHES = {
     ),
     "runner_gate": (
         "src/runner_metal.mm",
-        '  const std::string op_gap = op_support_gap(tree);\n  if (!op_gap.empty()) {',
-        '  const std::string op_gap = op_support_gap(tree);\n'
+        '  const std::string op_gap = msl_op_gap(tree);\n  if (!op_gap.empty()) {',
+        '  const std::string op_gap = msl_op_gap(tree);\n'
         '  if (false && !op_gap.empty()) {  // ARM-PROBE: runner entry refusal disabled',
     ),
 }
@@ -55,7 +56,7 @@ def apply(name, restore):
     n = s.count(src)
     if n != 1:
         sys.exit(f"{name}: expected 1 site, found {n} — aborting, nothing written")
-    open(path, "w", encoding="utf-8").write(s.replace(src, dst, 1))
+    GUARD.write(rel, s.replace(src, dst, 1))
 
 
 def run(argv, tail=0):
@@ -78,22 +79,27 @@ def main():
     for name in which:
         apply(name, restore=False)
         print(f"\n=== ARM-PROBE {name}: layer disabled — the test below must notice ===")
-        print(run(["ninja", "-C", "build-apple"], tail=1))
+        print(run(build_cmd(), tail=1))
         if name == "runner_gate":
-            print(run(PROBE_COMPILE))
-            print(run(["/tmp/uk_refuse_probe"]))
+            if not has_apple_toolchain():
+                print("SKIPPED: the runner refusal site lives in src/runner_metal.mm, which only "
+                      "compiles on the Apple host - on this box the leg is not exercised, "
+                      "and the probe says so rather than printing a green line it did not earn")
+            else:
+                print(run(PROBE_COMPILE))
+                print(run(["/tmp/uk_refuse_probe"]))
             print("runner refusal site is NOT covered by ctest: acceptance stays green "
                   "here, which is why the probe exists")
-            print(run(["./build-apple/unikern_acceptance"], tail=1))
+            print(run(acceptance_cmd(), tail=1))
         else:
-            print(run(["./build-apple/unikern_acceptance"], tail=2))
+            print(run(acceptance_cmd(), tail=2))
         apply(name, restore=True)
         print(f"--- {name} restored ---")
     left = markers()
     print(f"\nresidual ARM-PROBE markers: {left if left else 'none'}")
-    print(run(["ninja", "-C", "build-apple"], tail=1))
-    print(run(["ctest", "--test-dir", "build-apple"], tail=3))
+    print(run(build_cmd(), tail=1))
+    print(run(ctest_cmd(), tail=3))
 
 
 if __name__ == "__main__":
-    main()
+    guard_main(main)

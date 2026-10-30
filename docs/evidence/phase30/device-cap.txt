@@ -1,0 +1,13 @@
+# Phase 30 step 3 — can the cap be expressed as a DEVICE-REPORTED quantity instead of the fitted 16384? 2026-10-28T20:05:54+08:00
+# candidates: 14336 = 4 blocks/CU x 256 threads x cu(14);  28672 = maxThreadsPerMultiProcessor(2048) x cu(14)
+# reference points from step 2: 16384 -> n=2^24 0.7484 ms, n=2^26 1.8723 ms;  32768 -> 1.2345 / 2.5777
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=  14336 part=  0.3784 ms sum=  0.3615 ms both=  0.7262 ms part_GBps= 177.34 sum_share= 49.8% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.3364 ms sum=  0.4220 ms both=  0.7361 ms part_GBps= 199.50 sum_share= 57.3% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  28672 part=  0.3138 ms sum=  0.7080 ms both=  1.0169 ms part_GBps= 213.85 sum_share= 69.6% result=262144.0 rel=0.000e+00
+UNIKERN_INFO n=67108864 n_bytes=268435456 exact=1048576.0
+UNIKERN_INFO nP=  14336 part=  1.5471 ms sum=  0.3664 ms both=  1.9631 ms part_GBps= 173.51 sum_share= 18.7% result=1048408.0 rel=-1.602e-04
+UNIKERN_INFO nP=  16384 part=  1.4317 ms sum=  0.4168 ms both=  1.8743 ms part_GBps= 187.50 sum_share= 22.2% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=  28672 part=  1.2665 ms sum=  0.7218 ms both=  2.0374 ms part_GBps= 211.95 sum_share= 35.4% result=1048432.0 rel=-1.373e-04
+probe rc=0

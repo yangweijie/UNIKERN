@@ -25,15 +25,24 @@ std::vector<Instance> sketch(const Hcs& h, const KmlTree& t) {
         x.path = Instance::Path::Unified;
         x.shard_mb = 0;
         x.prefetch_d = 0;
+        out.push_back(x);
       } else {
         x.path = Instance::Path::PinnedCopy;
         x.shard_mb = 64;   // default streaming shard
         x.prefetch_d = 2;  // shards ahead
+        out.push_back(x);
+        // R8.4: mmap streaming is a first-class scenario-B candidate for the
+        // one op that has an mmap execution path (gemm's streamed A operand).
+        // Other ops stay pinned-only: offering a path the generated program
+        // cannot execute would be an R10 silent divergence, and their mmap
+        // capability interval is simply absent in the MVP.
+        if (t.op == OpKind::Gemm) {
+          x.path = Instance::Path::MmapStream;
+          out.push_back(x);
+        }
       }
-      out.push_back(x);
     }
   }
-  (void)t;
   return out;
 }
 
@@ -41,6 +50,15 @@ std::vector<Instance> sketch(const Hcs& h, const KmlTree& t) {
 // full Farkas certificates in the MVP (decision D1, R2.3).
 bool feasible(const Instance& x, const Hcs& h, Violation* v) {
   const int64_t elem = 4;  // fp32 working set in the skeleton
+  // R10.2: a capability interval feeds back as an F constraint — the mmap
+  // path's page-in term is modelled from the nvme tier, so an HCS without
+  // that constant leaves the path infeasible rather than silently costed.
+  if (x.path == Instance::Path::MmapStream && h.tier_bw("nvme") <= 0) {
+    if (v)
+      *v = {"mmap_stream_requires_nvme_tier_bw>0",
+            "R8.4 mmap capability interval needs the nvme tier constant"};
+    return false;
+  }
   // Working set: two A/B tiles + one C tile resident simultaneously.
   const int64_t tile_bytes = int64_t(x.tile_m) * x.tile_n * elem * 3;
   const int64_t cap = h.device_capacity();
@@ -57,8 +75,9 @@ bool feasible(const Instance& x, const Hcs& h, Violation* v) {
 }
 
 // C(x): layered roofline. Deterministic, no learned parameters (R3.2).
-// Cost = max(compute, memory) + explicit-copy term (scenario B only).
-double cost_ms(const Instance& x, const Hcs& h, const Workload& w) {
+// Cost = max(compute, memory) + explicit data-path term (scenario B only).
+double cost_ms(const Instance& x, const Hcs& h, const Workload& w,
+               const KmlTree& t) {
   const double flops_rate = h.flops_gflops * 1e9;         // flop/s
   const double dev_bw = h.tier_bw(h.unified_memory ? "unified" : "vram") * 1e9;
 
@@ -72,8 +91,27 @@ double cost_ms(const Instance& x, const Hcs& h, const Workload& w) {
   const double occ_penalty = 1.0 + 0.55 * (ideal / tile - 1.0 > 0 ? ideal / tile - 1.0 : 0.0);
 
   double copy_ms = 0;
-  if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
-    // Scenario B: partial residency -> bytes streamed over the link at least once.
+  if (x.path == Instance::Path::MmapStream) {
+    // R8.4 mmap path: the streamed operand stays on disk (page-in over the
+    // nvme tier) and the kernel reads it through mapped host memory, so its
+    // bytes cross the link once per consuming block instead of once per pass.
+    // For gemm's streamed A that block count is ceil(N / tile_n); for any
+    // other op the MVP streams with reuse 1. The remaining bytes (B, C for
+    // gemm) move as explicit copies exactly like the pinned path.
+    const double nvme = h.tier_bw("nvme") * 1e9;
+    const double link = h.link_bw_gbps * 1e9;
+    if (nvme <= 0 || link <= 0) return 1e18;
+    const double streamed =
+        t.op == OpKind::Gemm ? double(int64_t(t.dims[0]) * t.dims[2]) * 4.0
+                             : double(w.bytes);
+    const int reuse = t.op == OpKind::Gemm && x.tile_n > 0
+                          ? (t.dims[1] + x.tile_n - 1) / x.tile_n
+                          : 1;
+    copy_ms = streamed / nvme * 1e3 + streamed * reuse / link * 1e3 +
+              double(w.bytes - streamed) / link * 1e3;
+  } else if (x.path != Instance::Path::Unified && h.link_bw_gbps > 0) {
+    // Scenario B pinned copy: partial residency -> bytes streamed over the
+    // link at least once.
     copy_ms = double(w.bytes) / (h.link_bw_gbps * 1e9) * 1e3;
   }
   return std::max(comp_ms * occ_penalty, mem_ms) + copy_ms;
@@ -84,6 +122,10 @@ std::string placement_record(const Instance& x, const Hcs& h) {
   if (x.path == Instance::Path::Unified) {
     os << "placement=unified_memory (scenario A, zero-copy, bw="
        << h.tier_bw("unified") << "GB/s)";
+  } else if (x.path == Instance::Path::MmapStream) {
+    os << "placement=vram+ram+nvme (scenario B, path=mmap_stream, shard="
+       << x.shard_mb << "MiB, prefetch_d=" << x.prefetch_d
+       << ", link=" << h.link_bw_gbps << "GB/s)";
   } else {
     os << "placement=vram+ram+nvme (scenario B, path=pinned_copy, shard="
        << x.shard_mb << "MiB, prefetch_d=" << x.prefetch_d
@@ -109,12 +151,17 @@ Solution solve(const Hcs& hcs, const KmlTree& tree) {
   for (const auto& x : cands) {
     Violation v;
     if (!feasible(x, hcs, &v)) {  // R2.3: record violation
-      if (s.worst.size() < 4) s.worst.push_back(v);
+      // Twin candidates (same tile, both paths) produce identical records;
+      // the sample keeps distinct violations only.
+      bool seen = false;
+      for (const auto& u : s.worst)
+        if (u.constraint == v.constraint && u.detail == v.detail) seen = true;
+      if (s.worst.size() < 4 && !seen) s.worst.push_back(v);
       continue;
     }
     ++s.feasible_count;  // R2.2 / R2.4: |X|
 
-    const double c = cost_ms(x, hcs, w);
+    const double c = cost_ms(x, hcs, w, tree);
     std::ostringstream ks;  // P2 tie-break: canonical instance key
     ks << "m=" << x.tile_m << ",n=" << x.tile_n
        << ",path=" << static_cast<int>(x.path) << ",shard=" << x.shard_mb

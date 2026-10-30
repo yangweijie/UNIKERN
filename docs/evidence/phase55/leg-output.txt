@@ -1,0 +1,8 @@
+  [R20-nonhip] ocl/conv order=ok acc=1/1 anchors=5
+  [R20-nonhip] ocl/reduce order=ok acc=1/1 anchors=5
+  [R20-nonhip] ocl/gemm order=ok acc=1/1 anchors=4
+  [R20-nonhip] msl/conv order=ok acc=1/1 anchors=5
+  [R20-nonhip] msl/reduce order=ok acc=1/1 anchors=5
+  [R20-nonhip] msl/gemm order=ok acc=1/1 anchors=4
+[R20-nonhip] 6/6 accumulation sequences (6 verdict lines, counted here) and their single accumulation statement are pinned in BOTH non-HIP backends: conv c->kh->kw, reduce pass-1 strided sum before the pass-2 fold, gemm k0->k->r->c. The byte legs say something moved; this says whether the filed numbers still mean the same thing
+rc=0

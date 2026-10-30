@@ -1,0 +1,9 @@
+# cmd: ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --workdir uk_run/phase18r --ledger uk_run/phase18r/red.sqlite3
+# date: 2026-10-28T17:53:17+08:00
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.39533 migrations=0 checks=6
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.395330 kernel_ms=0.162946 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.39533 epsilon_abs=0.116802 epsilon_rel=0.419355
+rc=0

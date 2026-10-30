@@ -1,0 +1,45 @@
+# Phase 33 — power-of-two widths only: is the SHIPPED width's exactness also sample-dependent? (RX 6600M) 2026-10-28T20:31:02+08:00
+# pre-registered grid: n in {2^24, 2^24+1, 2e7, 3e7, 2^25, 5e7, 2^26, 2^26+4096} x nP in {2048,4096,8192,16384} (all powers of two)
+# exact total = n/64 is reported as 'exact'; rel is reported BEFORE timing is read; branches fixed in task_plan.md 'Phase 33 预登记'
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=   2048 part=  2.2976 ms sum=  0.0596 ms both=  2.3714 ms part_GBps=  29.21 sum_share=  2.5% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  1.1368 ms sum=  0.1092 ms both=  1.2467 ms part_GBps=  59.03 sum_share=  8.8% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  0.5993 ms sum=  0.2101 ms both=  0.7998 ms part_GBps= 111.98 sum_share= 26.3% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.3330 ms sum=  0.4061 ms both=  0.7388 ms part_GBps= 201.53 sum_share= 55.0% result=262144.0 rel=0.000e+00
+UNIKERN_INFO n=16777217 n_bytes=67108868 exact=262144.0
+UNIKERN_INFO nP=   2048 part=  2.2890 ms sum=  0.0604 ms both=  2.3798 ms part_GBps=  29.32 sum_share=  2.5% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO nP=   4096 part=  1.1525 ms sum=  0.1094 ms both=  1.2445 ms part_GBps=  58.23 sum_share=  8.8% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO nP=   8192 part=  0.5969 ms sum=  0.2101 ms both=  0.8114 ms part_GBps= 112.43 sum_share= 25.9% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO nP=  16384 part=  0.3370 ms sum=  0.4186 ms both=  0.7551 ms part_GBps= 199.14 sum_share= 55.4% result=262144.0 rel=-5.960e-08
+UNIKERN_INFO n=20000000 n_bytes=80000000 exact=312500.0
+UNIKERN_INFO nP=   2048 part=  2.7355 ms sum=  0.0633 ms both=  2.8103 ms part_GBps=  29.24 sum_share=  2.3% result=312494.9 rel=-1.640e-05
+UNIKERN_INFO nP=   4096 part=  1.3764 ms sum=  0.1055 ms both=  1.4605 ms part_GBps=  58.12 sum_share=  7.2% result=312500.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  0.7133 ms sum=  0.2079 ms both=  0.9196 ms part_GBps= 112.16 sum_share= 22.6% result=312479.4 rel=-6.600e-05
+UNIKERN_INFO nP=  16384 part=  0.4003 ms sum=  0.4081 ms both=  0.8132 ms part_GBps= 199.84 sum_share= 50.2% result=312500.0 rel=0.000e+00
+UNIKERN_INFO n=30000000 n_bytes=120000000 exact=468750.0
+UNIKERN_INFO nP=   2048 part=  4.0830 ms sum=  0.0625 ms both=  4.1680 ms part_GBps=  29.39 sum_share=  1.5% result=468750.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  2.0463 ms sum=  0.1058 ms both=  2.1435 ms part_GBps=  58.64 sum_share=  4.9% result=468750.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  1.0826 ms sum=  0.2077 ms both=  1.2832 ms part_GBps= 110.84 sum_share= 16.2% result=468750.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.6221 ms sum=  0.4028 ms both=  1.0532 ms part_GBps= 192.89 sum_share= 38.2% result=468862.8 rel=2.407e-04
+UNIKERN_INFO n=33554432 n_bytes=134217728 exact=524288.0
+UNIKERN_INFO nP=   2048 part=  4.5657 ms sum=  0.0575 ms both=  4.6466 ms part_GBps=  29.40 sum_share=  1.2% result=524288.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  2.2749 ms sum=  0.1119 ms both=  2.3891 ms part_GBps=  59.00 sum_share=  4.7% result=524288.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  1.2162 ms sum=  0.2057 ms both=  1.4162 ms part_GBps= 110.36 sum_share= 14.5% result=524288.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.6943 ms sum=  0.4089 ms both=  1.1597 ms part_GBps= 193.31 sum_share= 35.3% result=524288.0 rel=0.000e+00
+UNIKERN_INFO n=50000000 n_bytes=200000000 exact=781250.0
+UNIKERN_INFO nP=   2048 part=  6.8136 ms sum=  0.0560 ms both=  6.8985 ms part_GBps=  29.35 sum_share=  0.8% result=781271.0 rel=2.688e-05
+UNIKERN_INFO nP=   4096 part=  3.3941 ms sum=  0.1068 ms both=  3.5085 ms part_GBps=  58.93 sum_share=  3.0% result=781292.5 rel=5.440e-05
+UNIKERN_INFO nP=   8192 part=  1.8184 ms sum=  0.2154 ms both=  2.0221 ms part_GBps= 109.98 sum_share= 10.7% result=781312.0 rel=7.936e-05
+UNIKERN_INFO nP=  16384 part=  1.0401 ms sum=  0.4063 ms both=  1.5184 ms part_GBps= 192.28 sum_share= 26.8% result=781312.0 rel=7.936e-05
+UNIKERN_INFO n=67108864 n_bytes=268435456 exact=1048576.0
+UNIKERN_INFO nP=   2048 part=  9.1294 ms sum=  0.0591 ms both=  9.1886 ms part_GBps=  29.40 sum_share=  0.6% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  4.5627 ms sum=  0.1145 ms both=  4.6542 ms part_GBps=  58.83 sum_share=  2.5% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  2.4528 ms sum=  0.2077 ms both=  2.6581 ms part_GBps= 109.44 sum_share=  7.8% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  1.4121 ms sum=  0.4074 ms both=  1.8673 ms part_GBps= 190.10 sum_share= 21.8% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO n=67112960 n_bytes=268451840 exact=1048640.0
+UNIKERN_INFO nP=   2048 part=  9.1407 ms sum=  0.0573 ms both=  9.2029 ms part_GBps=  29.37 sum_share=  0.6% result=1048608.0 rel=-3.052e-05
+UNIKERN_INFO nP=   4096 part=  4.5659 ms sum=  0.1081 ms both=  4.6706 ms part_GBps=  58.79 sum_share=  2.3% result=1048592.0 rel=-4.577e-05
+UNIKERN_INFO nP=   8192 part=  2.4705 ms sum=  0.2004 ms both=  2.6507 ms part_GBps= 108.66 sum_share=  7.6% result=1048608.0 rel=-3.052e-05
+UNIKERN_INFO nP=  16384 part=  1.4426 ms sum=  0.4128 ms both=  1.8698 ms part_GBps= 186.09 sum_share= 22.1% result=1048640.0 rel=0.000e+00
+probe rc=0

@@ -1,0 +1,9 @@
+2026-10-29T11:35:41.747467
+host: win32  hipcc=D:\Program Files\AMD\ROCm\7.1\bin\hipcc.exe  --offload-arch=gfx1032
+[gemm] docs/evidence/phase49/emit/gemm/uk_amd.cpp  bytes=22543  build rc=0
+  run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=0.997790 kernel_ms=0.123305 migrations=0 checks=6 perf=512x512x512 OK
+[conv] docs/evidence/phase49/emit/conv/uk_amd.cpp  bytes=26956  build rc=0
+  run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=11.709370 kernel_ms=7.536683 migrations=0 checks=6 perf=256x256x32x3x3x64 OK
+[reduce] docs/evidence/phase49/emit/reduce/uk_amd.cpp  bytes=13938  build rc=0
+  run rc=0 verify=PASS max_rel=0.000000e+00 measured_ms=0.681510 kernel_ms=0.529360 migrations=0 checks=6 perf=1048576 OK
+ARTIFACT_BUILD_RUN PASS - the stored bytes build, run, and verify on this device

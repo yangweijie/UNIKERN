@@ -1,0 +1,6 @@
+# Phase 51 AMD-side sanity after the G13 edits (only the two runner TUs and the arms changed)
+# host: Windows 11 + AMD RX 6600M (gfx1032); one fresh ledger per case
+  reduce.txt:RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.75909 migrations=0 checks=6
+  conv.txt:RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.9885 migrations=0 checks=6
+# no UK_REDUCE_WIDTH set here: the HIP program still self-reports its own device-derived width
+  reduce_width source=device width=16384 cap=28672

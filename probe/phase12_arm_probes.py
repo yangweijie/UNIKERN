@@ -5,7 +5,8 @@ script refuses to leave a marker behind."""
 import subprocess
 import sys
 
-ROOT = "/Volumes/data/git/c/UNIKERN"
+from arm_probe_guard import (ROOT, BUILD, GUARD, acceptance_cmd, build_cmd,
+                         ctest_cmd, guard_main, has_apple_toolchain)
 
 # (name, file, on-text, off-text) — off-text is the disabled variant.
 LEGS = [
@@ -45,7 +46,7 @@ def patch(idx, disable):
     n = s.count(src)
     if n != 1:
         sys.exit(f"{name}: expected 1 site, found {n} — aborting, nothing written")
-    open(path, "w", encoding="utf-8").write(s.replace(src, dst, 1))
+    GUARD.write(rel, s.replace(src, dst, 1))
 
 
 def run(argv, tail=0):
@@ -58,8 +59,8 @@ def main():
     for i, (name, rel, _on, _off) in enumerate(LEGS):
         patch(i, disable=True)
         print(f"\n=== ARM-PROBE {name} ({rel}): leg disabled — a test must notice ===")
-        print(run(["ninja", "-C", "build-apple"], tail=1))
-        print(run(["./build-apple/unikern_acceptance"], tail=2))
+        print(run(build_cmd(), tail=1))
+        print(run(acceptance_cmd(), tail=2))
         patch(i, disable=False)
         print(f"--- {name} restored ---")
     left = []
@@ -67,9 +68,9 @@ def main():
         if off in open(f"{ROOT}/{rel}", encoding="utf-8").read():
             left.append(name)
     print(f"\nresidual ARM-PROBE legs: {left if left else 'none'}")
-    print(run(["ninja", "-C", "build-apple"], tail=1))
-    print(run(["ctest", "--test-dir", "build-apple"], tail=3))
+    print(run(build_cmd(), tail=1))
+    print(run(ctest_cmd(), tail=3))
 
 
 if __name__ == "__main__":
-    main()
+    guard_main(main)

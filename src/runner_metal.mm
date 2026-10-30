@@ -33,6 +33,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdio>   // std::snprintf for the pin diagnostic
+#include <cstdlib>  // std::getenv / std::strtoll for the UK_REDUCE_WIDTH pin
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -44,6 +46,7 @@
 #include <vector>
 
 #include "unikern/codegen.hpp"
+#include "unikern/components.hpp"
 
 namespace unikern {
 
@@ -100,6 +103,10 @@ struct TimingPlan {
   int H = 0, Wd = 0, C = 0, Kh = 0, Kw = 0, Oc = 0;  // conv dims
   int64_t L = 0;                                     // reduce length
   int P = 0;                                         // reduce pass-1 width
+  const char* width_source = "metal_no_capacity_api";
+  long long width_cap = 0;
+  bool width_refused = false;   // UK_REDUCE_WIDTH given but unusable
+  std::string width_pin;
   int TM = 0, TN = 0;
   int64_t unified_bytes = 0;
   int64_t max_ws = 0;  // Metal recommendedMaxWorkingSetSize (0 = not queried)
@@ -111,11 +118,39 @@ struct TimingPlan {
   double payload_mb = 0;
 };
 
-// Launch width for reduce pass 1: enough threads to saturate the memory system
-// without making the fold pass long. Fixed, so a run is reproducible.
-int reduce_width(int64_t L) {
-  int64_t w = L < 4096 ? L : 4096;
-  return w < 1 ? 1 : int(w);
+// Reduce pass-1 width, Apple side (G13). The HIP program derives its width from
+// hipGetDeviceProperties and the OpenCL runner from clGetDeviceInfo; Metal's public
+// API exposes no compute-unit count and no threads-per-CU figure, so there is
+// nothing honest to query here and the width stays a labelled constant rather than
+// being dressed up as a measurement. The UK_REDUCE_WIDTH pin is still honoured -
+// that is what makes a width A/B possible on a Mac at all, which is the practical
+// half of G13. source= says which of the two happened.
+struct ReduceWidthPlan {
+  int width = 4096;
+  const char* source = "metal_no_capacity_api";
+  long long cap = 0;
+  bool refused = false;
+  char pin[32] = {0};
+};
+
+ReduceWidthPlan plan_reduce_width(int64_t L) {
+  ReduceWidthPlan w;
+  if (const char* pin = std::getenv("UK_REDUCE_WIDTH")) {
+    if (*pin) {
+      std::snprintf(w.pin, sizeof(w.pin), "%s", pin);
+      const long long v = std::strtoll(pin, nullptr, 10);
+      if (v >= 256 && v <= (long long)L) {
+        w.width = int(v);
+        w.source = "env";
+      } else {
+        w.refused = true;  // never silently ignored: that would falsify the run
+      }
+      return w;
+    }
+  }
+  const int64_t capped = L < w.width ? L : w.width;
+  w.width = int(capped < 1 ? 1 : capped);
+  return w;
 }
 
 TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
@@ -153,7 +188,14 @@ TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
     }
     case OpKind::Reduction:
       p.L = tree.dims[0];
-      p.P = reduce_width(p.L);
+      {
+        const ReduceWidthPlan rw = plan_reduce_width(p.L);
+        p.P = rw.width;
+        p.width_source = rw.source;
+        p.width_cap = rw.cap;
+        p.width_refused = rw.refused;
+        if (rw.refused) p.width_pin.assign(rw.pin);
+      }
       p.payload = (p.L + p.P + 1) * 4;
       break;
   }
@@ -193,6 +235,13 @@ std::string perf_string(const TimingPlan& p) {
 
 
 void note_plan(const TimingPlan& p) {
+  if (p.op == OpKind::Reduction && !p.width_refused) {
+    // Same token as the HIP program and the OpenCL runner: one vocabulary for
+    // "where did this width come from" across all three backends.
+    std::cout << "UNIKERN_INFO reduce_width source=" << p.width_source
+              << " width=" << p.P << " cap=" << p.width_cap << " n=" << p.L
+              << std::endl;
+  }
   uk_mt_log += "UK_RUNNER plan op=" + std::string(to_string(p.op)) +
                " perf=" + perf_string(p) +
                " tile=" + std::to_string(p.TM) + "x" + std::to_string(p.TN) +
@@ -405,6 +454,18 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
 
   const TimingPlan plan =
       make_plan(sol, hcs, tree, (int64_t)dev.recommendedMaxWorkingSetSize);
+  if (plan.width_refused) {
+    std::cout << "UNIKERN_ERROR what=reduce_width_pin_unfit value="
+              << plan.width_pin << " needs an integer in [256, n=" << plan.L
+              << "]
+"
+              << "apple:metal runner refuses rather than ignoring the pin "
+                 "(R10.2: a silently ignored knob would falsify the run).
+";
+    uk_mt_log += "UK_RUNNER refused: UK_REDUCE_WIDTH pin unfit
+";
+    return finish();
+  }
   note_plan(plan);
 
 
@@ -522,10 +583,14 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
       // -> 16384.0): this verifies the reduction's structure, not float-order
       // robustness — stated here rather than implied by a zero.
       const int64_t VL = int64_t(1) << 20;
-      const int VP = reduce_width(VL);
+      // Rule 6: the verify pass must launch the configuration that is timed.
+      int VP = plan.P;
+      if (int64_t(VP) > VL) VP = int((VL / 256) * 256);
+      if (VP < 256) VP = 256;
       std::vector<float> vX((size_t)VL, 0.015625f);
       std::vector<float> vR(1, 0.f);
-      cpu_reduce(vX.data(), vR.data(), VL);
+      // D8 / Phase 47: blocked tier as the basis, at its own partial count (see runner_ocl).
+      cpu_reduce_blocked(vX.data(), vR.data(), VL, kRefReduceWidth);
 
       id<MTLBuffer> dX = [dev newBufferWithBytes:vX.data()
                                          length:vX.size() * sizeof(float)
@@ -553,7 +618,9 @@ RunOutcome run_metal(const std::string& kernel_source, const Solution& sol,
       max_rel = std::fabs(got - vR[0]) / den;
     }
 
-    r.verified = max_rel <= 0.03125f;
+    // R6.2 tier read from the declared dtype, not a typed fp32 literal (D11) —
+    // the same table the emitted HIP gate and the CPU verifier use.
+    r.verified = max_rel <= tolerance_for(tree.dtype);
     r.max_rel = max_rel;
   }
 

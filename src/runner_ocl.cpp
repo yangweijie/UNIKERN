@@ -22,6 +22,8 @@
 // without it this file compiles to an honest stub reporting that OpenCL was
 // not available at build time (source generation stays valid, R10).
 #include <cmath>
+#include <cstdio>   // std::snprintf for the pin diagnostic
+#include <cstdlib>  // std::getenv / std::strtoll for the UK_REDUCE_WIDTH pin
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -33,6 +35,7 @@
 #include <vector>
 
 #include "unikern/codegen.hpp"
+#include "unikern/components.hpp"
 
 #ifdef UK_HAS_OCL
 #include <CL/cl.h>
@@ -149,6 +152,10 @@ struct TimingPlan {
   int H = 0, Wd = 0, C = 0, Kh = 0, Kw = 0, Oc = 0;  // conv dims
   int64_t L = 0;                                     // reduce length
   int P = 0;                                         // reduce pass-1 width
+  const char* width_source = "props_unavailable";  // G13: device | env | fallback
+  long long width_cap = 0;                   // the capacity the width came from
+  bool width_refused = false;                // UK_REDUCE_WIDTH was given but unusable
+  std::string width_pin;                     // the rejected value, for the message
   int TM = 0, TN = 0;            // emitted block tile (emit_tile_for)
   int64_t payload = 0;
   int64_t vram_bytes = 0;
@@ -159,11 +166,67 @@ struct TimingPlan {
   size_t max_wi[3] = {1024, 1024, 1024};
 };
 
-// Launch width for reduce pass 1 (fixed so a run is reproducible); mirrors the
-// Metal runner and the generated kernel's strided loop.
-int reduce_width(int64_t L) {
-  int64_t w = L < 4096 ? L : 4096;
-  return w < 1 ? 1 : int(w);
+// Launch width for reduce pass 1, OpenCL side. Before Phase 51 this was a copied constant
+// (`min(L, 4096)`) while the HIP path derived the width from the device's own report - that
+// divergence is gap G13. Same discipline as the generated program's uk_reduce_width_plan:
+// capacity = threads-per-CU x CUs as the DEVICE reports them, largest power of two that fits,
+// floored at one work-group (the floor is also what keeps pass 1 exact), capped by L.
+// UK_REDUCE_WIDTH is the SAME knob name the HIP program reads, so an A/B means the same thing
+// on both backends; an unusable value is refused rather than quietly ignored.
+struct ReduceWidthPlan {
+  int width = 4096;
+  const char* source = "props_unavailable";
+  long long cap = 0;
+  bool refused = false;      // a pin was given but cannot be used
+  char pin[32] = {0};        // the rejected value, for the diagnostic
+};
+
+inline long long uk_pow2_floor(long long v) {
+  long long p = 1;
+  while (p * 2 <= v) p *= 2;
+  return p;
+}
+
+ReduceWidthPlan plan_reduce_width(cl_device_id dev, int64_t L) {
+  ReduceWidthPlan w;
+  if (const char* pin = std::getenv("UK_REDUCE_WIDTH")) {
+    if (*pin) {
+      std::snprintf(w.pin, sizeof(w.pin), "%s", pin);
+      const long long v = std::strtoll(pin, nullptr, 10);
+      if (v >= 256 && v <= (long long)L) {
+        w.width = int(v);
+        w.source = "env";
+        return w;
+      }
+      w.refused = true;  // never fall back silently: "I pinned it" would be a lie
+      return w;
+    }
+  }
+  cl_uint cus = 0;
+  size_t wg = 0;
+  // Capacity proxy = CUs x max work-group size. Both are CL 1.1 quantities; the OpenCL
+  // device query has no exact analogue of HIP's maxThreadsPerMultiProcessor (resident
+  // threads per CU), so the number is the same KIND of fact (a device-reported capacity)
+  // but not the identical quantity. Stated rather than implied.
+  const bool have =
+      clGetDeviceInfo(dev, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cus), &cus, nullptr) ==
+          CL_SUCCESS &&
+      clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(wg), &wg, nullptr) ==
+          CL_SUCCESS &&
+      cus > 0 && wg > 0;
+  if (have) {
+    w.cap = (long long)cus * (long long)wg;
+    w.source = "device";
+  }
+  if (w.cap < 256) {
+    w.cap = 4096;  // the pre-G13 constant, now only an explicitly-labelled fallback
+    w.source = "props_unavailable";
+  }
+  long long v = uk_pow2_floor(w.cap);
+  if (v > (long long)L) v = (long long)L;
+  v = ((v + 255) / 256) * 256;
+  w.width = int(v < 256 ? 256 : v);
+  return w;
 }
 
 TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
@@ -199,7 +262,14 @@ TimingPlan make_plan(const Solution& sol, const Hcs& hcs, const KmlTree& tree,
     }
     case OpKind::Reduction:
       p.L = tree.dims[0];
-      p.P = reduce_width(p.L);
+      {
+        const ReduceWidthPlan rw = plan_reduce_width(dev, p.L);
+        p.P = rw.width;
+        p.width_source = rw.source;
+        p.width_cap = rw.cap;
+        p.width_refused = rw.refused;
+        if (rw.refused) p.width_pin.assign(rw.pin);
+      }
       p.payload = (p.L + p.P + 1) * 4;
       break;
   }
@@ -261,13 +331,25 @@ std::string perf_string(const TimingPlan& p) {
 }
 
 void note_plan(const TimingPlan& p) {
+  if (p.op == OpKind::Reduction && !p.width_refused) {
+    // Same token the generated HIP program prints, so a transcript from either
+    // backend says the same thing about where the width came from.
+    std::cout << "UNIKERN_INFO reduce_width source=" << p.width_source
+              << " width=" << p.P << " cap=" << p.width_cap << " n=" << p.L
+              << std::endl;
+  }
   uk_ocl_log += "UK_RUNNER plan op=" + std::string(to_string(p.op)) +
                 " perf=" + perf_string(p) +
                 " tile=" + std::to_string(p.TM) + "x" + std::to_string(p.TN) +
                 " vram_bytes=" + std::to_string((long long)p.vram_bytes) +
                 " payload_mb=" + std::to_string(p.payload_mb) +
                 " warm=" + std::to_string(p.warm) +
-                " iters=" + std::to_string(p.iters) + "\n";
+                " iters=" + std::to_string(p.iters) +
+                (p.op == OpKind::Reduction
+                     ? " reduce_width=" + std::string(p.width_source) +
+                           "/" + std::to_string(p.P)
+                     : "") +
+                "\n";
 }
 
 // Set the six kernel args (3 buffers + 3 ints) and launch the full PM x PN
@@ -436,6 +518,17 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
   }
   log_device_facts(dev);
   const TimingPlan plan = make_plan(sol, hcs, tree, dev);
+  // A bad invocation stops before any allocation or launch: the HIP program does the same
+  // (exit 2 at plan time), and a runner that verified first and only then complained would
+  // leave a half-run measurement in the transcript.
+  if (plan.width_refused) {
+    std::cout << "UNIKERN_ERROR what=reduce_width_pin_unfit value=" << plan.width_pin
+              << " needs an integer in [256, n=" << plan.L << "]\n"
+              << "intel:ocl runner refuses rather than ignoring the pin (R10.2: a silently\n"
+                 "ignored knob would make the next measurement a lie).\n";
+    uk_ocl_log += "UK_RUNNER refused: UK_REDUCE_WIDTH pin unfit\n";
+    return finish();
+  }
   note_plan(plan);
 
   OclAll a;
@@ -553,10 +646,18 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
       // 2^-6 each at L=2^20 sums to 16384 in any order (fp32-exact), so a zero
       // here means the structure is right — not float-order robustness.
       const int64_t VL = int64_t(1) << 20;
-      const int VP = reduce_width(VL);
+      // Rule 6: verify must launch the configuration that is TIMED, so this reuses
+      // plan.P (device-reported or pinned) instead of making a second, independent
+      // choice. It is only capped because the verify instance is shorter than a large
+      // timing instance, and the cap keeps pass 1's 256 floor.
+      int VP = plan.P;
+      if (int64_t(VP) > VL) VP = int((VL / 256) * 256);
+      if (VP < 256) VP = 256;
       std::vector<float> vX((size_t)VL, 0.015625f);
       std::vector<float> vR(1, 0.f), vY(1, 0.f);
-      cpu_reduce(vX.data(), vR.data(), VL);
+      // D8 / Phase 47: graded against the spec's blocked tier at its own partial count,
+      // never at the kernel's width (that would be the instrument grading itself).
+      cpu_reduce_blocked(vX.data(), vR.data(), VL, kRefReduceWidth);
       cl_mem dX = clCreateBuffer(a.ctx, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
                                  vX.size() * 4, vX.data(), &e);
       cl_mem dP = clCreateBuffer(a.ctx, CL_MEM_READ_WRITE, (size_t)VP * 4, nullptr, &e);
@@ -577,7 +678,9 @@ RunOutcome run_ocl(const std::string& kernel_source, const Solution& sol,
       if (den < 1e-6f) den = 1e-6f;
       max_rel = std::fabs(vY[0] - vR[0]) / den;
     }
-    r.verified = max_rel <= 0.03125f;
+    // R6.2 tier read from the declared dtype, not a typed fp32 literal (D11) —
+    // this is the same table the emitted HIP gate and the CPU verifier use.
+    r.verified = max_rel <= tolerance_for(tree.dtype);
     r.max_rel = max_rel;
   }
 

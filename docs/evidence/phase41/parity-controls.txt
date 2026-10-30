@@ -1,0 +1,13 @@
+# Phase 41 removal controls (each must go red, then restore byte-identical)
+
+C5  src/runner_ocl.cpp: "(idx % 17) - 8) * 0.0625f" -> "(idx % 16) - 8) * 0.0625f"
+    acceptance rc=127  Assertion failed: a == b
+C6  src/codegen_hip.cpp: only ONE of the two "(idx % 17)" sites changed to "% 15"
+    acceptance rc=127  Assertion failed: a == b
+    -> C6 is the point of counting rather than existence: an inequality between the two
+       signatures is caught even though both signatures still "exist" somewhere.
+restored: diff -q clean for both files; rebuild clean; ctest 3/3 after restore
+
+# emitted bytes untouched by this phase
+./build/unikern.exe solve --hcs samples/hcs_amd.json --kml uk_run/phase19conv/conv_256x256x32_k3x3_o64.json --emit /tmp/p41e
+diff /tmp/p41e/uk_amd.cpp docs/evidence/phase29/conv-hip-knob-check.txt      # EMPTY, rc=0

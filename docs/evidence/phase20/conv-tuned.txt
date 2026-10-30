@@ -1,0 +1,29 @@
+# Phase 20 — uk_conv register-blocked over output channels (UK_CONV_OCB=4)
+# pre-registered BEFORE running: kernel_ms must drop (baseline 124.57 ms @256x256x32/Oc64, 2.439 ms @128x128x16/Oc32);
+#   max_rel must stay EXACTLY 0.000000e+00 because the per-channel accumulation order is unchanged --
+#   a nonzero max_rel here would mean the rewrite changed the arithmetic, not just traffic.
+# started: 2026-10-28T18:18:59+08:00
+
+--- conv_32x32x8_k3x3_o16 2026-10-28T18:18:59+08:00 ---
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.40359 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.403590 kernel_ms=0.030635 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.003417 measured_ms=0.40359 epsilon_abs=0.400173 epsilon_rel=117.112
+rc=0
+
+--- conv_128x128x16_k3x3_o32 2026-10-28T18:19:04+08:00 ---
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.76693 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.766930 kernel_ms=0.728914 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.105743 measured_ms=1.76693 epsilon_abs=1.66119 epsilon_rel=15.7096
+rc=0
+
+--- conv_256x256x32_k3x3_o64 2026-10-28T18:19:08+08:00 ---
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=39.2315 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=39.231459 kernel_ms=36.346848 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.898551 measured_ms=39.2315 epsilon_abs=38.3329 epsilon_rel=42.6608
+rc=0
+
+--- reduce regression check ---
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.36969 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.369690 kernel_ms=0.166050 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.36969 epsilon_abs=0.091162 epsilon_rel=0.327299
+# finished: 2026-10-28T18:19:17+08:00

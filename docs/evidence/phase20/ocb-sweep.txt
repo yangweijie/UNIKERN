@@ -1,0 +1,108 @@
+# Phase 20 OCB sweep on RX 6600M — pinned through the program's own UK_CONV_OCB calibration knob
+# pre-registered: ocb=1 must reproduce the Phase 19 baseline (256^2: kernel_ms=124.57 ms; 128^2: 2.439; 32^2: 0.01396)
+#   and max_rel must be 0.000000e+00 for EVERY ocb, because the per-channel order is identical
+# started: 2026-10-28T18:22:51+08:00
+
+--- conv_32x32x8_k3x3_o16 ocb=1 ---
+UNIKERN_INFO conv_ocb=1 source=env
+UNIKERN_INFO conv_ocb=1 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.287060 kernel_ms=0.012580 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_32x32x8_k3x3_o16 ocb=2 ---
+UNIKERN_INFO conv_ocb=2 source=env
+UNIKERN_INFO conv_ocb=2 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.326320 kernel_ms=0.026020 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_32x32x8_k3x3_o16 ocb=4 ---
+UNIKERN_INFO conv_ocb=4 source=env
+UNIKERN_INFO conv_ocb=4 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.306520 kernel_ms=0.030780 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_32x32x8_k3x3_o16 ocb=8 ---
+UNIKERN_INFO conv_ocb=8 source=env
+UNIKERN_INFO conv_ocb=8 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.412150 kernel_ms=0.043107 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_32x32x8_k3x3_o16 ocb=auto ---
+UNIKERN_INFO conv_ocb=1
+UNIKERN_INFO conv_probe ocb=8 threads=2048 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=4 threads=4096 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=2 threads=8192 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=1 threads=16384 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_ocb=1
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.295970 kernel_ms=0.012750 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_128x128x16_k3x3_o32 ocb=1 ---
+UNIKERN_INFO conv_ocb=1 source=env
+UNIKERN_INFO conv_ocb=1 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=3.508500 kernel_ms=2.361320 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_128x128x16_k3x3_o32 ocb=2 ---
+UNIKERN_INFO conv_ocb=2 source=env
+UNIKERN_INFO conv_ocb=2 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.237690 kernel_ms=1.254465 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_128x128x16_k3x3_o32 ocb=4 ---
+UNIKERN_INFO conv_ocb=4 source=env
+UNIKERN_INFO conv_ocb=4 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.630450 kernel_ms=0.728518 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_128x128x16_k3x3_o32 ocb=8 ---
+UNIKERN_INFO conv_ocb=8 source=env
+UNIKERN_INFO conv_ocb=8 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.377010 kernel_ms=0.546550 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_128x128x16_k3x3_o32 ocb=auto ---
+UNIKERN_INFO conv_probe ocb=4 threads=4096 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=2 threads=8192 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=1 threads=16384 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_ocb=1
+UNIKERN_INFO conv_probe ocb=8 threads=65536 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_ocb=8
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.437700 kernel_ms=0.555560 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+
+--- conv_256x256x32_k3x3_o64 ocb=1 ---
+UNIKERN_INFO conv_ocb=1 source=env
+UNIKERN_INFO conv_ocb=1 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=126.665108 kernel_ms=124.426172 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+rc=0
+
+--- conv_256x256x32_k3x3_o64 ocb=2 ---
+UNIKERN_INFO conv_ocb=2 source=env
+UNIKERN_INFO conv_ocb=2 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=68.713219 kernel_ms=64.877631 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+rc=0
+
+--- conv_256x256x32_k3x3_o64 ocb=4 ---
+UNIKERN_INFO conv_ocb=4 source=env
+UNIKERN_INFO conv_ocb=4 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=39.823920 kernel_ms=35.740997 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+rc=0
+
+--- conv_256x256x32_k3x3_o64 ocb=8 ---
+UNIKERN_INFO conv_ocb=8 source=env
+UNIKERN_INFO conv_ocb=8 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=22.786370 kernel_ms=19.061880 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+rc=0
+
+--- conv_256x256x32_k3x3_o64 ocb=auto ---
+UNIKERN_INFO conv_probe ocb=4 threads=4096 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=2 threads=8192 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe ocb=1 threads=16384 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_ocb=1
+UNIKERN_INFO conv_probe ocb=8 threads=524288 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_ocb=8
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=22.852360 kernel_ms=18.987881 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+rc=0
+
+# finished: 2026-10-28T18:23:59+08:00

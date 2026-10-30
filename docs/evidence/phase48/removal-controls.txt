@@ -1,0 +1,30 @@
+# Phase 48 removal controls -- [R5.4-artifact-bytes]
+# date: 2026-10-29T09:45:43.337109
+# host: Windows 11 + AMD RX 6600M. acceptance rc=3221226505 (0xC0000409) = a CRT assert
+#       fired = RED. SOURCE_DIR is exported so the byte-identity leg actually runs
+#       (it self-reports SKIPPED otherwise) - running the exe by hand with the variable
+#       unset would have made both controls look like they passed.
+
+baseline build rc=0
+baseline acceptance rc=0
+  [R5.4-artifact-bytes] 3/3 stored evidence artifacts are byte-identical to what this binary emits today (gemm 512^3 / conv 256x256x32x3x3x64 / reduce 2^20)
+
+[A1 generator emits different bytes (a word changes inside an emitted literal)]
+  build rc=0
+  acceptance rc=3221226505 RED
+  first failing assert: Assertion failed: fresh.size() == stored.size(), file D:/git/c/gpu-math/tests/acceptance.cpp, line 2060
+
+[A2 the stored evidence file is edited (trailing newline appended)]
+  acceptance rc=3221226505 RED
+  first failing assert: Assertion failed: fresh.size() == stored.size(), file D:/git/c/gpu-math/tests/acceptance.cpp, line 2060
+
+--- restoring and rebuilding the shipped binary ---
+post-restore build rc=0
+post-restore ctest rc=0
+  1/6 Test #1: smoke ............................   Passed    0.07 sec
+  2/6 Test #2: acceptance .......................   Passed    1.73 sec
+  3/6 Test #3: anchors ..........................   Passed    0.09 sec
+  4/6 Test #4: probe_hygiene ....................   Passed    0.05 sec
+  5/6 Test #5: record_audit .....................   Passed    0.10 sec
+  6/6 Test #6: runner_tu ........................   Passed    1.32 sec
+  100% tests passed out of 6

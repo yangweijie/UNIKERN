@@ -1,0 +1,2 @@
+anchors checked: 363 in 52 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range checks 99, weak 61/61, unverifiable 59/59)  [2026-10-29]
+all doc->code anchors agree with the files they cite

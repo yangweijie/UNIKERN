@@ -1,0 +1,26 @@
+# Phase 19 removal control — [R6.4-order] arm
+# date: 2026-10-28T18:13:20.889004
+# leg: cpu_reduce's fp32 accumulator widened to double (the reference
+#      stops being order-sensitive), which the arm must notice
+
+$ baseline build rc=0
+$ acceptance rc=0
+  [R6.4-order] wide-range reduce: seq_err=0.00723881 two_pass_err=4.69154e-14 divergence=0.00718679; shipped uniform-2^-6 pattern stays exact in both orders OK
+
+$ leg applied: build rc=0
+$ acceptance rc=3221226505 -> RED (load-bearing)
+  [R14] OpenCL sources per op: conv/reduce kernels present, no cross-op kernel, provenance banner intact (compiles out-of-band; runtime needs the Intel host) OK
+  [R15] HIP sources per op: conv/reduce programs carry only their own kernels, provenance head intact, capability covers three ops with layout the only refusal OK
+  Assertion failed: seq_err > 1e-4, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1401
+
+$ restored byte-identical=True; build rc=0 acceptance rc=0
+$ ctest --test-dir build
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.19 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    1.33 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   1.52 sec

@@ -1,0 +1,43 @@
+# Phase 35 out-of-sample run (RX 6600M) 2026-10-28T20:56:07+08:00
+# predictions were written into task_plan.md BEFORE this run; compare cell by cell
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=33000000 n_bytes=132000000 exact=515625.0
+UNIKERN_INFO nP=      4 part=1024.7905 ms sum=  0.0011 ms both=1003.0505 ms part_GBps=   0.13 sum_share=  0.0% result=515625.0 rel=0.000e+00
+UNIKERN_INFO nP=      8 part=808.4969 ms sum=  0.0114 ms both=777.1331 ms part_GBps=   0.16 sum_share=  0.0% result=515625.0 rel=0.000e+00
+UNIKERN_INFO nP=   5120 part=  1.8337 ms sum=  0.1972 ms both=  1.9332 ms part_GBps=  71.99 sum_share= 10.2% result=515585.7 rel=-7.624e-05
+UNIKERN_INFO nP=   6144 part=  1.5418 ms sum=  0.1591 ms both=  1.6842 ms part_GBps=  85.61 sum_share=  9.4% result=515672.2 rel=9.152e-05
+UNIKERN_INFO nP=  12288 part=  0.8631 ms sum=  0.3062 ms both=  1.2181 ms part_GBps= 152.93 sum_share= 25.1% result=515538.0 rel=-1.687e-04
+UNIKERN_INFO nP=  24576 part=  0.6355 ms sum=  0.6095 ms both=  1.2959 ms part_GBps= 207.72 sum_share= 47.0% result=515726.8 rel=1.975e-04
+UNIKERN_INFO n=70000000 n_bytes=280000000 exact=1093750.0
+UNIKERN_INFO nP=      4 part=2313.7627 ms sum=  0.0062 ms both=2301.7993 ms part_GBps=   0.12 sum_share=  0.0% result=1048576.0 rel=-4.130e-02
+UNIKERN_INFO nP=      8 part=1830.4135 ms sum=  0.0012 ms both=1832.2610 ms part_GBps=   0.15 sum_share=  0.0% result=1093750.0 rel=0.000e+00
+UNIKERN_INFO nP=   5120 part=  4.3034 ms sum=  0.1358 ms both=  4.0174 ms part_GBps=  65.06 sum_share=  3.4% result=1093760.0 rel=9.143e-06
+UNIKERN_INFO nP=   6144 part=  3.2795 ms sum=  0.1538 ms both=  3.4371 ms part_GBps=  85.38 sum_share=  4.5% result=1093677.0 rel=-6.674e-05
+UNIKERN_INFO nP=  12288 part=  1.8434 ms sum=  0.3243 ms both=  2.1830 ms part_GBps= 151.90 sum_share= 14.9% result=1093678.0 rel=-6.583e-05
+UNIKERN_INFO nP=  24576 part=  1.3224 ms sum=  0.6043 ms both=  1.9508 ms part_GBps= 211.73 sum_share= 31.0% result=1093724.0 rel=-2.377e-05
+UNIKERN_INFO n=50331648 n_bytes=201326592 exact=786432.0
+UNIKERN_INFO nP=      4 part=1632.1041 ms sum=  0.0006 ms both=1626.8278 ms part_GBps=   0.12 sum_share=  0.0% result=786432.0 rel=0.000e+00
+UNIKERN_INFO nP=      8 part=1277.1771 ms sum=  0.0092 ms both=1273.4594 ms part_GBps=   0.16 sum_share=  0.0% result=786432.0 rel=0.000e+00
+UNIKERN_INFO nP=   5120 part=  2.8265 ms sum=  0.1358 ms both=  2.9078 ms part_GBps=  71.23 sum_share=  4.7% result=786490.6 rel=7.455e-05
+UNIKERN_INFO nP=   6144 part=  2.3572 ms sum=  0.1581 ms both=  2.5144 ms part_GBps=  85.41 sum_share=  6.3% result=786432.0 rel=0.000e+00
+UNIKERN_INFO nP=  12288 part=  1.3333 ms sum=  0.3073 ms both=  1.6576 ms part_GBps= 150.99 sum_share= 18.5% result=786432.0 rel=0.000e+00
+UNIKERN_INFO nP=  24576 part=  0.9564 ms sum=  0.6201 ms both=  1.6215 ms part_GBps= 210.50 sum_share= 38.2% result=786432.0 rel=0.000e+00
+UNIKERN_INFO n=100000000 n_bytes=400000000 exact=1562500.0
+PROBE_ERROR what=ev2
+PROBE_ERROR what=warm nP=8
+PROBE_ERROR what=warm nP=5120
+PROBE_ERROR what=warm nP=6144
+PROBE_ERROR what=warm nP=12288
+PROBE_ERROR what=warm nP=24576
+PROBE_ERROR what=malloc
+rc-a=1
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.1
+UNIKERN_INFO n=33000000 n_bytes=132000000 exact=3300000.0
+UNIKERN_INFO nP=   5120 part=  1.8319 ms sum=  0.1314 ms both=  1.9381 ms part_GBps=  72.06 sum_share=  6.8% result=3299964.0 rel=-1.092e-05
+UNIKERN_INFO nP=  12288 part=  0.8528 ms sum=  0.3042 ms both=  1.1910 ms part_GBps= 154.78 sum_share= 25.5% result=3300121.5 rel=3.680e-05
+UNIKERN_INFO n=70000000 n_bytes=280000000 exact=7000000.1
+UNIKERN_INFO nP=   5120 part=  3.8831 ms sum=  0.1348 ms both=  3.9782 ms part_GBps=  72.11 sum_share=  3.4% result=6999043.0 rel=-1.367e-04
+UNIKERN_INFO nP=  12288 part=  1.8395 ms sum=  0.3102 ms both=  2.1772 ms part_GBps= 152.21 sum_share= 14.2% result=6999764.0 rel=-3.373e-05
+rc-b=0

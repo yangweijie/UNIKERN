@@ -1,0 +1,18 @@
+# Phase 30 pre-flight — reduce component attribution (RX 6600M / gfx1032, ROCm 7.1) 2026-10-28T20:03:16+08:00
+# fold order byte-identical to the shipped uk_reduce_part / uk_reduce_sum; data = all 2^-6 so the exact total is computable in advance
+# expected: n=2^20 -> 16384.0 ; n=2^24 -> 262144.0
+# pre-registered predictions: sum_share<30% at nP=4096; part_GBps(16384) >= 1.8x part_GBps(4096); sum time grows ~linearly in nP
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO n=1048576 n_bytes=4194304 exact=16384.0
+UNIKERN_INFO nP=   1024 part=  0.1940 ms sum=  0.0318 ms both=  0.2197 ms part_GBps=  21.62 sum_share= 14.5% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  0.0451 ms sum=  0.1105 ms both=  0.1590 ms part_GBps=  93.08 sum_share= 69.5% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.0130 ms sum=  0.4128 ms both=  0.4231 ms part_GBps= 323.14 sum_share= 97.6% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=  65536 part=  0.0149 ms sum=  1.6129 ms both=  1.7539 ms part_GBps= 281.88 sum_share= 92.0% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP= 131072 part=  0.0095 ms sum=  3.2710 ms both=  3.3846 ms part_GBps= 442.44 sum_share= 96.6% result=16384.0 rel=0.000e+00
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=   1024 part=  4.5874 ms sum=  0.0310 ms both=  4.6782 ms part_GBps=  14.63 sum_share=  0.7% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  1.1553 ms sum=  0.1075 ms both=  1.2498 ms part_GBps=  58.09 sum_share=  8.6% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.3378 ms sum=  0.4036 ms both=  0.7505 ms part_GBps= 198.66 sum_share= 53.8% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  65536 part=  0.3543 ms sum=  1.6431 ms both=  2.1284 ms part_GBps= 189.42 sum_share= 77.2% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP= 131072 part=  0.3179 ms sum=  3.3177 ms both=  3.9282 ms part_GBps= 211.11 sum_share= 84.5% result=262144.0 rel=0.000e+00
+probe rc=0

@@ -1,0 +1,35 @@
+# Phase 47 removal controls -- [R6.9-basis] (D8: the spec's second tier as the basis)
+# date: 2026-10-29T07:41:53.474371
+# host: Windows 11 + AMD RX 6600M. acceptance rc=3221226505 (0xC0000409) = a CRT assert
+#       fired = RED. Every control rebuilds first: restoring the source is not restoring
+#       the binary (Phase 45, E42).
+
+baseline build rc=0
+baseline acceptance rc=0  runner_tu rc=0
+
+[B1 basis width tied to the kernel's own pass-1 width (identity risk)]
+  build rc=0  acceptance rc=3221226505 RED  runner_tu rc=0 GREEN
+  first failing assert: Assertion failed: basis != kern, file D:/git/c/gpu-math/tests/acceptance.cpp, line 2065
+
+[B2 cpu_reduce_blocked collapses to one partial (arithmetically the scalar tier)]
+  build rc=0  acceptance rc=3221226505 RED  runner_tu rc=0 GREEN
+  first failing assert: Assertion failed: a == b, file D:/git/c/gpu-math/tests/acceptance.cpp, line 2037
+
+[B3 the emitted artifact's basis constant degenerates to 1]
+  build rc=0  acceptance rc=3221226505 RED  runner_tu rc=0 GREEN
+  first failing assert: Assertion failed: src.find("static const int UK_REF_REDUCE_WIDTH = 1024;") != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 2081
+
+[B4 an in-process runner grades against the scalar tier again]
+  build rc=0  acceptance rc=3221226505 RED  runner_tu rc=0 GREEN
+  first failing assert: Assertion failed: body.find("cpu_reduce_blocked(vX.data(), vR.data(), VL, kRefReduceWidth);") != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 2104
+
+--- restoring the tree and rebuilding the shipped binary ---
+post-restore build rc=0
+post-restore ctest rc=0
+  1/6 Test #1: smoke ............................   Passed    0.13 sec
+  2/6 Test #2: acceptance .......................   Passed    4.52 sec
+  3/6 Test #3: anchors ..........................   Passed    0.58 sec
+  4/6 Test #4: probe_hygiene ....................   Passed    1.13 sec
+  5/6 Test #5: record_audit .....................   Passed    0.50 sec
+  6/6 Test #6: runner_tu ........................   Passed    2.70 sec
+  100% tests passed out of 6

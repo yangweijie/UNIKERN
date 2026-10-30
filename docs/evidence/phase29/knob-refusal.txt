@@ -1,0 +1,19 @@
+# Phase 29 — pinned-plan device check, on-device behaviour (RX 6600M / gfx1032) 2026-10-28T19:55:28+08:00
+# defect that was fixed: the env-knob path returned before any hipGetDeviceProperties call,
+# so a pinned tile whose smem exceeded the device limit died later in launch verify with 'invalid argument'.
+
+=== control 1: C=64, pinned tile=16 (82944 B > 65536) -> must refuse the pin loudly and still run ===
+UNIKERN_ERROR what=knob_tile_unfit tile=16 smem=82944 sharedMemPerBlock=65536 -> running the global-load path (OCB pin kept)
+UNIKERN_INFO conv_plan ocb=8 tile=0 smem=0 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=45.641930 kernel_ms=41.817249 mode=resident payload_mb=31.891602 perf=256x256x64x3x3x64 migrations=0 checks=6 vram_free=8378384384 vram_total=8573157376
+exit=0
+
+=== control 2: C=64, pinned tile=8 (25600 B fits) -> must NOT refuse (a check that always refuses is as useless as one that never does) ===
+UNIKERN_INFO conv_plan ocb=8 tile=8 smem=25600 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=45.048600 kernel_ms=41.358890 mode=resident payload_mb=31.891602 perf=256x256x64x3x3x64 migrations=0 checks=6 vram_free=8378384384 vram_total=8573157376
+exit=0
+
+=== control 3: C=32, pinned tile=16 (41472 B fits) -> unchanged behaviour, band check ===
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.663790 kernel_ms=7.050036 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+exit=0

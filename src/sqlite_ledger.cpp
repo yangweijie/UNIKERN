@@ -58,6 +58,12 @@ public:
       sqlite3_finalize(st);
     }
     if (!has_kernel) exec("ALTER TABLE solutions ADD COLUMN kernel_ms REAL NOT NULL DEFAULT 0");
+    // R8.5 (Phase 18): violation events live in their own table, so a recorded
+    // alarm can never be read back as a solution row (R6.3 stays single-owner).
+    exec("CREATE TABLE IF NOT EXISTS violations("
+         "id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT, rate REAL, "
+         "threshold REAL, migrations INTEGER, checks INTEGER, "
+         "vram_free INTEGER, ts TEXT)");
   }
 
   ~SqliteLedger() override { sqlite3_close(db_); }
@@ -124,6 +130,53 @@ public:
       throw std::runtime_error("sqlite ledger commit step: " + msg);
     }
     exec("COMMIT");
+  }
+
+  // R8.5: same transaction discipline as commit() — an interrupted write leaves
+  // no half record (R7.4), and the row keeps the exact numbers the alarm fired on.
+  void record_violation(const Key& key, double rate, double threshold,
+                        int migrations, int checks,
+                        unsigned long long vram_free) override {
+    exec("BEGIN IMMEDIATE");
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "INSERT INTO violations(key, rate, threshold, "
+                           "migrations, checks, vram_free, ts) "
+                           "VALUES(?1,?2,?3,?4,?5,?6,datetime('now'))",
+                           -1, &st, nullptr) != SQLITE_OK) {
+      const std::string msg = sqlite3_errmsg(db_);
+      exec("ROLLBACK");
+      throw std::runtime_error("sqlite ledger violation prepare: " + msg);
+    }
+    const std::string k = composite_key(key);
+    sqlite3_bind_text(st, 1, k.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(st, 2, rate);
+    sqlite3_bind_double(st, 3, threshold);
+    sqlite3_bind_int(st, 4, migrations);
+    sqlite3_bind_int(st, 5, checks);
+    sqlite3_bind_int64(st, 6, sqlite3_int64(vram_free));
+    const int rc = sqlite3_step(st);
+    sqlite3_finalize(st);
+    if (rc != SQLITE_DONE) {
+      const std::string msg = sqlite3_errmsg(db_);
+      exec("ROLLBACK");
+      throw std::runtime_error("sqlite ledger violation step: " + msg);
+    }
+    exec("COMMIT");
+  }
+
+  // R8.5: violation events counted apart from solution rows (size()).
+  int violation_count() override {
+    sqlite3_stmt* st = nullptr;
+    int n = 0;
+    if (sqlite3_prepare_v2(db_, "SELECT COUNT(*) FROM violations", -1, &st,
+                           nullptr) != SQLITE_OK) {
+      const std::string msg = sqlite3_errmsg(db_);
+      throw std::runtime_error("sqlite ledger violation count: " + msg);
+    }
+    if (sqlite3_step(st) == SQLITE_ROW) n = sqlite3_column_int(st, 0);
+    sqlite3_finalize(st);
+    return n;
   }
 
   std::vector<MeasuredRow> measured_rows(const std::string& hcs_fp) override {

@@ -1,0 +1,40 @@
+# Phase 20 removal controls — [R20] conv blocking arms
+# date: 2026-10-28T18:28:00.738361
+# host: Windows 11 + MinGW g++ 13.2.0 + AMD RX 6600M (gfx1032), ROCm 7.1
+# exit 3221226505 = 0xC0000409, the assert abort on this platform (RED)
+
+$ baseline build rc=0 acceptance rc=0
+  [R20] conv channel blocking: four instantiations, factor from hipOccupancy + multiProcessorCount, single FMA body and single dispatch point, op isolation intact OK
+  ACCEPTANCE PASS
+
+=== leg 1: CU count replaced by the copied label 14 ===
+build rc=0
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R8.5-long] alarm criterion boundaries, checks=/vram_free= tokens in all three programs, violation recorded apart from solutions, threshold validated at parse OK
+  Assertion failed: count_of("dp.multiProcessorCount") == 2, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1639
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 2: one occupancy probe replaced by a constant ===
+build rc=0
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R8.5-long] alarm criterion boundaries, checks=/vram_free= tokens in all three programs, violation recorded apart from solutions, threshold validated at parse OK
+  Assertion failed: count_of("uk_conv<2>") == 2 && count_of("uk_conv<1>") == 2, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1629
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 3: kw loop reversed inside the kernel FMA nest ===
+build rc=0
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R8.5-long] alarm criterion boundaries, checks=/vram_free= tokens in all three programs, violation recorded apart from solutions, threshold validated at parse OK
+  Assertion failed: hc.find(nest) != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1664
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+$ final restore: build rc=0 acceptance rc=0
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.25 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    1.11 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   1.36 sec

@@ -1,0 +1,17 @@
+# streamed (64 MiB shard) vs resident, on the stock 8 GiB tier and on 16 GiB
+vram= 8GiB dims=2048x256x1000000 -> SOLVED path=pinned_copy shard_rows=16 A_elems=2048000000 int32_overflow=False
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram= 8GiB dims=2500x64x1000000 -> SOLVED path=pinned_copy shard_rows=16 A_elems=2500000000 int32_overflow=True
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram= 8GiB dims=8192x256x4096 -> SOLVED path=pinned_copy shard_rows=4096 A_elems=33554432 int32_overflow=False
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram= 8GiB dims=65536x256x512 -> SOLVED path=pinned_copy shard_rows=32768 A_elems=33554432 int32_overflow=False
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram=16GiB dims=2048x256x1000000 -> LEDGER HIT  c_cached_ms=335.728  tile=128x128 path=pinned_copy shard_rows=16 A_elems=2048000000 int32_overflow=False
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram=16GiB dims=2500x64x1000000 -> SOLVED path=pinned_copy shard_rows=16 A_elems=2500000000 int32_overflow=True
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram=16GiB dims=8192x256x4096 -> SOLVED path=pinned_copy shard_rows=4096 A_elems=33554432 int32_overflow=False
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;
+vram=16GiB dims=65536x256x512 -> SOLVED path=pinned_copy shard_rows=32768 A_elems=33554432 int32_overflow=False
+    index math: As[i][j] = (bm + j < M && k0 + i < K) ? A[(size_t)(bm + j) * K + k0 + i] : 0.f;

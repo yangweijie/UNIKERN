@@ -1,0 +1,57 @@
+# Phase 24 — LDS bank padding (CP = C + 1) A/B, conv on RX 6600M (gfx1032), ROCm 7.1
+# taken 2026-10-28T19:15+08:00 with the padded layout emitted by src/codegen_hip.cpp
+# pre-registered criteria (task_plan.md, "Phase 24 预登记"):
+#   1. keep-line: 256x256 kernel_ms <= 5.97 ms (7.16/1.2)   2. 128^2 (C=16) gain must be visibly smaller than 256^2 (C=32)
+#   3. negative control: 32^2 stays on the tile=0 path with its existing spread   4. max_rel stays 0.000000e+00 everywhere
+# reference (unpadded, docs/evidence/phase21/tiled-sweep.txt + phase23/postrevert-verify.txt):
+#   256^2: 7.153 / 7.167 / 7.175 / 7.158620 / 7.173225 / 7.158920 / 7.127580 ms, conv_plan ocb=8 tile=16 smem=41472
+#   128^2: 0.287 ms, conv_plan ocb=8 tile=16 smem=20736
+#   32^2 : 0.010700 / 0.013381 / 0.013040 ms, conv_plan ocb=1 tile=0 smem=0 "nothing fills the device"
+
+=== padded runs (each with a fresh ledger) ===
+
+--- conv_256x256x32_k3x3_o64 run 1 ---
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=42768 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.812200 kernel_ms=7.135740 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+
+--- conv_256x256x32_k3x3_o64 run 2 ---
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=42768 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=11.741470 kernel_ms=7.145340 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+
+--- conv_128x128x16_k3x3_o32 run 1 ---
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=22032 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.491170 kernel_ms=0.302160 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+--- conv_128x128x16_k3x3_o32 run 2 ---
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=22032 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.223840 kernel_ms=0.295439 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+--- conv_32x32x8_k3x3_o16 run 1 ---
+UNIKERN_INFO conv_plan ocb=1 tile=8 smem=3600 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.319580 kernel_ms=0.016357 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+--- conv_32x32x8_k3x3_o16 run 2 ---
+UNIKERN_INFO conv_plan ocb=1 tile=8 smem=3600 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.416850 kernel_ms=0.020372 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+--- conv_32x32x8_k3x3_o16 chooser trace (padded, stderr as filtered) ---
+UNIKERN_INFO conv_probe tile=0 ocb=4 smem=0 threads=4096 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=2 smem=0 threads=8192 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=1 smem=0 threads=16384 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_plan ocb=1 tile=8 smem=3600 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.444920 kernel_ms=0.015565 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+
+=== verdict (written after the runs, criteria checked in order) ===
+1. keep-line MISSED: 256^2 = 7.135740 / 7.145340 ms, i.e. inside the unpadded band 7.1276-7.1750 (change < 0.5%,
+   smaller than the run-to-run spread). Padding C->C+1 bought nothing at C=32.
+2. discriminating control NOT satisfied as a support signal: 128^2 = 0.302160 / 0.295439 ms vs unpadded 0.287 ms
+   is 2.9-5.3% *slower*. Neither shape improved, so the "conflict factor scales with C" prediction got no support.
+3. negative control MOVED: 32^2 was tile=0/smem=0 ("nothing fills the device"), it is now tile=8/smem=3600
+   ("fills=device") and 0.016357 / 0.020372 / 0.015565 ms against 0.010700 / 0.013381 / 0.013040 ms unpadded
+   (1.5x slower). Cause is structural, not accidental: uk_conv_plan feeds cand.smem into the occupancy probe and
+   accepts a candidate on `threads >= per_cu * multiProcessorCount`, so *any* change to the smem formula changes
+   which plan is accepted. Therefore a layout-only A/B is not observable through this chooser at tiny shapes.
+4. accumulation order held: 6 result lines + 1 trace line, max_rel = 0.000000e+00 in every one.
+
+REVERTED per criterion 1 (and criterion 3 voids the isolated reading). Post-revert emission is byte-identical to
+docs/evidence/phase23/conv-hip-postrevert.txt (sha256 8464d86c...42bb28) -- see README.md for the verification.

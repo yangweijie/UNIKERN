@@ -1,0 +1,42 @@
+# Phase 58 controls -- every number of a `path:A/B/C` citation is checked
+# date: 2026-10-29T18:33:12.109951
+
+baseline gate rc=0  anchors checked: 413 in 54 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range checks 104, weak 30/30, unverifiable 39/3
+baseline tail numbers checked: 31
+
+[G1 a tail number past the end must be reported]
+  injected: - `[R20-nonhip]`（`tests/acceptance.cpp:2800/999999`）——第二个数是尾巴，故意越界。
+  gate RED want RED | weak=30 (delta 0) unverifiable=39 (delta 0) | expanded numbers=32
+  names the TAIL number 999999: YES
+    docs\evidence\phase58\tmp_group_control.md:3: tests/acceptance.cpp:999999-999999 is past the end of the file (3064 lines)
+[G2 a group label must own EVERY number]
+  injected: - `[R20-nonhip]`（`tests/acceptance.cpp:2800/2863`）——第二个数属于下一个臂。
+  gate RED want RED | weak=30 (delta 0) unverifiable=39 (delta 0) | expanded numbers=32
+  owner message: YES
+    docs\evidence\phase58\tmp_group_control.md:3: tests/acceptance.cpp:2863 — R20-nonhip owns R20-nonhip (2747-2845) but line 2863 falls in R20-nonhip-expr (2846-2934)
+[G3 both numbers inside the labelled section must stay green]
+  injected: - `[R20-nonhip]`（`tests/acceptance.cpp:2800/2820`）——两个都在自己臂内。
+  gate GREEN want GREEN | weak=30 (delta 0) unverifiable=39 (delta 0) | expanded numbers=32
+[G4 a stale second group must not be excused by the first group's symbol]
+  injected: - `order_ok`（`tests/acceptance.cpp:2800）、`[R20-nonhip]`（`tests/acceptance.cpp:2863/999999`）。
+  gate RED want RED | weak=30 (delta 0) unverifiable=39 (delta 0) | expanded numbers=32
+  names the TAIL number 999999: YES
+    docs\evidence\phase58\tmp_group_control.md:3: tests/acceptance.cpp:999999-999999 is past the end of the file (3064 lines)
+[G5 the same claim written one-number-per-citation is equally red, so G2's red is the number's fault]
+  injected: - `[R20-nonhip]`（`tests/acceptance.cpp:2800`）、`[R20-nonhip]`（`tests/acceptance.cpp:2863`——单独写时也报，说明 G2 不是标签在场就红）。
+  gate RED want RED | weak=30 (delta 0) unverifiable=39 (delta 0) | expanded numbers=31
+  owner message: YES
+    docs\evidence\phase58\tmp_group_control.md:3: tests/acceptance.cpp:2863 — R20-nonhip owns R20-nonhip (2747-2845) but line 2863 falls in R20-nonhip-expr (2846-2934)
+[G6 a symbol in front of the SECOND citation of a line is read, not lost to the slice]
+  injected: - `[R20-nonhip]`（`tests/acceptance.cpp:2800`）、`order_ok`（`tests/acceptance.cpp:120`）。
+  gate RED want RED | weak=30 (delta 0) unverifiable=39 (delta 0) | expanded numbers=31
+  report naming 'order_ok': YES
+    docs\evidence\phase58\tmp_group_control.md:3: tests/acceptance.cpp:120-120 names ['order_ok'], but the nearest match sits at tests/acceptance.cpp:2802 — outside +-25 line
+
+
+
+
+
+
+temp file removed; gate back to rc=0 weak=30/30 unverifiable=39/39 expanded=31
+all 6 controls matched (tail numbers read, group label owns each number, in-range group green with zero debt delta, second group not excused, per-number form equally strict, symbol before a mid-line citation actually read)

@@ -1,0 +1,53 @@
+# Phase 52 — gate #7 (`generated_programs`) transcripts, host: Windows 11 + AMD RX 6600M (gfx1032)
+
+## 1. 本机正常路径（hipcc 与 ROCm 自带 clang 都在位）
+
+$ python probe/generated_program_check.py
+PROG toolchain hipcc=D:\Program Files\AMD\ROCm\7.1\bin\hipcc.exe clang=D:\Program Files\AMD\ROCm\7.1\bin\clang.exe
+PROG control hip=broken-source-refused arches=gfx1032 (device-reported)
+PROG ok hip gemm bytes=22543
+PROG ok hip conv bytes=26956
+PROG ok hip reduce bytes=13938
+PROG control ocl=broken-source-refused (OpenCL C via clang -x cl, built-in headers; no Intel SDK and no Intel device needed)
+PROG ok ocl gemm bytes=2594
+PROG ok ocl conv bytes=1877
+PROG ok ocl reduce bytes=1708
+PROG gap msl reason=Metal has no front end reachable from this host (no clang -x metal, no Metal headers); that artifact is checked on a macOS host only
+PROG RESULT PASS checked=6 (syntax only; no target codegen, no execution, no verify claim)
+rc=0
+
+## 2. 两个前端都不在位（同一条命令，剥掉 HIP_PATH 与 PATH）
+
+$ python -c 'import os,sys,runpy; os.environ.pop("HIP_PATH",None); os.environ["PATH"]=r"C:\Windows\System32"; sys.argv=["generated_program_check.py"]; runpy.run_path("probe/generated_program_check.py", run_name="__main__")'
+PROG toolchain hipcc=(none) clang=(none)
+PROG SKIP hip reason=no hipcc (HIP_PATH unset and hipcc not on PATH)
+PROG SKIP ocl reason=no clang with OpenCL C support found
+PROG gap msl reason=Metal has no front end reachable from this host (no clang -x metal, no Metal headers); that artifact is checked on a macOS host only
+PROG RESULT SKIPPED checked=0 (no compiler available here)
+rc=77
+
+ctest 注册了 `SKIP_RETURN_CODE 77`，所以这台机器之外的主机看到的是 **Skipped**，不是一片绿。
+
+## 3. 控制本身的两条报警方向（sub-check 不能是装饰）
+
+`control()` 必须同时满足"良好源码被接受"与"坏源码被拒绝"。用两个恒真/恒假的假前端直接调它：
+
+$ python -c 'import sys; sys.path.insert(0, "probe"); import generated_program_check as g; g.WORK.mkdir(parents=True, exist_ok=True); print("alarm A:", g.control([sys.executable, "-c", "pass"], g.CL_OK, g.CL_BAD, "always_ok.cl")); print("alarm B:", g.control([sys.executable, "-c", "raise SystemExit(1)"], g.CL_OK, g.CL_BAD, "always_bad.cl"))'
+alarm A: BROKEN source ACCEPTED - the sub-check would be decorative
+alarm B: sanity source refused (rc=1): the checker is not usable here
+
+A 是"什么都放行"的方向（会打印 `PROG SKIP ocl reason=control: ...` 而不是绿），B 是"什么都拒绝"的方向。
+两条都能响，才说明 ocl 半边的控制不是只有一种输出。
+
+## 4. ctest 全套（还原后重建，7 条门）
+
+1/7 Test #1: smoke ............................   Passed    0.08 sec
+2/7 Test #2: acceptance .......................   Passed    2.01 sec
+3/7 Test #3: anchors ..........................   Passed    0.13 sec
+4/7 Test #4: probe_hygiene ....................   Passed    0.06 sec
+5/7 Test #5: record_audit .....................   Passed    0.12 sec
+6/7 Test #6: runner_tu ........................   Passed    1.72 sec
+7/7 Test #7: generated_programs ...............   Passed    9.78 sec
+100% tests passed out of 7
+
+（这段是 `probe/phase52_clparse_control_probe.py` 结尾自己跑的 ctest，见 `controls.txt`。）

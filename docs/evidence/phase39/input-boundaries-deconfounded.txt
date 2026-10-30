@@ -1,0 +1,27 @@
+== A. declared tile_m/tile_n, one ledger each ==
+ huge: rc=0 | SOLVED  x* tile=128x128  c_ms=0.110506  |X|=25  hcs_fp=80394649
+      TM/TN/TK=['#define TM 96', '#define TN 96', '#define TK 16'] types=['double', 'float']
+      clamp-annotation=['// solved tile=128x128 -> emitted block tile=96x96 (clamped for register budget)']
+ zero: rc=2 | KML rejected (2 violations):
+      TM/TN/TK=[] types=[]
+  neg: rc=2 | KML rejected (2 violations):
+      TM/TN/TK=[] types=[]
+small: rc=0 | SOLVED  x* tile=128x128  c_ms=0.110506  |X|=25  hcs_fp=80394649
+      TM/TN/TK=['#define TM 96', '#define TN 96', '#define TK 16'] types=['double', 'float']
+      clamp-annotation=['// solved tile=128x128 -> emitted block tile=96x96 (clamped for register budget)']
+  ref: rc=0 | SOLVED  x* tile=128x128  c_ms=0.110506  |X|=25  hcs_fp=80394649
+      TM/TN/TK=['#define TM 96', '#define TN 96', '#define TK 16'] types=['double', 'float']
+      clamp-annotation=['// solved tile=128x128 -> emitted block tile=96x96 (clamped for register budget)']
+== B. declared dtype, one ledger each ==
+dtype=fp32: rc=0 | SOLVED  x* tile=128x128  c_ms=0.110506  |X|=25  hcs_fp=80394649
+      emitted value types=['double', 'float']  (448 lines)
+dtype=fp16: rc=0 | SOLVED  x* tile=128x128  c_ms=0.0613536  |X|=25  hcs_fp=80394649
+      emitted value types=['double', 'float']  (448 lines)
+dtype=int8: rc=0 | SOLVED  x* tile=128x128  c_ms=0.0367776  |X|=25  hcs_fp=80394649
+      emitted value types=['double', 'float']  (448 lines)
+== E. declared reduce length beyond int32, one ledger each ==
+L=            2147483647: rc=0 emitted=['const int L = 2147483647;'] | SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+L=            2147483648: rc=0 emitted=['const int L = 2147483647;'] | SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+L=            3000000000: rc=0 emitted=['const int L = 2147483647;'] | SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+L=  99999999999999999999: rc=0 emitted=['const int L = 2147483647;'] | SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+L=                   abc: rc=0 emitted=['const int L = 4096;'] | SOLVED  x* tile=128x128  c_ms=0.001088  |X|=25  hcs_fp=80394649

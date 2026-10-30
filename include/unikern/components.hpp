@@ -106,8 +106,21 @@ struct ILedger {
   // the backend did not report one) — the calibration row's copy-time input.
   virtual void commit(const Key& key, const Solution& sol, double measured_ms,
                       double kernel_ms = 0) = 0;
+  // R8.5 (Phase 18): a migration alarm is a RECORDED violation event, not only a
+  // printed line — the requirement asks for 记录违规事件 + 触发重新求解. Written
+  // inside the same transaction discipline as commit (R7.4: never a half record).
+  // rate/threshold are the alarm criterion (D7); migrations/checks are the raw
+  // counts it was computed from; vram_free is the measured capacity the re-solve
+  // used (0 = unmeasured, and then no re-solve is allowed).
+  virtual void record_violation(const Key& key, double rate, double threshold,
+                                int migrations, int checks,
+                                unsigned long long vram_free) = 0;
   virtual std::vector<MeasuredRow> measured_rows(const std::string& hcs_fp) = 0;
   virtual int size() const = 0;
+  // R8.5 (Phase 18): how many violation events are recorded. Kept separate from
+  // size() — a violation is not a solution and must never read back as one
+  // (R6.3 single owner).
+  virtual int violation_count() = 0;
 };
 std::unique_ptr<ILedger> make_file_ledger(const std::string& path);
 // R7 (Phase 6): real SQLite ledger (amalgamation in third_party/sqlite).
@@ -126,5 +139,9 @@ struct Verdict {
 };
 Verdict verify_fp32(const std::vector<float>& got, const std::vector<float>& ref,
                     const Tolerance& tol = {});
+
+// R6.2's tiered gate as one function, so no call site can pick fp32 by default for a tree that
+// declared something else. I8 is 0.0 on purpose: integer/index results must match bit for bit.
+double tolerance_for(DType dtype, const Tolerance& tol = {});
 
 }  // namespace unikern
