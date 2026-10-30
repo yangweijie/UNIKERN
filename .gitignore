@@ -26,6 +26,8 @@ ledger.sqlite3
 # matched the rule, which is why only the HIP half went missing).
 uk_evidence/
 uk_run/
+build-run/
+build-run-stream/
 
 # probes: source tracked, compiled Mach-O/ELF binaries not
 probe/uk_metal_probe
