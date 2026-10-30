@@ -1824,3 +1824,26 @@
 - 读数：anchors 431 全绿（重指 70 条被插入推移的引用）；weak **8**/8、unverifiable **11**/11
   （棘轮未升，本相自己的两条 weak 靠把符号与引用放回同一行解决）；
   摘除控制三件全 PASS；`ctest` **7/7**。仍未提交。
+
+## Phase 63（2026-10-30）：真实厂商模型形状与设备实测事实
+
+- **GGUF 头事实（Qwen3-Embedding-4B Q4_K_M，2,496,703,776 B）**：arch=qwen3，
+  398 张量；embedding_length=2560、block_count=36、head=32/kv=8、head_dim=128、
+  ff=9728、context=40960、pooling_type=3（MEAN）、vocab=151665；每层 7 个 GEMM
+  （q 2560→4096、k/v 2560→1024、o 4096→2560、gate/up 2560→9728、down 9728→2560）。
+- **设备自报 vs 规格（E26 纪律的两次现身）**：①multiProcessorCount=14（RX 6600M 规格说
+  16 CU）——设备自报胜出；②memoryClockRate=875 MHz（命令时钟）→ GDDR6 ×16 推导
+  224 GB/s（规格 256）；③`clockRate`=1881 MHz 是探针时刻值——实测 GEMM 吞吐
+  3.85–3.89 TFLOPS 高于按它推导的 3370 GFLOPS"峰值"。**承重数字只有真机实测。**
+- **真实形状的链路读数（seq=512）**：五形状全 `verify=PASS max_rel=0`；
+  kernel_ms：q 2.71 / o 2.61 / gate 6.64 / down 6.53 / reduce(1.31M) 0.43；
+  出厂 HCS ε_rel 1.4–1.8 → calibrate（link 32→5.7479 中位）后 **0.0053–0.032**。
+  e2e−kernel 的有效带宽 4.98–5.93 GB/s，与 Phase 15 的 5.43 同族。
+- **reduce 行的校准离群**：reduce 行 copy_ms=0.207 ms 只含 10 MB H2D → eff_bw=50.7 GB/s
+  噪声主导；中位数设计吸收了它。校准池按算子构成（compute-bound gemm 的 copy 项
+  vs reduce 的微型 d2h）值得后续显式分层——记为观察。
+- **模型级能力边界**：fp32 权重 16 GB > 8 GB vram；Q4_K_M 2.33 GiB 装得下但反量化
+  不是原语；softmax/RMSNorm/批量池化不在三原语词汇表；生成物是自验证 harness 非
+  运行时。512-token prefill 仅 GEMM 下界外推 ≈954 ms（≈537 tok/s）。
+- KML 前端按 R1.2 拒绝未知字段 `comment`——声明文件里塞注释的"便利"被仪器挡下，
+  出处说明必须住在证据 README。`ctest` 7/7。

@@ -1,0 +1,10 @@
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=13.6832 migrations=0 checks=6
+-- log tail --
+                   ^
+D:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\vcruntime.h:358:47: note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  358 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+4 warnings generated when compiling for host.
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=13.683240 kernel_ms=2.707376 mode=resident stream_path=pinned payload_mb=53.000000 perf=512x4096x2560 migrations=0 checks=6 vram_free=8356167680 vram_total=8573157376
+LEDGER COMMIT predicted_ms=4.92288 measured_ms=13.6832 epsilon_abs=8.76036 epsilon_rel=1.77952

@@ -1343,3 +1343,21 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
   （例外 2014→2087 / 1599→1777 逐条验证；第一版用 git checkout 做回滚在这个几十个相
   未提交的仓里是致命的，当场改内存快照）；weak/unverifiable 棘轮未升。
 - `ctest` **7/7**。仍未提交（用户未要求）。
+
+## 续50（2026-10-30，Phase 63：差距审计 + 真实厂商模型形状驱动完整流程）
+
+- 应用户两问：①当前实现距 AGENTS.md 一句话目标多大差距；②能否用 Qwen3-Embedding-4B
+  GGUF 验证完整流程。预登记先行，能力边界先说破：模型级运行是 MVP 外（三原语、fp32-only、
+  反量化非原语、fp32 权重 16 GB > 8 GB vram、harness 非运行时），形状级完整流程可行。
+- `probe/phase63_gguf_header.py` 纯 struct 解析 GGUF 头：398 张量、36 KV，真实维度
+  hidden=2560 / ff=9728 / 36 层 / head_dim=128 / pooling=MEAN；每层 7 个 GEMM。
+- 设备厂商资料：`phase63_device_probe` 实测自报量（14 CU——与规格 16 CU 不一致，设备胜出；
+  GDDR6 ×16 推导 224 GB/s；clockRate 1881 MHz 是时刻值——后被实测吞吐 3.85 TFLOPS 推翻，
+  E26 再现）→ `hcs_amd_device.json`。
+- KML 声明 5 个真实形状（workloads/llm/）：第一版塞了 comment 字段被前端 R1.2 当场拒绝
+  （未知字段拒绝是对的）→ 字段化后五个形状真机全 PASS（max_rel=0）并 COMMIT。
+- calibrate（R7.3）：5 行 → link 32 → 5.7479 GB/s 中位（gemm 行 4.98–5.93 与 5.43 同族；
+  reduce 行 50.7 噪声离群被中位吸收）；校准 HCS（v2）复解复跑：ε_rel 1.4–1.8 → 0.0053/0.032。
+- 差距审计：五段链路本机全闭合；真实差距 = 语义覆盖面（三原语）、dtype（fp32-only）、
+  Intel conv/reduce 真机、生成物形态（harness 而非内核库）、V1 项。
+- `ctest` 7/7。本相产物未提交（纪律）。

@@ -369,6 +369,7 @@ N3 改 HIP 注释 → 归 `R5.4`，次序臂一行都不打印（排在其后，
 | 60 | **注释文本型债务逐条重写 + 臂名里的 `/` 放行**：`arm_labels` 的词法与文档实际形状对齐，6 条引用当场复活 | **complete（2026-10-29）**：相初 83 条债、11 条 dead。逐条读下来 dead 的真面目是两类——句子引用的是**发射出去的注释文本**（那一行确实是指的对象，但没有 ≥5 字的标识符可配），以及**行号又漂了 8 组**（412→435、739→762、844→946、805→807、562/530→660/593、main 311-312→552、kml_front 108/113→127、metal 110→112/213、829→841）。仪器侧：`tests/acceptance.cpp` 有一条臂的标题本身就是 `R6.2/R6.4`，而文档侧标签正则不含 `/` ⇒ 6 处**完全可核**的引用被当成沉默；放行后臂归属核 99→**104**。两条新控制 L5/L6，其中 L6 第一次跑是绿的——因为我把标签注入成没有方括号的样子，**控制自己不成立**（E38 的形状）。自己上一相造的错也抓到：给重置行配的 `smem` 只有 4 个字母，过不了 ≥5 规则 ⇒ 债没降，改配 `uk_conv_plan`。棘轮：weak 37→**30**、unverifiable 46→**39**，债 83→**69**；`ctest` 7/7 |
 | 61 | **债从 69 掉到 19，靠的不是重写句子，而是修门自己读不到断言的三个洞** | **complete（2026-10-29）**：①`TOKEN` 要求 span ≥2 字符 ⇒ 合法的 `` `Y` `` 拒配，扫描从它的收尾反引号继续，**整行后面每一对都错一位**，`hipMemcpyAsync` 这种主语凭空消失（9 条被计成盲；改 `{1,80}` 后短 span 仍被 ≥5 长度规则丢掉，只是配对不再错）。②`^[A-Z]+\d` 带着 `re.I` 把带数字的真标识符一起吞了——`fp16_rel` 正是三条引用的主语（拆成大小写敏感的 `ARMISH` 后：`fp16_rel` 可核、`R5.4-…` 仍不算符号；摘除控制实测：加回 `re.I` 立刻报 `GATE IS MUTE OR LOOSE`）。③**我自己工具**的插入点落在引用开引号**之内**，产出 `` ``plan_reduce_width` src/…:190` `` 破 span 共 20 处——门没报红，是 dry 打印里那对连续反引号被读出来的（E58 家族在 Markdown 上的同形）。另重指 6 组过期行号（557→540、434→516、415→463、89→106、963→1014、65-66→76），全部落成 `probe/phase61_stale_repoint.py` 的显式列表（上一相一次性 heredoc 的重定向把自己喂成 100 MB 垃圾文件，故脚本一律入文件）。棘轮：weak 30→**8**、unverifiable 39→**11**，债 69→**19**（三相连做 120→19）；`ctest` 7/7 |
 | 62 | **R8.4 的 mmap 通路**：被 61 个相漏掉的真 SHALL 缺口——C 从未在 pinned/mmap 两候选数据通路间择优 | **complete（2026-10-30）**：**(a) 探针先行** —— `probe/phase62_mmap_probe.cpp` 三变体实测本机（RX 6600M / ROCm 7.1 Windows）：文件映射视图连 `hipHostRegisterDefault` 都被拒（驱动不能页锁定不归它管的页），`hipHostMallocMapped` + `hipHostGetDevicePointer` 可用 ⇒ **真 mmap 不可行、映射设备读可行**，实现采用仿真页（数据真落盘、fread 按预取距离 refill 两个映射舞台缓冲、内核经映射设备指针读 A，kernel 体零改动）。**(b) C 择优结构** —— `MmapStream`（`src/solver.cpp:40`）成为 gemm 场景 B 的一等候选（\|X\| 25→50），nvme 层带宽作为 R10.2 的 F 约束；reuse-aware 成本项 + 先说破的支配性（mmap = pinned + nvme + reuse 放大 ⇒ C 对任何有限 nvme 选 pinned，是模型的结论不是省略）；conv/reduce 保持 pinned-only（能力区间 = gemm-A）。新臂 `[R8.4]`（`tests/acceptance.cpp:1037`），摘除控制三件全 PASS（R1 红归 `[R2]`、R2 红归 `[R8.4]` 独有子腿、R3 中性绿）。**(c) 生成程序** —— `uk_stream_pass_mmap`（`src/codegen_hip.cpp:1217`）+ `UK_GEMM_STREAM_PATH`（`src/codegen_hip.cpp:1312`）旋钮（unfit 退 2）+ 横幅/结果行自报 + mmap 时验证段也走映射路径（rule 6 的 R8.4 形态）；gemm 产物 447→721 行重录基线，conv/reduce 逐字节不变。**(d) 真机双臂** —— 12416³（合成 vram=2GiB HCS：D 盘仅 2.1 GiB，真超订形状的 A 文件 ≥2.27 GiB 放不下，声明写在 HCS 头部）：pinned 1378.09 ms / mmap 54383.98 ms，`verify=PASS max_rel=0` 全程；映射读有效带宽实测 2.8–3.4 GB/s，模型按官方链路定价把 mmap 成本低估约一个量级——支配性结论不变，数值记为模型边界。**(e) E70** —— env 钉的 mmap 臂第一次真机跑就把测量提交进 pinned 解的账本键（同键行被 237× 离群值污染）；修复 = `stream_path`（`include/unikern/codegen.hpp:81`）进 RunOutcome + `r.stream_path`（`src/runner.cpp:236`）解析 + `r.stream_path`（`src/main.cpp:550`）与规划路径不一致时 `LEDGER SKIP` 提交门，被污染行由 pinned 复跑恢复。**(f) anchors** —— 本相插入推移 70 条引用，`probe/phase62_stale_repoint.py` 机械 +64 重指（例外 2014→2087 / 1599→1777 逐条验证，门仲裁 + 内存快照恢复；第一版用 `git checkout` 回滚在这个几十个相未提交的仓里是致命的，当场改掉）；`ctest` **7/7** |
+| 63 | **差距审计 + 真实厂商模型形状驱动完整流程**（Qwen3-Embedding-4B GGUF） | **complete（2026-10-30）**：GGUF 头解析（398 张量）取真实维度（hidden=2560 ff=9728 36 层 pooling=MEAN）；设备实测 HCS（`phase63_device_probe`：14 CU、224 GB/s 推导、vram 8573157376——设备自报 14 CU 与规格 16 CU 不一致时设备胜出，E26 纪律）；KML 声明 5 个真实形状（`workloads/llm/`，前端按 R1.2 拒绝了塞注释的第一版）；真机五形状全 `verify=PASS max_rel=0` 并 COMMIT；calibrate link 32→5.7479 GB/s（中位、v2，gemm 行与 Phase 15 的 5.43 同族），复解 ε_rel 1.4–1.8 → **0.0053–0.032**；实测 fp32 GEMM 3.85–3.89 TFLOPS（高于探针时钟推导的 3370 GFLOPS——clockRate 是时刻值，E26 再现）。模型级运行按边界如实判 MVP 外（softmax/norm/反量化非原语、fp32 权重 16 GB > 8 GB vram），只给 roofline 外推（512-token prefill ≈954 ms，仅 GEMM 下界）。证据 `docs/evidence/phase63/`；`ctest` 7/7 |
 **Phase 61（2026-10-29）：三个"判据读不到文档"的洞——一个反引号、一个大小写、一个插入位置。**
 本相一条句子都没重写，债却从 69 掉到 19。前两个洞在门这一侧：`TOKEN` 的 ≥2 字符要求让 `` `Y` ``
 无法配对，扫描错位后整行的主语消失；`^[A-Z]+\d` 带着 `re.I` 让 `fp16_rel` 被当成臂名丢掉。
@@ -1686,6 +1687,44 @@ E3 反转同一函数的 `c` 循环 → 次序臂红、表达式臂沉默（顺�
   （`probe/phase62_stale_repoint.py`，机械 +64、例外逐条验证、门仲裁 + 快照恢复——
   第一版用 `git checkout` 做回滚在这个几十个相未提交的仓里是致命的，已在脚本里改掉）；
   `ctest` **7/7**。
+
+### Phase 63 预登记（差距审计 + 用真实厂商模型形状驱动完整流程验证）
+
+- 预登记 1（审计）：对照 AGENTS.md 一句话目标（KML 声明 → 求解 → 生成 → 真机差分验证
+  → SQLite Ledger）与 requirements R1–R10 逐条对现状，产出差距表；证据引用现成的
+  `docs/acceptance-mvp.md` 与 phase15–62 逐相记录，不重复发明。
+- 预登记 2（能力边界先说破，再谈"能不能跑模型"）：MVP 只有 gemm/conv/reduce 三原语、
+  fp32-only（D11 口径）、生成物是自验证计时 harness 而非可调用推理运行时 ⇒
+  **逐层跑完整 GGUF 推理不在 MVP 能力内**：缺 softmax/RMSNorm/注意力/反量化原语，
+  且 Q4_K_M 权重（2.33 GiB）的反量化不是 KML 原语、fp32 权重（~16 GB）超 vram。
+  可行的"验证完整流程" = **用真实模型形状驱动既有闭环**：GGUF 头解析出真实张量维度
+  （纯 Python struct 解析，无依赖，`probe/phase63_gguf_header.py`）→ 当前 GPU 实测
+  厂商资料成 HCS（R9 导入路径）→ KML 声明主流 GEMM 与池化 reduce → solve → 生成 →
+  RX 6600M 真机差分验证 → 账本 COMMIT → calibrate（R7.3）→ 校准 HCS 复解。
+- 预登记 3（判据）：每个真实形状真机 `verify=PASS max_rel=0` 并 COMMIT；
+  校准后 ε_rel 相对出厂 HCS 下降；全程不修容差、不动三形状字节基线
+  （`[R5.4-artifact-bytes]` 只钉 512³/256²/2²⁰，新 workloads 是新增不触碰）。
+- 预登记 4（不擅自扩）：不实现新原语、不实现量化、不把 harness 改成推理运行时；
+  "能跑模型"的结论只以 roofline 外推的形式给出并标注边界。
+
+### Phase 63 结果（跑完之后另起，上面预登记逐条对账）
+
+- 预登记 1 **成立**：差距审计完成（审计表在当次会话交付与 `docs/evidence/phase63/README.md`）
+  ——AGENTS.md 一句话目标的五段链路在本机全部闭合，真实差距在语义覆盖面
+  （三原语）、dtype（fp32-only）、Intel conv/reduce 真机、生成物形态（自验证
+  harness 而非可链接内核库）。
+- 预登记 2 **成立**：GGUF 头解析（398 张量、36 KV）取出真实维度（hidden=2560、ff=9728、
+  36 层、pooling=MEAN）；设备厂商资料由 `phase63_device_probe` 实测（14 CU、224 GB/s
+  GDDR6 推导、8573157376 B）成 `hcs_amd_device.json`。前端按 R1.2 当场拒绝了我塞进
+  KML JSON 的 `comment` 字段——仪器在岗。
+- 预登记 3 **成立**：五个真实形状真机全 PASS（`verify=PASS max_rel=0`、migrations=0）；
+  calibrate 把 link 32 → 5.7479 GB/s（中位、v2；gemm 行 4.98–5.93 与 Phase 15 的 5.43
+  同族，reduce 行 50.7 是噪声离群、被中位吸收）；复解复跑 ε_rel 从 1.4–1.8 降到
+  **0.0053–0.032**。实测 fp32 GEMM 核内吞吐 3.85–3.89 TFLOPS——高于探针时钟推导的
+  3370 GFLOPS"峰值"，E26 教训再现（clockRate 是时刻值）。
+- 预登记 4 **成立**：模型级运行按能力边界如实判定为 MVP 外（softmax/norm/反量化非原语、
+  fp32 权重 16 GB > 8 GB vram、harness 非运行时形态），只给 roofline 外推
+  （512-token prefill ≈954 ms ≈ 537 tok/s，仅 GEMM 项下界）。不实现、不擅自扩。
 
 ## Decisions
 
