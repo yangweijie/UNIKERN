@@ -8,7 +8,7 @@
 
 namespace unikern {
 
-enum class OpKind { Gemm, Conv, Reduction };
+enum class OpKind { Gemm, Conv, Reduction, Softmax, RmsNorm, ChannelScale };
 enum class DType { F32, F16, I8 };
 
 const char* to_string(OpKind k);

@@ -47,6 +47,64 @@ std::string banner(const char* lang, const char* r8_note, const Solution& sol,
 // sums plus a final pass (reduce). The point of this phase is an executable,
 // differentially verified kernel for every declared op — not a tuned one; the
 // roofline report keeps predicting whatever the solver chose.
+std::string softmax_msl_kernel() {
+  std::ostringstream o;
+  o << "kernel void uk_softmax(device const float* X [[buffer(0)]],\n"
+    << "                       device float* Y [[buffer(1)]],\n"
+    << "                       constant int& L [[buffer(2)]],\n"
+    << "                       constant int& C [[buffer(3)]],\n"
+    << "                       uint gid [[thread_position_in_grid]]) {\n"
+    << "  if (int(gid) >= L) return;\n"
+    << "  device const float* x = X + gid * C;\n"
+    << "  device float* y = Y + gid * C;\n"
+    << "  float maxv = -INFINITY;\n"
+    << "  for (int c = 0; c < C; ++c) if (x[c] > maxv) maxv = x[c];\n"
+    << "  float sum = 0.f;\n"
+    << "  for (int c = 0; c < C; ++c) sum += exp(x[c] - maxv);\n"
+    << "  for (int c = 0; c < C; ++c) y[c] = exp(x[c] - maxv) / sum;\n"
+    << "}\n";
+  return o.str();
+}
+
+std::string rmsnorm_msl_kernel() {
+  std::ostringstream o;
+  o << "kernel void uk_rmsnorm(device const float* X [[buffer(0)]],\n"
+    << "                         device const float* W [[buffer(1)]],\n"
+    << "                         device float* Y [[buffer(2)]],\n"
+    << "                         constant int& L [[buffer(2)]],\n"
+    << "                         constant int& C [[buffer(3)]],\n"
+    << "                         uint gid [[thread_position_in_grid]]) {\n"
+    << "  if (int(gid) >= L) return;\n"
+    << "  device const float* x = X + gid * C;\n"
+    << "  device float* y = Y + gid * C;\n"
+    << "  float sum_sq = 0.f;\n"
+    << "  for (int c = 0; c < C; ++c) sum_sq += x[c] * x[c];\n"
+    << "  float rms = rsqrt(sum_sq / C + 1e-6f);\n"
+    << "  for (int c = 0; c < C; ++c) y[c] = x[c] * rms * W[c];\n"
+    << "}\n";
+  return o.str();
+}
+
+std::string channelscale_msl_kernel() {
+  std::ostringstream o;
+  o << "kernel void uk_channelscale(device const float* X [[buffer(0)]],\n"
+    << "                            device const float* S [[buffer(1)]],\n"
+    << "                            device float* Y [[buffer(2)]],\n"
+    << "                            constant int& L [[buffer(2)]],\n"
+    << "                            constant int& C [[buffer(3)]],\n"
+    << "                            uint gid [[thread_position_in_grid]]) {\n"
+    << "  if (int(gid) >= L * C) return;\n"
+    << "  int c = int(gid) % C;\n"
+    << "  Y[gid] = X[gid] * S[c];\n"
+    << "}\n";
+  return o.str();
+}
+
+// --- Phase 13 (Apple first): conv and reduce MSL kernels -------------------
+// Deliberately straightforward: one thread per output (conv) / strided partial
+// sums plus a final pass (reduce). The point of this phase is an executable,
+// differentially verified kernel for every declared op — not a tuned one; the
+// roofline report keeps predicting whatever the solver chose.
 std::string conv_msl_kernel() {
   std::ostringstream o;
   o << "kernel void uk_conv(device const float* X [[buffer(0)]],\n"
@@ -94,6 +152,52 @@ std::string reduce_msl_kernels() {
     << "  float s = 0.f;\n"
     << "  for (int i = 0; i < np; ++i) s += P[i];\n"
     << "  Y[0] = s;\n"
+    << "}\n";
+  return o.str();
+}
+
+// --- Phase 14: conv and reduce OpenCL C kernels (same structure as MSL) ------
+std::string softmax_ocl_kernel() {
+  std::ostringstream o;
+  o << "__kernel void uk_softmax(__global const float* X, __global float* Y,\n"
+    << "                         const int L, const int C) {\n"
+    << "  const int row = get_global_id(0);\n"
+    << "  if (row >= L) return;\n"
+    << "  const float* x = X + row * C;\n"
+    << "  float* y = Y + row * C;\n"
+    << "  float maxv = -INFINITY;\n"
+    << "  for (int c = 0; c < C; ++c) if (x[c] > maxv) maxv = x[c];\n"
+    << "  float sum = 0.f;\n"
+    << "  for (int c = 0; c < C; ++c) sum += exp(x[c] - maxv);\n"
+    << "  for (int c = 0; c < C; ++c) y[c] = exp(x[c] - maxv) / sum;\n"
+    << "}\n";
+  return o.str();
+}
+
+std::string rmsnorm_ocl_kernel() {
+  std::ostringstream o;
+  o << "__kernel void uk_rmsnorm(__global const float* X, __global const float* W,\n"
+    << "                         __global float* Y, const int L, const int C) {\n"
+    << "  const int row = get_global_id(0);\n"
+    << "  if (row >= L) return;\n"
+    << "  __global const float* x = X + row * C;\n"
+    << "  __global float* y = Y + row * C;\n"
+    << "  float sum_sq = 0.f;\n"
+    << "  for (int c = 0; c < C; ++c) sum_sq += x[c] * x[c];\n"
+    << "  float rms = rsqrt(sum_sq / C + 1e-6f);\n"
+    << "  for (int c = 0; c < C; ++c) y[c] = x[c] * rms * W[c];\n"
+    << "}\n";
+  return o.str();
+}
+
+std::string channelscale_ocl_kernel() {
+  std::ostringstream o;
+  o << "__kernel void uk_channelscale(__global const float* X, __global const float* S,\n"
+    << "                            __global float* Y, const int L, const int C) {\n"
+    << "  const size_t idx = get_global_id(0);\n"
+    << "  if (idx >= (size_t)L * C) return;\n"
+    << "  int c = idx % C;\n"
+    << "  Y[idx] = X[idx] * S[c];\n"
     << "}\n";
   return o.str();
 }
@@ -170,6 +274,9 @@ std::string msl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
     << "using namespace metal;\n\n";
   if (tree.op == OpKind::Conv) return o.str() + conv_msl_kernel();
   if (tree.op == OpKind::Reduction) return o.str() + reduce_msl_kernels();
+  if (tree.op == OpKind::Softmax) return o.str() + softmax_msl_kernel();
+  if (tree.op == OpKind::RmsNorm) return o.str() + rmsnorm_msl_kernel();
+  if (tree.op == OpKind::ChannelScale) return o.str() + channelscale_msl_kernel();
   o << "constant int TM = " << ti.tm << ";\n"
     << "constant int TN = " << ti.tn << ";\n"
     << "constant int TK = 16;\n"
@@ -228,6 +335,9 @@ std::string ocl_kernel_source(const Solution& sol, const Hcs& hcs, const KmlTree
               sol, hcs, ti);
   if (tree.op == OpKind::Conv) return o.str() + ocl_conv_kernel();
   if (tree.op == OpKind::Reduction) return o.str() + ocl_reduce_kernels();
+  if (tree.op == OpKind::Softmax) return o.str() + softmax_ocl_kernel();
+  if (tree.op == OpKind::RmsNorm) return o.str() + rmsnorm_ocl_kernel();
+  if (tree.op == OpKind::ChannelScale) return o.str() + channelscale_ocl_kernel();
   o << "#define TM " << ti.tm << "\n"
     << "#define TN " << ti.tn << "\n"
     << "#define TK 16\n"

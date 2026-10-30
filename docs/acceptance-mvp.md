@@ -1232,7 +1232,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
 - **落地的通道**：发射程序的 `uk_reduce_width_plan` 先读 `UK_REDUCE_WIDTH`（生效打印 `source=env`，
   值不在 `[256, n]` 打印 `what=reduce_width_pin_unfit` 并 `exit(2)`，只读一次），
   与 conv 的 `UK_CONV_TILE`/`UK_CONV_OCB` 同口径（硬约束第 4 条已补写）。
-- **新臂与基线**：`[R15c-width-pin]`（`tests/acceptance.cpp:2139`）按**单调锚点序列**核顺序；
+- **新臂与基线**：`[R15c-width-pin]`（`tests/acceptance.cpp:2146`）按**单调锚点序列**核顺序；
   `[R5.4-artifact-bytes]` 的证据基线移到 `docs/evidence/phase49/emit/`（reduce 276→**290 行**
   `b8862c99…`，gemm/conv 逐字节不变）；`probe/phase48_artifact_build_run.py` 同步指向新基线，
   三份存盘字节仍 `build rc=0 verify=PASS`。
@@ -1274,7 +1274,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   Intel/Apple 设备就能被证明。
 - **验证边界（明说）**：本机没有 Intel 设备、没有 macOS ⇒ **G13 相关没有任何 Intel/Apple 数值读数**。
   能做的机械检查都做了：门 #6 `-fsyntax-only -DUK_HAS_OCL` 真的编译 OpenCL 身体；
-  `[R15d-runner-width]`（`tests/acceptance.cpp:2195`）核旋钮/拒绝/自报/`VP = plan.P`/单次读取；
+  `[R15d-runner-width]`（`tests/acceptance.cpp:2202`）核旋钮/拒绝/自报/`VP = plan.P`/单次读取；
   三条控制**期望各不相同**——R1（丢地板算术）与 R2（不合适的钉值不拒绝）只有文本腿红，
   R3（设备查询里打错变量名）文本腿全绿而门 #6 红。AMD 侧 reduce/conv 真机仍
   `verified=PASS max_rel=0 migrations=0 checks=6`。
@@ -1317,7 +1317,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
 - **补的是 v40 自己写下的后半句**（"这只是基线，不是腿"）。洞的形状与 Phase 48 补 HIP 那份同形：
   门 #7 只解析语法并明说自己不是字节指纹（Q2 的期望就是 GREEN），`[R5.4-artifact-bytes]` 只钉
   `uk_amd.cpp` ⇒ **改一句发射出去的 OpenCL 注释，全套仪器一件都不红**。
-- **新臂 `[R5.4-artifact-bytes-cl]`**（`tests/acceptance.cpp:2999`）：CLI 现场发射 gemm/conv/reduce，把每份 `uk_intel.cl` 与
+- **新臂 `[R5.4-artifact-bytes-cl]`**（`tests/acceptance.cpp:3006`）：CLI 现场发射 gemm/conv/reduce，把每份 `uk_intel.cl` 与
   入库基线逐字节比较；**逐 op 先打印 `identical`/`DRIFT`，再断言 `drift==0 && identical==3`**
   `identical`（`tests/acceptance.cpp:3052`）。打印先于断言是因为一个二进制里有两条字节腿时"哪条 banner 没出现"
   只是顺序假象，不是归属。
@@ -1350,7 +1350,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   本机两个候选都停在第一步：ROCm 7.1 clang 21（`Compute-Mirrors/llvm-project` 裁剪版）与
   wasi-sdk 34 clang 23.1-rc3 都报 `error: language not recognized: 'metal'`（`-x metalpp` 同）。
   ⇒ 缺口行带着前端原话；**认 Metal 的主机上同一段代码自动继续跑控制与真产物**，升级不依赖有人记得改代码。
-- **新臂 `[R5.4-artifact-bytes-msl]`**（`tests/acceptance.cpp:3063`，断言 `:2962`）：逐 op 现场发射
+- **新臂 `[R5.4-artifact-bytes-msl]`**（`tests/acceptance.cpp:3070`，断言 `:2962`）：逐 op 现场发射
   `uk_apple.metal` 与入库基线逐字节比较，先打印 `identical`/`DRIFT` 再断言。基线 61/40/36 行 =
   2893/2105/1885 B + sha256 入库 `docs/evidence/phase54/emit/`；旧基线一字未动。
 - **三条控制逐字段命中 `want`**：M1 改**发射出去**的 Metal 注释 → 全套仪器里**只有这条腿红**
@@ -1373,7 +1373,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   硬约束第 3 条把"改折叠次序"（已入库读数改含义）与"改注释/布局"（仍可比）分开；HIP 侧有 `[R20]`
   按字节钉嵌套，**OpenCL/Metal 侧此前没有任何臂**。这不是抽象风险：Intel/Apple 的入库读数
   正是 Phase 9/10 用那几段嵌套跑出来的。
-- **新臂 `[R20-nonhip]`**（`tests/acceptance.cpp:2811`）：进程内调用 `ocl_kernel_source`/`msl_kernel_source`
+- **新臂 `[R20-nonhip]`**（`tests/acceptance.cpp:2818`）：进程内调用 `ocl_kernel_source`/`msl_kernel_source`
   （零额外 CLI 发射），2 后端 × 3 算子 = 6 个 pin，各钉一条**单调锚点序列**（E50：相邻不算）加
   **累加语句恰好 1 次**（E21/E24：存在性判据会被第二次出现杀死）；臂**自己数打印的判决行数**
   （`assert(printed == 6)`，`tests/acceptance.cpp:2836`）——少打印的臂等于没有臂（E38 同族）。
@@ -1437,7 +1437,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   HIP 侧 `[R20]` 按字节钉整段嵌套，两者一起覆盖；Phase 55 的 `[R20-nonhip]` 只钉次序，
   于是 `X[((ho + kh) * W + (wo + kw)) * C + c]` 改成 `X[((kh + ho) * W + (kw + wo)) * C + c]`
   这种"次序不变、形状变了"的改动只有字节腿会红，而字节腿从不说是哪条轴。
-- **新臂 `[R20-nonhip-expr]`**（`tests/acceptance.cpp:2910`）：进程内生成，2 后端 × 3 算子 = 6 个 pin，每 pin 是
+- **新臂 `[R20-nonhip-expr]`**（`tests/acceptance.cpp:2917`）：进程内生成，2 后端 × 3 算子 = 6 个 pin，每 pin 是
   **逐字节多行**片段（conv 的 xv/wv/FMA、reduce 的 pass-1 + pass-2、gemm 的 As/Bs/内积），
   按**次数 = 1** 核（E21/E24）、先打印判决再断言、臂自己数打印行数（E38）。片段全部 grep 现取。
 - **成对控制**（`docs/evidence/phase57/controls.txt`）：E1 只在 `ocl_conv_kernel` 内改索引式 →
@@ -1449,7 +1449,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   （其中 5 条来自臂标签归属规则），全部 grep 现取改指；`weak 107 / unverifiable 91` 两条上限**一格未调**。
 - **棘轮对新记录又响两次**（E59）：本相 README 与结果段里各有一条 `path:line` 所在行没有可核符号，
   unverifiable 91→92 直接压红。修法是写引用时把符号或臂标签放在**同一物理行**
-  （`[R20-nonhip-expr]`（`tests/acceptance.cpp:2910`））。⇒ 写文档与写代码同律：**改完记录立刻跑门 #3**。
+  （`[R20-nonhip-expr]`（`tests/acceptance.cpp:2917`））。⇒ 写文档与写代码同律：**改完记录立刻跑门 #3**。
 - 自己的期望又错一次（E51 家族第 4 次）：预登记写"E1 时次序臂一行都不打印"，实际次序臂先跑且干净，
   证据反而更强。
 - 边界：钉的是发射文本的形状，不是等价性；等价改写同样会红，红不解释等价，等价只能真机重采 `max_rel`。

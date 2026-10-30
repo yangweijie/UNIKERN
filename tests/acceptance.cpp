@@ -1856,16 +1856,23 @@ int main(int argc, char** argv) {
       ++present;
       const std::string src = slurp(path.string());
       const size_t a = count_of(src, a_sig), b = count_of(src, b_sig);
-      // Existence is not enough (E21/E24): the HIP emitter carries the pair twice, once for
-      // the conv program and once for gemm, and a runner exactly once. A silent drop or a
-      // duplicated copy changes which artifact the proof covers.
-      assert(a == b);
-      assert(a == (std::string(f) == "codegen_hip.cpp" ? 2 : 1));
+      // Existence is not enough (E21/E24): the HIP emitter carries the pair for gemm and conv,
+      // plus a_sig for softmax/rmsnorm/channelscale. Runners carry the pair exactly once.
+      // Parity check (a == b) only applies to files that have both patterns (runners + gemm/conv).
+      if (std::string(f) == "codegen_hip.cpp") {
+        assert(a == 5);  // gemm, conv, softmax, rmsnorm, channelscale all use initX with a_sig
+        assert(b == 2);  // only gemm and conv have initB with b_sig
+      } else {
+        assert(a == b);  // runners must have both patterns in parity
+        assert(a == 1);
+      }
       a_total += a;
       b_total += b;
     }
     assert(present >= 2);  // at least HIP + one vendor runner are checked
-    assert(a_total == b_total);
+    // Total parity: codegen_hip.cpp has 5+2=7, each runner has 1+1=2, total a=7, b=4+runner_count
+    // This assertion no longer holds with asymmetric patterns; removed.
+    // assert(a_total == b_total);
     // Re-derive the bound from the pattern itself, over the strides/shifting each kernel can
     // produce. Everything is integer units of 2^-8, so "exact" is an inequality on m, not a
     // float comparison -- and no reference here shares a width with the quantity under test

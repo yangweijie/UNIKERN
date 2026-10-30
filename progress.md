@@ -968,7 +968,7 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
   两个进程内 runner 也从 `0.03125f` 改成读表。
 - 收证据时发现并修掉账本洞（E43）：`solve` 的拒绝不再挂在 `--emit` 上；`NOTE … model-only` 分支
   随之不可达并删除。实测改前 `solutions` 表 1 行、改后 rc=2 且 `.sqlite3` 不被创建。
-- 新臂 `[R6.8-dtype]`（`tests/acceptance.cpp:1905` 起）：三档数值 + 可配置性、三后端各自点名 dtype 的
+- 新臂 `[R6.8-dtype]`（`tests/acceptance.cpp:1912` 起）：三档数值 + 可配置性、三后端各自点名 dtype 的
   拒绝、每具程序**恰好 1 处**判定行且等于表值、两条 runner 的源码文本（并按模式拼装避免自匹配）、
   CLI 的 `--emit` 与**不带** `--emit` 两条路径、以及 fp32 反控制。R1.1 的"声明树不携带未声明的 gap"
   改成按 dtype 分支——那个 int8 fixture 过去是**偶然通过**的。
@@ -1086,7 +1086,7 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 - 三后端共用 `UK_REDUCE_WIDTH`：生效打印 `source=env width=`，值不在 `[256, n]` 时
   `what=reduce_width_pin_unfit` 且**拒绝执行**（HIP 侧 exit 2 / runner 侧在任何分配之前返回）。
 - 顺带补 rule 6 在 runner 侧的同形缺口：verify 段复用计时趟的 `plan.P`（仅按 verify 实例长度封顶）。
-- 新臂 `[R15d-runner-width]`（`tests/acceptance.cpp:2195`）+ 三条**期望各不相同**的控制：
+- 新臂 `[R15d-runner-width]`（`tests/acceptance.cpp:2202`）+ 三条**期望各不相同**的控制：
   R1/R2 归文本腿，R3（设备查询里打错变量名）文本腿全绿、门 #6 红 —— 三台仪器的覆盖面被钉住。
 - 本机边界如实：无 Intel/Apple 设备 ⇒ 该侧零数值读数；AMD 侧 reduce/conv 真机未回归、
   仍自报 `source=device width=16384`。`ctest` 7/7。
@@ -1127,7 +1127,7 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 
 - 先把 Phase 52 那句"这只是基线不是腿"变成**实测的洞**：改发射出去的 OpenCL 注释，
   `ctest` 里没有任何腿会红（门 #7 的 Q2 期望本来就是绿，HIP 字节腿不看 `.cl`）。
-- 新臂 `[R5.4-artifact-bytes-cl]` 照 Phase 48 钉 HIP 的形状做（`tests/acceptance.cpp:2999`）：现场发射 → 与入库 `.cl` 基线
+- 新臂 `[R5.4-artifact-bytes-cl]` 照 Phase 48 钉 HIP 的形状做（`tests/acceptance.cpp:3006`）：现场发射 → 与入库 `.cl` 基线
   **逐字节**比较；**逐 op 先打印 `identical`/`DRIFT` 再断言计数**，因为一个二进制里有两条字节腿时
   "哪条 banner 没出现"是顺序假象不是归属。基线没有被覆盖（2594/1877/1708 B）。
 - 四条控制期望各不相同且全部按 `want` 落地：C1 专属红（门 #7 绿 / HIP 腿绿 / `drift=['reduce']`）、
@@ -1152,7 +1152,7 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
   （ROCm 7.1 clang 21 裁剪版、wasi-sdk 34 clang 23.1-rc3）：`language not recognized: 'metal'`，
   `-x metalpp` 同。读数入库 `docs/evidence/phase54/msl-probe.txt`。
   ⇒ 跳过行带着前端原话；换成认 Metal 的主机，同一段代码会自动继续跑控制与真产物。
-- 字节这半与前端无关：新臂 `[R5.4-artifact-bytes-msl]`（`tests/acceptance.cpp:3063`）照 Phase 53
+- 字节这半与前端无关：新臂 `[R5.4-artifact-bytes-msl]`（`tests/acceptance.cpp:3070`）照 Phase 53
   形状——逐 op 先打印 `identical`/`DRIFT` 再断言计数。基线入库 61/40/36 行 = 2893/2105/1885 B +
   sha256，旧基线一个字节没动。
 - 三条控制与 `want` 逐字段一致：M1 改**发射出去**的 Metal 注释 → **只有这条腿红**
@@ -1173,7 +1173,7 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 - 洞：三条字节腿（Phase 48/53/54）能对**任何**产物改动报红，但红里不含"哪条轴"。硬约束第 3 条
   （改算术顺序 = 改结论）在 HIP 侧由 `[R20]` 按字节钉住嵌套，OpenCL/Metal 侧**什么都没有** ⇒
   改折叠次序与改一句注释是同一种红；而 Intel/Apple 的入库读数恰恰依赖那几段嵌套。
-- 新臂 `[R20-nonhip]`（`tests/acceptance.cpp:2811`）：进程内生成（`ocl_kernel_source`/`msl_kernel_source`，零额外 CLI
+- 新臂 `[R20-nonhip]`（`tests/acceptance.cpp:2818`）：进程内生成（`ocl_kernel_source`/`msl_kernel_source`，零额外 CLI
   发射），2 后端 × 3 算子 = 6 个 pin，各钉一条**单调锚点序列**（E50）+ **累加语句次数 = 1**（E21/E24），
   并**自己数打印的判决行数**（`assert(printed == 6)`，`:2836`）；臂排在字节腿之前——顺序本身就是归属。
 - 归属方法换掉：CRT 消息带**表达式 + 行号**，探针运行时读 `  // -------- R` 臂头表把行号映射回
@@ -1222,7 +1222,7 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 ## Session 2026-10-29 续43（Phase 57 — 表达式形状：非 HIP 两后端的索引式按字节钉）
 
 - 洞：第 3 条管次序**和**形状；Phase 55 只钉了次序 ⇒ 换索引式不动循环，只有字节腿红，红里不说轴。
-- 新臂 `[R20-nonhip-expr]`（`tests/acceptance.cpp:2910`）：6 pin（2 后端 × 3 算子）、逐字节多行片段、
+- 新臂 `[R20-nonhip-expr]`（`tests/acceptance.cpp:2917`）：6 pin（2 后端 × 3 算子）、逐字节多行片段、
   次数=1、先打印判决再断言、臂自己数行数；片段全部 grep 现取。
 - 控制成对：E1 在 `ocl_conv_kernel` 内改索引式 → 次序臂 6/6 干净 + 表达式臂点名 `ocl/conv`；
   E3 反转 `c` 循环 → 次序臂红、表达式臂沉默（顺序局限 ⇒ 一根控制证不开两根轴）；
@@ -1361,3 +1361,10 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 - 差距审计：五段链路本机全闭合；真实差距 = 语义覆盖面（三原语）、dtype（fp32-only）、
   Intel conv/reduce 真机、生成物形态（harness 而非内核库）、V1 项。
 - `ctest` 7/7。本相产物未提交（纪律）。
+
+## 续51（2026-10-30，Phase 63 差距审计与后续阶段计划）
+
+- 完成 Phase 63 差距审计：对照 AGENTS.md 目标（KML→Solve→Generate→Verify→Ledger）与 Requirements R1-R10，产出 10 项差距表（写入 task_plan.md）。
+- 核心差距 10 类：①缺 Transformer 核心原语（softmax/RMSNorm/注意力/反量化/逐通道缩放）；②fp32-only（需 fp16/bf16/dtype 轴 + 量化路径）；③KML 扩展支持新 dtype/新原语；④mmap 成本数值标定 + 能力→F 合流 + calibrate 分层；⑤生成物形态迈向 per-layer 内核库 + 图执行器；⑥ Intel conv/reduce 真机 + Apple MSL 真编译；⑧ 量化生成路径；⑨ calibrate 池分层；⑩ 仪器盲区（臂标签词法、calibrate 门分层）。
+- 制定 Phase 64-70 七阶段计划（写入 task_plan.md 表格）：Phase 64 新原语（softmax/RMSNorm/逐通道缩放）→ Phase 65 dtype 轴（fp16/bf16/量化）→ Phase 66 求解增强（mmap 标定/能力→F/calibrate 分层）→ Phase 67 运行时形态（per-layer 库+图执行器）→ Phase 68 真机闭合（Intel/Apple）→ Phase 69 量化路径 → Phase 70 仪器完善。
+- `ctest` 7/7 全绿。本相产物未提交（纪律）。

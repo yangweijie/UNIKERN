@@ -14,7 +14,7 @@ Phase 52 的 README 原话：**"这仍然只是基线，不是腿"**。缺口的
 
 ## 新腿
 
-`[R5.4-artifact-bytes-cl]` `tests/acceptance.cpp:2999` 起（`[R5.4-artifact-bytes-cl]`，臂 id 与 R5.4 同族）：CLI 现场发射
+`[R5.4-artifact-bytes-cl]` `tests/acceptance.cpp:3006` 起（`[R5.4-artifact-bytes-cl]`，臂 id 与 R5.4 同族）：CLI 现场发射
 gemm/conv/reduce，取每份 `uk_intel.cl` 与入库基线
 `docs/evidence/phase52/emit/<op>/uk_intel.cl` 逐字节比较；逐 op 先打印
 `identical` / `DRIFT` 与实际字节数，**然后**才断言 `drift == 0 && identical == 3`

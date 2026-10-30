@@ -163,7 +163,7 @@ ctest --test-dir build --output-on-failure          # 全部 CPU 可测的验收
   表格与代码段里的竖线一律转义；`ctest` 的 `anchors` 门现在同时核 `path:line` 与表格列数。
   **引用要写成门能看见的形状**（Phase 56 把这条instrument拆成三层，就是因为旧形状看不见）：
   可核的两种形状是 ①符号紧贴在被引 `path:line` **前面**（`tolerance_for`（`src/runner_ocl.cpp:683`））、
-  ②引用臂时把**臂标签**放在前面（`[R20-nonhip]`（`tests/acceptance.cpp:2811`）——门会把标签映射到
+  ②引用臂时把**臂标签**放在前面（`[R20-nonhip]`（`tests/acceptance.cpp:2818`）——门会把标签映射到
   `  // -------- R` 臂头段与该臂打印的 banner，行号落在段外就报"标签主人/行主人"）。
   符号在**上一行**（Markdown 换行）算 weak、什么都没有算 unverifiable，两者各有一条**只许下降的上限**
   （Phase 58 收口：weak 61 / unverifiable 59；落地那天是 109/91；Phase 59/60 逐条还债后降到 **30/39**——

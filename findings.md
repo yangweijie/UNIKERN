@@ -522,7 +522,7 @@
   8425177088 (measured by hipMemGetInfo)` → 重试再违例 → `RESOLVE STOP`，**rc=5、零落库**；
   账本里两条 `#VIOLATION` 事件行、没有一行 solution 行。复原后 ctest 2/2 绿。
   转录 `docs/evidence/phase18/alarm-firing-control.txt`。
-- **`[R8.5-long]` 臂**（`tests/acceptance.cpp:2436` 起，紧邻其后的 R10.3 段在 :2610）：率的六条边界（含
+- **`[R8.5-long]` 臂**（`tests/acceptance.cpp:2443` 起，紧邻其后的 R10.3 段在 :2610）：率的六条边界（含
   `checks=0 → rate=1.0` 与"后端不报 token ≠ 0"）、三份生成程序都带 `checks=/vram_free=/
   vram_total=` 且 `++UK_RESIDENT_CHECKS` 恰好一处、两种账本格式都"事件计数与 solution
   行数分离"（`violation_count()` 新接口，`size()` 不再把事件算作解）、阈值 `nan/-1`
@@ -1438,7 +1438,7 @@
   值不在 `[256, n]` 时打印 `UNIKERN_ERROR what=reduce_width_pin_unfit` 并 `exit(2)`
   ——**静默回落等于把「我钉过了」变成假话**；`getenv` 只出现一次。conv 早有 `UK_CONV_TILE`/`UK_CONV_OCB`，
   reduce 缺这个通道正是这次事故的根。
-- **新臂 `[R15c-width-pin]`**（`tests/acceptance.cpp:2139`）：单调锚点序列
+- **新臂 `[R15c-width-pin]`**（`tests/acceptance.cpp:2146`）：单调锚点序列
   `pin < use < refuse < decl < query`、`source=env` 横幅、`exit(2)`、单次读取。
   `[R5.4-artifact-bytes]` 基线移到 `docs/evidence/phase49/emit/`：reduce 276→**290 行**
   （`sha256=b8862c99…`），gemm 447 行 `7a451491…` 与 conv 542 行 `09e9b570…` **逐字节不变**。
@@ -1527,7 +1527,7 @@
 
 - **洞是真的**（先证明再补）：改发射出去的**一句 OpenCL 注释**，Phase 52 的全部仪器一件都不红——
   门 #7 的 Q2 期望本来就是 GREEN（它明说自己不是字节指纹），HIP 字节腿不看 `.cl`。
-- **新臂 `[R5.4-artifact-bytes-cl]`**（`tests/acceptance.cpp:2999`）：CLI 现场发射三份 `uk_intel.cl`
+- **新臂 `[R5.4-artifact-bytes-cl]`**（`tests/acceptance.cpp:3006`）：CLI 现场发射三份 `uk_intel.cl`
   与入库基线逐字节比较；逐 op 先打印 `identical`/`DRIFT` 与字节数，**再**断言
   `identical`（`tests/acceptance.cpp:3052`）。
   打印先于断言的实测理由：一个二进制里有两条字节腿时，CRT assert 会让后一条**根本没机会说话**——
@@ -1561,7 +1561,7 @@
   `docs/evidence/phase54/msl-probe.txt`。**以前那句 gap 理由是断言，现在是前端自己的话。**
 - **形状上的改进**：认 Metal 的主机上同一段代码会自动继续（控制 → 三份 `.metal`），
   跳过行不会伪装成绿，也不需要有人记得在未来改代码。
-- **新臂 `[R5.4-artifact-bytes-msl]`**（`tests/acceptance.cpp:3063`，断言 `[R5.4-artifact-bytes-msl]` 的 `tests/acceptance.cpp:3115`）：
+- **新臂 `[R5.4-artifact-bytes-msl]`**（`tests/acceptance.cpp:3070`，断言 `[R5.4-artifact-bytes-msl]` 的 `tests/acceptance.cpp:3115`）：
   字节比较不需要前端，所以"MSL 产物被改过"这件事在本机从今天起可见。基线入库
   `emit/<op>/uk_apple.metal` = 61/40/36 行、**2893 / 2105 / 1885 B**，sha256 记在 README。
 - **三条控制的读数**：M1 改发射出去的 Metal 注释 → acceptance RED、`{gemm:identical,
@@ -1584,7 +1584,7 @@
 - **区分是什么**：硬约束第 3 条说改算术顺序 = 改结论。HIP 侧有 `[R20]` 按字节钉嵌套；
   OpenCL/Metal 侧此前**没有任何臂**——改折叠次序与改一句注释在仪器上是同一种红（都只说"字节变了"）。
   后果不抽象：Intel/Apple 的入库读数来自 Phase 9/10 的那几段嵌套，次序一动它们就不再可比。
-- **臂的形状** `[R20-nonhip]`（`tests/acceptance.cpp:2811`）：进程内调用 `ocl_kernel_source`/`msl_kernel_source`
+- **臂的形状** `[R20-nonhip]`（`tests/acceptance.cpp:2818`）：进程内调用 `ocl_kernel_source`/`msl_kernel_source`
   （**不新增 CLI 发射**），2 后端 × 3 算子 = 6 个 pin，每个 pin 钉两件事：一条**单调锚点序列**
   （conv `c→kh→kw→FMA→存储`；reduce `s=0→X 累加→P 写→P 折叠→Y 写`；gemm `k0→k→r/c→FMA→存储`）
   与**累加语句恰好 1 次**。序列而非相邻（E50）、次数而非存在（E21/E24）。
@@ -1654,7 +1654,7 @@
 - **轴的区分**：`[R20]`（HIP）钉的是整段嵌套的**字节**，次序与表达式一起在内；Phase 55 的
   `[R20-nonhip]` 只钉**次序**。于是 `((ho + kh) * W + (wo + kw))` 换成 `((kh + ho) * W + (kw + wo))`
   ——循环、次序、FMA 位置都不变——只让字节腿红，而字节腿不说"算术形状变了"。第 3 条要求的正是这句区分。
-- **臂 `[R20-nonhip-expr]`**（`tests/acceptance.cpp:2910`）：6 个 pin（2 后端 × 3 算子），每 pin 是逐字节多行片段，
+- **臂 `[R20-nonhip-expr]`**（`tests/acceptance.cpp:2917`）：6 个 pin（2 后端 × 3 算子），每 pin 是逐字节多行片段，
   次数必须 = 1（E21/E24），逐 pin 先打印 `expr=ok/BAD + counts` 再断言，且臂自己数打印行数。
   片段**从当前发射文本 grep 现取**（含缩进），凭记忆写会在下一拍被门 #3 抓（上一相刚示范过）。
 - **两条控制才证得开两根轴**：E1 在 `ocl_conv_kernel` 内改索引式 → **次序臂 6/6 干净 + 表达式臂点名
@@ -1667,7 +1667,7 @@
   全部 grep 现取改指（`2846→2935`、`2886→2975`、`2899→2988`、`2910→2999`、`2962→3051`）。
 - **棘轮对新文档也响（两次）**：本相 README/结果段引入的 `path:line` 有两条所在行没有可核符号，
   `unverifiable` 91→92 直接压红。改法是写引用时把符号或臂标签放在**同一物理行**
-  （`[R20-nonhip-expr]`（`tests/acceptance.cpp:2910`）），**上限一格没调**。
+  （`[R20-nonhip-expr]`（`tests/acceptance.cpp:2917`）），**上限一格没调**。
   ⇒ 记 E59：写文档与写代码同律——引用形状要就地可核；且文档改完立刻跑门 #3（它 0.15 s）。
 - 自己的期望又错一次：预登记断言"E1 时次序臂一行都不打印"，实际次序臂先跑且干净——**先怀疑期望**
   这条第四次生效。
@@ -1847,3 +1847,18 @@
   运行时。512-token prefill 仅 GEMM 下界外推 ≈954 ms（≈537 tok/s）。
 - KML 前端按 R1.2 拒绝未知字段 `comment`——声明文件里塞注释的"便利"被仪器挡下，
   出处说明必须住在证据 README。`ctest` 7/7。
+
+## Phase 63 差距审计总结（2026-10-30）
+
+- **审计范围**：对照 AGENTS.md 一句话目标（KML→Solve→Generate→Verify→Ledger）与 Requirements R1-R10，基于 Phase 63 证据（GGUF 解析、设备实测 HCS、5 真实形状真机 PASS、calibrate 闭环、模型级外推）。
+- **差距 10 类**（按优先级）：
+  1. **缺 Transformer 核心原语**（V1，Phase 64）：softmax、RMSNorm、注意力、Q4_K_M 反量化、逐通道缩放/批量归约。
+  2. **fp32-only 限制**（V1，Phase 65）：需 fp16/bf16/dtype 轴 + 量化路径（Q4_K_M 反量化原语）。
+  3. **KML 扩展支持新 dtype/新原语**（V1，Phase 65）：KML 前端/求解/生成全链路支持非 fp32 dtype + 新原语节点。
+  4. **求解增强**（V1，Phase 66）：mmap 成本按实测带宽标定；缺能力直接 F 不可行（R10.2 合流）；calibrate 池分层。
+  5. **生成物运行时形态**（V1+，Phase 67）：从自验证 harness 迈向 per-layer 内核库 + 图执行器（V1+）。
+  6. **Intel/Apple 真机闭合**（本机可做/V1，Phase 68）：Intel conv/reduce 真机；Apple MSL 真编译上机。
+  7. **量化生成路径**（V1+，Phase 69）：Q4_K_M / int8 / fp8 反量化原语 + 量化感知生成。
+  8. **calibrate 池分层**（本机可做，Phase 66）：reduce 行噪声离群被中位吸收，建议显式分层。
+  9. **仪器盲区修复**（本机可做，Phase 66）：`[R2]`/`[R4]` 个位数臂名盲区；calibrate 门分层。
+- **验收**：`ctest` 7/7 全绿；anchors 457 绿；weak/unverifiable 棘轮 8/11 未升。本相产物未提交（纪律）。

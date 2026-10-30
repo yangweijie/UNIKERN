@@ -10,6 +10,9 @@ const char* to_string(OpKind k) {
     case OpKind::Gemm: return "gemm";
     case OpKind::Conv: return "conv";
     case OpKind::Reduction: return "reduce";
+    case OpKind::Softmax: return "softmax";
+    case OpKind::RmsNorm: return "rmsnorm";
+    case OpKind::ChannelScale: return "channelscale";
   }
   return "?";
 }
@@ -27,6 +30,9 @@ std::optional<OpKind> op_from_string(const std::string& s) {
   if (s == "gemm") return OpKind::Gemm;
   if (s == "conv") return OpKind::Conv;
   if (s == "reduce") return OpKind::Reduction;
+  if (s == "softmax") return OpKind::Softmax;
+  if (s == "rmsnorm") return OpKind::RmsNorm;
+  if (s == "channelscale") return OpKind::ChannelScale;
   return std::nullopt;
 }
 
@@ -93,6 +99,9 @@ int kml_arity(OpKind op) {
     case OpKind::Gemm: return 3;
     case OpKind::Conv: return 6;
     case OpKind::Reduction: return 1;
+    case OpKind::Softmax: return 2;  // L, C
+    case OpKind::RmsNorm: return 2;  // L, C
+    case OpKind::ChannelScale: return 2;  // L, C
   }
   return 3;
 }
@@ -137,6 +146,30 @@ Workload workload_of(const KmlTree& t) {
       const int64_t L = t.dims[0];
       w.ops = L;
       w.bytes = 2 * L * es;
+      break;
+    }
+    case OpKind::Softmax: {
+      // Softmax: L elements, C channels; O(L*C) ops, read+write = 2*L*C*es bytes
+      const int64_t L = t.dims[0];
+      const int64_t C = t.dims[1];
+      w.ops = 5 * L * C;  // max + exp + sum + div + write
+      w.bytes = 3 * L * C * es;  // read X + write Y + temp
+      break;
+    }
+    case OpKind::RmsNorm: {
+      // RMSNorm: L elements, C channels; O(L*C) ops, read X + read scale + write Y
+      const int64_t L = t.dims[0];
+      const int64_t C = t.dims[1];
+      w.ops = 7 * L * C;  // square + sum + rsqrt + scale + write
+      w.bytes = 3 * L * C * es;  // read X + read weight + write Y
+      break;
+    }
+    case OpKind::ChannelScale: {
+      // ChannelScale: L elements, C channels; multiply each channel by scale
+      const int64_t L = t.dims[0];
+      const int64_t C = t.dims[1];
+      w.ops = L * C;
+      w.bytes = 3 * L * C * es;  // read X + read scale + write Y
       break;
     }
   }

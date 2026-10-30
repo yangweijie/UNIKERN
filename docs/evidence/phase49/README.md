@@ -49,7 +49,7 @@ Phase 44 没有钉宽度的通道，于是它用 `sed` 手改**已发射的源�
 
 ## 臂与控制
 
-`[R15c-width-pin]`（`tests/acceptance.cpp:2139` 起）核四件事：读在设备声明之前、
+`[R15c-width-pin]`（`tests/acceptance.cpp:2146` 起）核四件事：读在设备声明之前、
 `source=env` 横幅存在、不可用值走 `exit(2)`、`getenv` 只出现一次。
 `[R5.4-artifact-bytes]` 的证据基线随本相移到 `docs/evidence/phase49/emit/`
 （reduce 276→**290 行**，`sha256=b8862c99…`；gemm 447 行 `7a451491…`、conv 542 行 `09e9b570…`

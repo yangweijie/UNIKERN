@@ -119,12 +119,13 @@ static int uk_resident(const void* p, const char* name) {
               << " checks=" << UK_RESIDENT_CHECKS
               << " vram_free=" << UK_VRAM_FREE
               << " vram_total=" << UK_VRAM_TOTAL
-              << " (managed/host residency is oversubscription;"
-              << " explicit streaming is the only path; R8.5)" << std::endl;
+              << " (managed/host residency is oversubscription;";
+    hipFree(const_cast<void*>(p));
     return 5;
   }
   return 0;
 }
+
 // hipMalloc + the R8.5 residency assertion folded together, so an
 // allocation cannot exist unchecked. Returns 0, or the abort code
 // (4 = HIP/probe failure, 5 = oversubscription) after printing

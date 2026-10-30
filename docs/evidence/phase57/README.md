@@ -18,7 +18,7 @@
 
 ## 臂
 
-`[R20-nonhip-expr]`（`tests/acceptance.cpp:2910`）与次序臂同形：进程内生成
+`[R20-nonhip-expr]`（`tests/acceptance.cpp:2917`）与次序臂同形：进程内生成
 （`ocl_kernel_source`/`msl_kernel_source`），2 后端 × 3 算子 = 6 个 pin，
 每个 pin 是**逐字节多行**的表达式片段，按**次数 = 1** 核（E21/E24），逐 pin 先打印判决再断言，
 并自己数打印行数（`assert(printed == 6)`，E38）：
