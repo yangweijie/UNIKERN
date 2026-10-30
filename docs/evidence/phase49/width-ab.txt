@@ -1,0 +1,35 @@
+# Phase 49: reduce pass-1 width A/B ON THE SHIPPED PATH (self-pinned by editing the emitted source)
+# host: Windows 11 + AMD RX 6600M (gfx1032), hipcc from HIP_PATH, -O3 --offload-arch=gfx1032
+# protocol: 4 binaries per size (4096 / 16384), executed alternating over 3 rounds so a
+#   clock/L2 trend cannot fall on one side of the comparison; kernel_ms is the shipped
+#   program's own number (iters launches inside one event pair).
+Thu Oct 29 11:22:54     2026
+
+=== n=16777216 ===
+  round1 width=4096 kernel_ms=1.257824 PASS rel=0.000000e+00
+  round1 width=16384 kernel_ms=0.748515 PASS rel=0.000000e+00
+  round2 width=4096 kernel_ms=1.335780 PASS rel=0.000000e+00
+  round2 width=16384 kernel_ms=0.817290 PASS rel=0.000000e+00
+  round3 width=4096 kernel_ms=1.334740 PASS rel=0.000000e+00
+  round3 width=16384 kernel_ms=0.814098 PASS rel=0.000000e+00
+
+=== n=67108864 ===
+  runtime-plan: UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=67108864
+  runtime-plan: UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.353180 kernel_ms=1.874270 mode=resident payload_mb=256.062504 perf=67108864 migrations=0 checks=6 vram_free=8143306752 vram_total=8573157376
+  round1 width=4096 kernel_ms=4.687260 PASS rel=0.000000e+00
+  round1 width=16384 kernel_ms=1.867828 PASS rel=0.000000e+00
+  round2 width=4096 kernel_ms=4.743105 PASS rel=0.000000e+00
+  round2 width=16384 kernel_ms=1.876219 PASS rel=0.000000e+00
+  round3 width=4096 kernel_ms=5.031880 PASS rel=0.000000e+00
+  round3 width=16384 kernel_ms=1.875226 PASS rel=0.000000e+00
+
+=== n=134217728 ===
+  runtime-plan: UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=134217728
+  runtime-plan: UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=4.023640 kernel_ms=3.819110 mode=resident payload_mb=512.062504 perf=134217728 migrations=0 checks=6 vram_free=7874871296 vram_total=8573157376
+  round1 width=4096 kernel_ms=9.293481 PASS rel=0.000000e+00
+  round1 width=16384 kernel_ms=3.322870 PASS rel=0.000000e+00
+  round2 width=4096 kernel_ms=9.288210 PASS rel=0.000000e+00
+  round2 width=16384 kernel_ms=3.336675 PASS rel=0.000000e+00
+  round3 width=4096 kernel_ms=9.345627 PASS rel=0.000000e+00
+  round3 width=16384 kernel_ms=3.357053 PASS rel=0.000000e+00
+

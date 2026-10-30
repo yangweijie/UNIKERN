@@ -1,0 +1,13 @@
+[R5.4-artifact-bytes] 3/3 stored evidence artifacts are byte-identical to what this binary emits today (gemm 512^3 / conv 256x256x32x3x3x64 / reduce 2^20)
+  [R5.4-byte-cl] gemm identical fresh=2594B stored=2594B
+  [R5.4-byte-cl] conv identical fresh=1877B stored=1877B
+  [R5.4-byte-cl] reduce identical fresh=1708B stored=1708B
+[R5.4-artifact-bytes-cl] 3/3 stored OpenCL artifacts are byte-identical to what this binary emits today (gate #7 parses these files' syntax; before this leg nothing compared their bytes)
+  [R5.4-byte-msl] gemm identical fresh=2893B stored=2893B
+  [R5.4-byte-msl] conv identical fresh=2105B stored=2105B
+  [R5.4-byte-msl] reduce identical fresh=1885B stored=1885B
+[R5.4-artifact-bytes-msl] 3/3 stored Metal artifacts are byte-identical to what this binary emits today (the only instrument here that can see the MSL artifact at all: gate #7 has no Metal front end on this host)
+rc=0
+
+$ env -u SOURCE_DIR ./build/unikern_acceptance.exe | grep R5.4-artifact-bytes-msl
+[R5.4-artifact-bytes-msl] SKIPPED (SOURCE_DIR unset - the byte comparison needs the repo, ctest sets it)

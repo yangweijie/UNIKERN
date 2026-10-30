@@ -1,0 +1,58 @@
+# Phase 38: how far does the out-of-range dims hole go? (CLI route vs KML file route, and the ledger-key collision)
+# run at 2026-10-28T21:47:06+08:00, stock samples/hcs_amd.json
+## [1] KML file route, dims[0]=3000000000
+KML rejected (2 violations):
+  dims[1]=0 must be positive
+  dims[2]=0 must be positive
+rc=2
+## [2] KML file route, dims[0]=2147483647 (contrast)
+KML rejected (2 violations):
+  dims[1]=0 must be positive
+  dims[2]=0 must be positive
+rc=2
+## [3] CLI route, fresh ledger: 2^31-1 first, then 3e9 (collision direction A)
+SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+EMIT amd:hip -> D:/Temp/p38w/uk_amd.cpp lines=239
+EMIT apple:metal -> D:/Temp/p38w/uk_apple.metal lines=36 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/p38w/uk_intel.cl lines=31 (toolchain absent)
+rc-A1=0
+LEDGER HIT  c_cached_ms=570.425  tile=128x128
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+EMIT amd:hip -> D:/Temp/p38w/uk_amd.cpp lines=239
+EMIT apple:metal -> D:/Temp/p38w/uk_apple.metal lines=36 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/p38w/uk_intel.cl lines=31 (toolchain absent)
+rc-A2=0
+## [4] opposite order on another fresh ledger (collision direction B)
+SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+EMIT amd:hip -> D:/Temp/p38w/uk_amd.cpp lines=239
+EMIT apple:metal -> D:/Temp/p38w/uk_apple.metal lines=36 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/p38w/uk_intel.cl lines=31 (toolchain absent)
+LEDGER HIT  c_cached_ms=570.425  tile=128x128
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+EMIT amd:hip -> D:/Temp/p38w/uk_amd.cpp lines=239
+EMIT apple:metal -> D:/Temp/p38w/uk_apple.metal lines=36 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/p38w/uk_intel.cl lines=31 (toolchain absent)
+## emitted L for the 3e9 file-route request
+## [5] KML FILE route (canonical reduce arity = 1 dim), dims:[3000000000]
+    LEDGER HIT  c_cached_ms=570.425 tile=128x128   -> emitted: const int L = 2147483647;
+    i.e. the JSON route saturates too: the hole is NOT confined to main.cpp's atoi.
+## [6] arity check (file route, 6 dims for a 1-dim op)
+    KML rejected (1 violations): 1 dim (L) expected  -> rejected as malformed, says nothing about the bound
+## conclusion of this probe set
+    both declared-dimension surfaces (CLI --dims via std::atoi at src/main.cpp:86, and the KML JSON
+    route via kml_front.cpp's double->int assignment) silently saturate an out-of-int32 range to
+    INT32_MAX, exit 0, and collide in the ledger with an explicit 2147483647 request.

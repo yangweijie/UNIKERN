@@ -1,0 +1,36 @@
+# Phase 31 removal controls -- [R6.5-blind] arm
+# date: 2026-10-28T20:13:56.221536
+# CPU-only arm: no device, no ledger; assert abort = rc 3221226505 (RED)
+
+$ baseline build rc=0 acceptance rc=0
+
+=== leg 1: power-of-two exactness claimed for a non-power-of-two chunk ===
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R6.4-order] wide-range reduce: seq_err=0.00723881 two_pass_err=4.69154e-14 divergence=0.00718679; shipped uniform-2^-6 pattern stays exact in both orders OK
+  Assertion failed: fold(256.015625f, 4096) == 1048640.0f, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1454
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 2: inexactness arm fed an exactly representable addend instead ===
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R6.4-order] wide-range reduce: seq_err=0.00723881 two_pass_err=4.69154e-14 divergence=0.00718679; shipped uniform-2^-6 pattern stays exact in both orders OK
+  Assertion failed: err_chunk > 0.0 && err_chunk < 1e-4, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1459
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 3: orders-of-magnitude bound tightened 100x (is the gate distance real?) ===
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R6.4-order] wide-range reduce: seq_err=0.00723881 two_pass_err=4.69154e-14 divergence=0.00718679; shipped uniform-2^-6 pattern stays exact in both orders OK
+  Assertion failed: err_chunk < gate / 10000.0 && err_width < gate / 10000.0, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1467
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+$ final restore: build rc=0
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/3 Test #1: smoke ............................   Passed    0.08 sec
+    Start 2: acceptance
+2/3 Test #2: acceptance .......................   Passed    1.30 sec
+    Start 3: anchors
+3/3 Test #3: anchors ..........................   Passed    0.47 sec
+
+100% tests passed out of 3
+
+Total Test time (real) =   1.86 sec

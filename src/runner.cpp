@@ -188,12 +188,27 @@ RunOutcome run_hip(const std::string& program, const std::string& workdir) {
   const std::string run_cmd = "\"\"" + exe + "\" 2>&1\"";
   const std::string out = run_capture(run_cmd, &rc);
   r.log += out;
+  r.exit_code = rc;
   if (rc != 0) r.log += "(exit=" + std::to_string(rc) + ")";
   r.ran = true;
 
   const auto p = out.find("UNIKERN_RESULT");
   if (p == std::string::npos) {
     r.log += "\n(no UNIKERN_RESULT line)";
+    // R8.5: a residency refusal aborts before any result line, yet the error
+    // line carries the same tokens. Without them the alarm has no rate and the
+    // re-solve has no measured headroom, so the signal would be swallowed by
+    // the generic RUN FAILED path.
+    const auto q = out.find("UNIKERN_ERROR what=oversubscription");
+    if (q != std::string::npos) {
+      const auto qnl = out.find('\n', q);
+      const std::string eline =
+          out.substr(q, qnl == std::string::npos ? std::string::npos : qnl - q);
+      r.migrations = std::atoi(field(eline, "migrations").c_str());
+      r.checks = std::atoi(field(eline, "checks").c_str());
+      r.vram_free = std::strtoull(field(eline, "vram_free").c_str(), nullptr, 10);
+      r.vram_total = std::strtoull(field(eline, "vram_total").c_str(), nullptr, 10);
+    }
     return r;
   }
   const auto nl = out.find('\n', p);
@@ -208,7 +223,35 @@ RunOutcome run_hip(const std::string& program, const std::string& workdir) {
   // printing an unmeasured 0.
   const std::string mig = field(line, "migrations");
   if (!mig.empty()) r.migrations = std::atoi(mig.c_str());
+  // R8.5 alarm denominator (D7). Absent (a pre-guard program, or a backend that
+  // does not report it) stays the -1 sentinel rather than an unmeasured 0.
+  const std::string chk = field(line, "checks");
+  if (!chk.empty()) r.checks = std::atoi(chk.c_str());
+  const std::string vf = field(line, "vram_free");
+  if (!vf.empty()) r.vram_free = std::strtoull(vf.c_str(), nullptr, 10);
+  const std::string vt = field(line, "vram_total");
+  if (!vt.empty()) r.vram_total = std::strtoull(vt.c_str(), nullptr, 10);
+  // R8.4 self-report: which data path actually ran. Absent token (older
+  // programs, other backends) leaves it empty.
+  r.stream_path = field(line, "stream_path");
   return r;
+}
+
+bool migration_rate_violation(int migrations, int checks, double threshold,
+                              double* rate) {
+  if (migrations <= 0) {
+    if (rate != nullptr) *rate = 0.0;
+    return false;
+  }
+  if (checks <= 0) {
+    // Migration seen with no denominator: the guard aborted before printing a
+    // result line. Report the worst measurable rate so the alarm is explicit.
+    if (rate != nullptr) *rate = 1.0;
+    return true;
+  }
+  const double r = double(migrations) / double(checks);
+  if (rate != nullptr) *rate = r;
+  return r > threshold;
 }
 
 }  // namespace unikern

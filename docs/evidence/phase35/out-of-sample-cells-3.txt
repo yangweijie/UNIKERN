@@ -1,0 +1,22 @@
+# Phase 35 discriminator substitute: nP=1 (pass-1 = one serial thread) so k can
+# cross 2^24 without the 4-thread kernel that the watchdog killed at n=10^8.
+# multiply model predicts rel=0 (or -2.98e-08), faithful serial model predicts a stall
+# at 2^18 for fill=2^-6. started 2026-10-28T21:10:36+08:00
+# --- n=20000000 nP=1 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=20000000 n_bytes=80000000 exact=312500.0
+UNIKERN_INFO nP=      1 part=1287.8848 ms sum=  0.2247 ms both=1289.4791 ms part_GBps=   0.06 sum_share=  0.0% result=262144.0 rel=-1.611e-01
+rc(20000000/1)=0
+# --- n=33554433 nP=1 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=33554433 n_bytes=134217732 exact=524288.0
+UNIKERN_INFO nP=      1 part=2190.0598 ms sum=  0.0167 ms both=2200.0073 ms part_GBps=   0.06 sum_share=  0.0% result=262144.0 rel=-5.000e-01
+rc(33554433/1)=0
+# --- n=16777216 nP=1 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=      1 part=1081.7610 ms sum=  0.0120 ms both=1077.3796 ms part_GBps=   0.06 sum_share=  0.0% result=262144.0 rel=0.000e+00
+rc(16777216/1)=0

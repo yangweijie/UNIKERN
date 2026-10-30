@@ -1,0 +1,56 @@
+# Phase 45 removal controls -- [R6.8-dtype] and ctest gate #6 (runner_tu)
+# date: 2026-10-29T00:46:35.616195
+# host: Windows 11 + AMD RX 6600M (gfx1032); acceptance rc=3221226505 (0xC0000409) = a CRT
+#       assert fired = RED; runner_tu rc=1 = RED. Every control rebuilds first: the very
+#       first run skipped the rebuild for the text-only controls and C3/C4 then failed on
+#       an assert that belonged to C2, because the acceptance binary still carried the
+#       previous patch.
+
+baseline build rc=0
+baseline acceptance rc=0  runner_tu rc=0
+
+[C1 dtype_gap unwired in all three gap predicates]
+  build rc=0
+  acceptance rc=3221226505 RED (expected RED)
+  runner_tu  rc=0 GREEN (expected GREEN)
+  first failing assert: Assertion failed: stated.find("dtype=") != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 316
+
+[C2 emitted gate hard-coded to the fp16 tier (0.062500)]
+  build rc=0
+  acceptance rc=3221226505 RED (expected RED)
+  runner_tu  rc=0 GREEN (expected GREEN)
+  first failing assert: Assertion failed: src.compare(pos, gate.size(), gate) == 0, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1899
+
+[C3 intel runner gate back to a typed 0.03125f]
+  build rc=0
+  acceptance rc=3221226505 RED (expected RED)
+  runner_tu  rc=0 GREEN (expected GREEN)
+  first failing assert: Assertion failed: body.find("r.verified = max_rel <= tolerance_for(tree.dtype);") != std::string::npos, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1923
+
+[C4 syntax error inside the #ifdef UK_HAS_OCL body]
+  build rc=0
+  acceptance rc=0 GREEN (expected GREEN)
+  runner_tu  rc=1 RED (expected RED)
+  runner_tu said: RUNNER_TU FAIL src/runner_ocl.cpp rc=1
+
+[C5 gate hard-coded to the value the table already holds (blind spot)]
+  build rc=0
+  acceptance rc=0 GREEN (expected GREEN)
+  runner_tu  rc=0 GREEN (expected GREEN)
+
+[C6 solve refusal put back under the --emit condition (the G12 leak, restored)]
+  build rc=0
+  acceptance rc=3221226505 RED (expected RED)
+  runner_tu  rc=0 GREEN (expected GREEN)
+  first failing assert: Assertion failed: rc == 2, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1977
+
+--- restoring the tree and rebuilding the shipped binary ---
+post-restore build rc=0
+post-restore ctest rc=0
+  1/6 Test #1: smoke ............................   Passed    0.09 sec
+  2/6 Test #2: acceptance .......................   Passed    1.65 sec
+  3/6 Test #3: anchors ..........................   Passed    0.52 sec
+  4/6 Test #4: probe_hygiene ....................   Passed    1.21 sec
+  5/6 Test #5: record_audit .....................   Passed    0.40 sec
+  6/6 Test #6: runner_tu ........................   Passed    2.74 sec
+  100% tests passed out of 6

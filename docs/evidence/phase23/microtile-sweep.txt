@@ -1,0 +1,12 @@
+# Phase 23 — 2x2 output micro-tile sweep at conv 256x256x32 k3x3 Oc64 (RX 6600M)
+# pre-registered keep-criterion: kernel_ms <= 7.16/1.2 = 5.97 ms else REVERT the micro-tile
+# reference: Phase 21 (1x1 per thread) = 7.153 / 7.167 / 7.175 ms at tile=16 ocb=8
+# NOTE: first attempt recorded only rc lines (bad extractor) — same filtered-null-result class as E22; this run greps kernel_ms explicitly.
+
+tile=16  ocb=8  max_rel=0.000000e+00 kernel_ms=59.650238 rc=0
+tile=16  ocb=4  max_rel=0.000000e+00 kernel_ms=29.271957 rc=0
+tile=16  ocb=2  max_rel=0.000000e+00 kernel_ms=37.648700 rc=0
+tile=8   ocb=8  max_rel=0.000000e+00 kernel_ms=80.167200 rc=0
+tile=8   ocb=4  max_rel=0.000000e+00 kernel_ms=40.786292 rc=0
+tile=8   ocb=2  max_rel=0.000000e+00 kernel_ms=52.250909 rc=0
+# finished: 2026-10-28T18:55:10+08:00

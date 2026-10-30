@@ -1,0 +1,38 @@
+# Phase 34 removal controls -- [R6.6-model] arm
+# date: 2026-10-28T20:44:18.317788
+# CPU-only; assert abort is rc 3221226505 (0xC0000409) = RED
+
+baseline build rc=0 (must link, or a green run would be a stale exe)
+baseline acceptance rc=0
+  [R6.6-model] fold model reproduces 19 recorded device cells; worst |rel|=0.000240667 vs gate=0.03125; verify instance (2^20) exact at every width OK
+
+=== leg 1: pass 2 accumulated in double instead of fp32 ===
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R6.5-blind] timing-size fold error: pow2_chunk=0 nonpow2_chunk=4.57736e-05 width_14336=0.000160222 gate=0.03125 (both >100x under) OK
+  Assertion failed: (pred == 0.0) == (c.measured == 0.0), file D:/git/c/gpu-math/tests/acceptance.cpp, line 1512
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 2: fill that is not a power of two (0.1f): partial values stop being exact scalings ===
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R6.5-blind] timing-size fold error: pow2_chunk=0 nonpow2_chunk=4.57736e-05 width_14336=0.000160222 gate=0.03125 (both >100x under) OK
+  Assertion failed: (pred == 0.0) == (c.measured == 0.0), file D:/git/c/gpu-math/tests/acceptance.cpp, line 1512
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 3: a recorded device reading edited to 'exact' ===
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R6.5-blind] timing-size fold error: pow2_chunk=0 nonpow2_chunk=4.57736e-05 width_14336=0.000160222 gate=0.03125 (both >100x under) OK
+  Assertion failed: (pred == 0.0) == (c.measured == 0.0), file D:/git/c/gpu-math/tests/acceptance.cpp, line 1512
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+$ final restore: build rc=0
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/3 Test #1: smoke ............................   Passed    0.07 sec
+    Start 2: acceptance
+2/3 Test #2: acceptance .......................   Passed    1.03 sec
+    Start 3: anchors
+3/3 Test #3: anchors ..........................   Passed    0.50 sec
+
+100% tests passed out of 3
+
+Total Test time (real) =   1.61 sec

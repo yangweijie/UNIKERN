@@ -145,6 +145,62 @@ target_include_directories(unikern_acceptance PRIVATE third_party/sqlite)
 # only — it resolves the ICD loader via Win32 GetProcAddress, never links it).
 target_include_directories(unikern_acceptance PRIVATE third_party)
 add_test(NAME acceptance COMMAND unikern_acceptance)
+# [R6.8-dtype] reads the two runner sources it cannot compile on this host (the OpenCL
+# runner is an #ifdef stub without an Intel SDK, runner_metal.mm is Apple-only) to prove
+# they hold one tolerance table, not a second one. Same env the anchors gate uses.
+set_tests_properties(acceptance PROPERTIES ENVIRONMENT "SOURCE_DIR=${CMAKE_SOURCE_DIR}")
+
+# Doc->code anchor check (better-harness finding doc-code-anchors-drift-unvalidated):
+# every `path:line` citation in docs/, AGENTS.md and the planning files must still
+# name code that lives there. Line anchors otherwise rot silently — three of four
+# spot-checked ones had already drifted when this gate was added, and one had
+# drifted twice in the same day because the files were being edited around it.
+# Skips honestly when no interpreter is found (the test is then absent, not green).
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME anchors
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/probe/anchors_check.py
+           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  set_tests_properties(anchors PROPERTIES ENVIRONMENT "SOURCE_DIR=${CMAKE_SOURCE_DIR}")
+
+  # Probe hygiene gate (better-harness finding #5): every probe that rewrites src/ must restore
+  # under a guard, because a crash between patch and restore leaves the working tree sabotaged
+  # and the next build quietly wrong. Registered next to `anchors` for the same reason: the rule
+  # was prose in AGENTS.md, and prose does not fail a build.
+  add_test(NAME probe_hygiene
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/probe/probe_hygiene_check.py
+           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+  # Record-integrity gate (harness finding #4): every file path cited by the planning docs or an
+  # evidence README must exist, and a declared workload input must not live inside a git-ignored
+  # tree that a clone cannot carry. A rotting citation turns a "reproduce" command into a lie.
+  add_test(NAME record_audit
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/probe/record_audit.py
+           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+  # Excluded-TU syntax gate (Phase 45, D11): src/runner_ocl.cpp is #ifdef'd out of this host's
+  # build when no Intel SDK is found, so edits there compile as an empty file and ctest stays
+  # green — that is where a second, hard-coded tolerance table had been living. The mirrored
+  # CL headers are enough for -fsyntax-only, so the body gets a real compile check without an
+  # Intel toolchain, a device or a link step. It carries its own control (a broken TU must fail).
+  add_test(NAME runner_tu
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/probe/runner_tu_check.py
+           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+  # Generated-program syntax gate (Phase 50, widened in Phase 52): the acceptance arms read generated
+  # source as TEXT and
+  # gate #6 covers the runner TUs, so until now nothing ever asked hipcc to parse an emitted
+  # program. Phase 49's control P3 proved the hole is real — an artifact that cannot compile while
+  # every text arm stays green. This gate emits gemm/conv/reduce through the CLI and runs
+  # `hipcc -fsyntax-only` with a device-reported --offload-arch; it carries its own broken-source
+  # control and exits 77 (ctest Skipped, not Passed) on a host without hipcc.
+  add_test(NAME generated_programs
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/probe/generated_program_check.py
+           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  set_tests_properties(generated_programs PROPERTIES SKIP_RETURN_CODE 77)
+else()
+  message(STATUS "anchors_check: no Python3 interpreter found, gate not registered")
+endif()
 
 # Root-cause fix: host has multiple MinGW runtimes (ProgramData g++ 13.2 vs
 # Git-bundled /mingw64 DLLs). Two libwinpthread copies in one process crashed

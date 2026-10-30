@@ -1,0 +1,9 @@
+$ python probe/anchors_check.py
+anchors checked: 305 in 50 docs (window +-25 lines, arm-range checks 45, weak 107/107, unverifiable 91/91)  [2026-10-29]
+all doc->code anchors agree with the files they cite
+rc=0
+
+# 落地前的同一条命令（写在改门之前，作为盲区的尺寸）：
+anchors checked: 288 in 49 docs (window +-25 lines)  → 其中 132 条所在行无任何可核对符号，门报 all agree
+
+$ python probe/phase56_anchorlabel_control.py   # 四条开火控制，见 controls.txt

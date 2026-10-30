@@ -1,0 +1,52 @@
+# Phase 44 D9 device verification (RX 6600M / gfx1032, hipcc rocm-7.13) 2026-10-29T00:08:30+08:00
+# per L: emit the shipped program (runtime plan) AND a 4096-baseline variant of the SAME program
+# (sed on the emitted source only - the generator is not touched), compile both, run both.
+L=1048576 variant=a hipcc-rc=0
+L=1048576 variant=b hipcc-rc=1
+--- L=1048576 planned (runtime device-derived) ---
+UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=1048576
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.710830 kernel_ms=0.416380 mode=resident payload_mb=4.062504 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+run-rc=0
+--- L=1048576 baseline width=4096-clamp ---
+run-rc=127
+L=16777216 variant=a hipcc-rc=0
+L=16777216 variant=b hipcc-rc=1
+--- L=16777216 planned (runtime device-derived) ---
+UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=16777216
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.262270 kernel_ms=0.756284 mode=resident payload_mb=64.062504 perf=16777216 migrations=0 checks=6 vram_free=8344633344 vram_total=8573157376
+run-rc=0
+--- L=16777216 baseline width=4096-clamp ---
+run-rc=127
+L=67108864 variant=a hipcc-rc=0
+L=67108864 variant=b hipcc-rc=1
+--- L=67108864 planned (runtime device-derived) ---
+UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=67108864
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.441270 kernel_ms=1.873943 mode=resident payload_mb=256.062504 perf=67108864 migrations=0 checks=6 vram_free=8143306752 vram_total=8573157376
+run-rc=0
+--- L=67108864 baseline width=4096-clamp ---
+run-rc=127
+
+# second pass: the first attempt's baseline variant never compiled because the emitted source was
+# never copied into the b/ directory (rc=127 there is my script, not the device). Fixed below.
+# 2026-10-29T00:09:00+08:00
+L=1048576 variant=a (planned-runtime) hipcc-rc=0
+L=1048576 variant=b (baseline-4096) hipcc-rc=0
+UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=1048576
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.755150 kernel_ms=0.425157 mode=resident payload_mb=4.062504 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.797560 kernel_ms=0.418537 mode=resident payload_mb=4.062504 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+L=16777216 variant=a (planned-runtime) hipcc-rc=0
+L=16777216 variant=b (baseline-4096) hipcc-rc=0
+UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=16777216
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.267800 kernel_ms=0.745169 mode=resident payload_mb=64.062504 perf=16777216 migrations=0 checks=6 vram_free=8344633344 vram_total=8573157376
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.228260 kernel_ms=0.781590 mode=resident payload_mb=64.062504 perf=16777216 migrations=0 checks=6 vram_free=8344633344 vram_total=8573157376
+L=67108864 variant=a (planned-runtime) hipcc-rc=0
+L=67108864 variant=b (baseline-4096) hipcc-rc=0
+UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=67108864
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.396970 kernel_ms=1.895030 mode=resident payload_mb=256.062504 perf=67108864 migrations=0 checks=6 vram_free=8143306752 vram_total=8573157376
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=2.420410 kernel_ms=1.910782 mode=resident payload_mb=256.062504 perf=67108864 migrations=0 checks=6 vram_free=8143306752 vram_total=8573157376
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=   4096 part=  1.1607 ms sum=  0.1062 ms both=  1.2522 ms part_GBps=  57.82 sum_share=  8.5% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.3354 ms sum=  0.4024 ms both=  0.7721 ms part_GBps= 200.11 sum_share= 52.1% result=262144.0 rel=0.000e+00
+UNIKERN_INFO n=67108864 n_bytes=268435456 exact=1048576.0
+UNIKERN_INFO nP=   4096 part=  4.6245 ms sum=  0.1045 ms both=  4.6923 ms part_GBps=  58.05 sum_share=  2.2% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  1.4508 ms sum=  0.4105 ms both=  1.8647 ms part_GBps= 185.03 sum_share= 22.0% result=1048576.0 rel=0.000e+00

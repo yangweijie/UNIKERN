@@ -1,0 +1,45 @@
+# Phase 53 controls -- [R5.4-artifact-bytes-cl] (the OpenCL artifacts get a byte anchor)
+# date: 2026-10-29T13:32:10.624542
+# host: Windows 11 + AMD RX 6600M. acceptance rc=3221226505 = CRT assert = RED
+# Attribution is read from the per-op lines the new leg prints BEFORE it asserts,
+# and from the HIP byte leg's banner; not from the exit code alone.
+
+baseline build rc=0
+baseline acceptance rc=0  gate#7 rc=0
+  PROG RESULT PASS checked=6 (syntax only; no target codegen, no execution, no verify claim)
+
+[C1 reword a comment inside the emitted OpenCL text (the new leg's exclusive red)]
+  patched src/codegen_other.cpp
+  acceptance RED want RED | HIP byte leg printed want printed
+  new leg: drift=['reduce'] identical=['conv', 'gemm'] want drift=['reduce'] identical=['conv', 'gemm']
+  runner_tu rc=0 | gate#7 rc=0 (green) want gate#7 rc=0
+
+[C2 brace inside the emitted OpenCL conv signature (overlaps gate #7)]
+  patched src/codegen_other.cpp
+  acceptance RED want RED | HIP byte leg printed want printed
+  new leg: drift=['conv'] identical=['gemm', 'reduce'] want drift=['conv'] identical=['gemm', 'reduce']
+  runner_tu rc=0 | gate#7 rc=1 (red half: ocl) want gate#7 rc=!=0
+    PROG FAIL ocl conv rc=1: D:\git\c\gpu-math\build\uk_generated_programs\conv\uk_intel.cl:15:73: error: expected ')'
+
+[C3 reword a comment inside the emitted HIP text (the other byte axis, not this leg)]
+  patched src/codegen_hip.cpp
+  acceptance RED want RED | HIP byte leg NOT printed want NOT printed
+  new leg: drift=(none) identical=(none) want drift=(none) identical=(none)
+  runner_tu rc=0 | gate#7 rc=0 (green) want gate#7 rc=0
+
+[C4 reword a comment in the generator source that is never emitted (neutral)]
+  patched src/codegen_other.cpp
+  acceptance GREEN want GREEN | HIP byte leg printed want printed
+  new leg: drift=(none) identical=['conv', 'gemm', 'reduce'] want drift=(none) identical=['conv', 'gemm', 'reduce']
+  runner_tu rc=0 | gate#7 rc=0 (green) want gate#7 rc=0
+
+--- restoring and rebuilding ---
+sources back byte-identical: YES  build rc=0  ctest rc=0
+  1/7 Test #1: smoke ............................   Passed    0.09 sec
+  2/7 Test #2: acceptance .......................   Passed    2.44 sec
+  3/7 Test #3: anchors ..........................   Passed    0.12 sec
+  4/7 Test #4: probe_hygiene ....................   Passed    0.06 sec
+  5/7 Test #5: record_audit .....................   Passed    0.13 sec
+  6/7 Test #6: runner_tu ........................   Passed    1.72 sec
+  7/7 Test #7: generated_programs ...............   Passed    9.95 sec
+  100% tests passed out of 7

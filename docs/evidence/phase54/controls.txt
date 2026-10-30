@@ -1,0 +1,38 @@
+# Phase 54 controls -- [R5.4-artifact-bytes-msl] (the Metal artifacts get a byte anchor)
+# date: 2026-10-29T13:47:53.784937
+# host: Windows 11 + AMD RX 6600M. acceptance rc=3221226505 = CRT assert = RED
+
+baseline build rc=0
+baseline acceptance rc=0  gate#7 rc=0
+  PROG probe msl 7.1/clang.exe=no clang.exe (no Metal language in this clang): clang: error: language not recognized: 'metal'
+  PROG probe msl wasi-sdk-34.0-rc.3-x86_64-windows/clang.EXE=no clang.EXE (no Metal language in this clang): clang: error: language not recognized: 'metal'
+  PROG gap msl reason=no clang here recognizes -x metal (probed 2 front end(s), see the PROG probe lines above); this artifact is parsed only on a host whose clang carries 
+
+[M1 reword a comment inside the EMITTED Metal text (exclusive to the new leg)]
+  acceptance RED want RED | HIP leg printed | CL leg banner printed
+  CL per-op {'gemm': 'identical', 'conv': 'identical', 'reduce': 'identical'} | MSL per-op {'gemm': 'identical', 'conv': 'identical', 'reduce': 'DRIFT'}
+  gate#7 rc=0 want rc=0
+    PROG probe msl 7.1/clang.exe=no clang.exe (no Metal language in this clang): clang: error: language not recognized: 'metal'
+
+[M2 reword a comment inside the EMITTED OpenCL text (the other byte axis)]
+  acceptance RED want RED | HIP leg printed | CL leg banner absent
+  CL per-op {'gemm': 'identical', 'conv': 'identical', 'reduce': 'DRIFT'} | MSL per-op (none)
+  gate#7 rc=0 want rc=0
+    PROG probe msl 7.1/clang.exe=no clang.exe (no Metal language in this clang): clang: error: language not recognized: 'metal'
+
+[M3 reword a comment in the generator source that is never emitted (neutral)]
+  acceptance GREEN want GREEN | HIP leg printed | CL leg banner printed
+  CL per-op {'gemm': 'identical', 'conv': 'identical', 'reduce': 'identical'} | MSL per-op {'gemm': 'identical', 'conv': 'identical', 'reduce': 'identical'}
+  gate#7 rc=0 want rc=0
+    PROG probe msl 7.1/clang.exe=no clang.exe (no Metal language in this clang): clang: error: language not recognized: 'metal'
+
+--- restoring and rebuilding ---
+sources back byte-identical: YES  build rc=0  ctest rc=0
+  1/7 Test #1: smoke ............................   Passed    0.07 sec
+  2/7 Test #2: acceptance .......................   Passed    2.01 sec
+  3/7 Test #3: anchors ..........................   Passed    0.11 sec
+  4/7 Test #4: probe_hygiene ....................   Passed    0.05 sec
+  5/7 Test #5: record_audit .....................   Passed    0.11 sec
+  6/7 Test #6: runner_tu ........................   Passed    1.50 sec
+  7/7 Test #7: generated_programs ...............   Passed    8.43 sec
+  100% tests passed out of 7

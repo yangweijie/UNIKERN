@@ -1,0 +1,29 @@
+# Phase 45 emitted-artifact impact of the dtype-derived tolerance gate (D11)
+2026-10-29T00:47:55.979800
+host: nt / hcs=samples/hcs_amd.json (fp 8039464947ce, the fingerprint every baseline below carries)
+
+[gemm] solve rc=0 lines=447 (baseline uk_amd_gemm.cpp=390, Phase 44 claim=447)
+  sha256=7a451491ed9b28f8c02ebe00159dc5b5a7ed8f85816755ec3cef79f43d1d6479
+  changed-lines=85
+  -// R8: vram_bytes=8589934592 stream_if_payload_gt=7301444403 shard_mb=64MiB (shard_rows=4096) prefetch_d=2
+  +// R8: vram_bytes=8589934592 stream_if_payload_gt=7301444403 shard_mb=64MiB (shard_rows=512) prefetch_d=2
+  +}
+  +
+  +// R8.5 residency guard: explicit streaming is the only path, so every
+  +// device allocation must actually be device-resident. hipPointerGetAttributes
+  +// asserts type == hipMemoryTypeDevice after every successful hipMalloc;
+  +// managed/host residency is implicit oversubscription — loud refusal,
+  ... 77 more (all pre-D11 drift, see README)
+
+[conv] solve rc=0 lines=542 (baseline conv-hip-knob-check.txt=542, Phase 44 claim=542)
+  sha256=09e9b5706cba661cbc861bb4d96d450dd62520d21c2c3b602f09ce3ec7c80d3f
+  changed-lines=2
+  -    if (max_rel > 0.03125f) rc = 1;
+  +    if (max_rel > 0.031250f) rc = 1;
+
+[reduce] solve rc=0 lines=268 (baseline reduce-hip-width-plan.txt=268, Phase 44 claim=268)
+  sha256=c3a26462ed663e5550a65dcd0b071f9989a97fd8e90912fd4047633beeb66ef0
+  changed-lines=2
+  -    if (max_rel > 0.03125f) rc = 1;
+  +    if (max_rel > 0.031250f) rc = 1;
+

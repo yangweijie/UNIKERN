@@ -7,7 +7,8 @@ import os
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from arm_probe_guard import (ROOT, BUILD, GUARD, acceptance_cmd, build_cmd,
+                         ctest_cmd, guard_main, has_apple_toolchain)
 
 LEGS = [
     ("hip_per_op_dispatch",
@@ -32,7 +33,7 @@ def patch(idx, restore):
     n = s.count(src)
     if n != 1:
         sys.exit(f"{name}: expected 1 site, found {n} — aborting, nothing written")
-    open(path, "w", encoding="utf-8", newline="").write(s.replace(src, dst, 1))
+    GUARD.write(rel, s.replace(src, dst, 1))
 
 
 def run(argv, tail=0):
@@ -46,7 +47,7 @@ def main():
         patch(i, restore=False)
         print(f"\n=== ARM-PROBE {name} ({rel}): leg disabled — a test must notice ===")
         print(run(["cmake", "--build", "build"], tail=1))
-        print(run([os.path.join(ROOT, "build", "unikern_acceptance.exe")], tail=2))
+        print(run(acceptance_cmd(), tail=2))
         patch(i, restore=True)
         print(f"--- {name} restored ---")
     left = [name for name, rel, _on, off in LEGS
@@ -57,4 +58,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    guard_main(main)

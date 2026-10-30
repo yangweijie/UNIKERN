@@ -10,6 +10,8 @@
 #include "unikern/components.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cerrno>
+#include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -50,6 +52,10 @@ struct Options {
   // calibrate only: force the R7.3 link-bandwidth derivation on a scenario-A
   // (unified memory) HCS despite the honesty gate in cmd_calibrate.
   bool allow_unified_calibrate = false;
+  // R8.5 alarm threshold (Phase 18, D7): a violation when migrations/checks
+  // exceeds this rate. Default 0.0 keeps the Phase 16 semantics — any
+  // non-resident device allocation alarms — so relaxing it must be explicit.
+  double migration_threshold = 0.0;
 };
 
 // Ledger factory: .jsonl -> file ledger, anything else -> SQLite ledger.
@@ -64,6 +70,22 @@ std::unique_ptr<ILedger> make_ledger(const std::string& path) {
 
 // Shared flag parsing for solve/run/verify. Returns false on a malformed
 // value; unknown flags are ignored (lenient, as before).
+// Declared dimensions become `int` element indices inside the generated kernels, so the
+// accepted range is [0, INT32_MAX] (0 = slot unused, per the --dims L 0 0 convention).
+// std::atoi saturates above that and returns 0 for a non-numeric token, which made both
+// mistakes look like valid input: a 3.0e9-element request silently became a 2^31-1 program,
+// and `--dims abc 0 0` silently fell back to the demo workload (Phase 38/39, G11).
+bool parse_dim(const char* tok, int* out) {
+  if (tok == nullptr || *tok == '\0') return false;
+  errno = 0;
+  char* end = nullptr;
+  const long long v = std::strtoll(tok, &end, 10);
+  if (end == tok || *end != '\0' || errno == ERANGE) return false;
+  if (v < 0 || v > INT_MAX) return false;
+  *out = static_cast<int>(v);
+  return true;
+}
+
 bool parse_options(int argc, char** argv, Options* o) {
   for (int i = 0; i < argc; ++i) {
     const std::string a = argv[i];
@@ -79,9 +101,19 @@ bool parse_options(int argc, char** argv, Options* o) {
       o->workdir = argv[++i];
     } else if (a == "--dims") {
       if (i + 3 >= argc) return false;
-      o->dims[0] = std::atoi(argv[i + 1]);
-      o->dims[1] = std::atoi(argv[i + 2]);
-      o->dims[2] = std::atoi(argv[i + 3]);
+      int got[3] = {0, 0, 0};
+      for (int d = 0; d < 3; ++d) {
+        if (!parse_dim(argv[i + 1 + d], &got[d])) {
+          std::cerr << "INVALID dims[" << d << "]='" << argv[i + 1 + d]
+                    << "': needs an integer in [0, " << INT_MAX
+                    << "]. Larger is not representable by the generated kernels' int "
+                       "element indices, and a token that is not an integer must not be\n"
+                       "  read as \"no override\" — std::atoi returned 0 for it and the "
+                       "demo workload was solved instead of the declared one (R1.2).\n";
+          return false;
+        }
+      }
+      for (int d = 0; d < 3; ++d) o->dims[d] = got[d];
       i += 3;
     } else if (a == "--selfcheck") {
       o->selfcheck = true;
@@ -100,6 +132,11 @@ bool parse_options(int argc, char** argv, Options* o) {
       const auto kind = op_from_string(name);
       if (!kind) return false;
       o->op = *kind;
+    } else if (a == "--migration-threshold" && i + 1 < argc) {
+      o->migration_threshold = std::atof(argv[++i]);
+      // NaN and negative are not thresholds: a NaN comparison would silently
+      // disable the alarm (R8.5 wants an explicit, usable value).
+      if (!(o->migration_threshold >= 0.0)) return false;
     }
   }
   if (o->dims[0] || o->dims[1] || o->dims[2]) {
@@ -256,9 +293,10 @@ static int cmd_solve(int argc, char** argv) {
   // can generate the tree; otherwise the sources are written as they are —
   // real kernels where a backend covers the op, honest refusal files elsewhere.
   const std::string gap = any_backend_covers(tree) ? "" : op_support_gap(tree);
-  if (!gap.empty() && !o.emit_dir.empty()) {
-    std::cerr << "UNSUPPORTED: " << gap << " — --emit refuses rather than writing a "
-                 "gemm program in place of the declared workload (R10.2).\n";
+  if (!gap.empty()) {
+    std::cerr << "UNSUPPORTED: " << gap << " — solve emits nothing AND files no ledger row for a "
+                 "tree no backend can build (R10.2: an uncovered interval is refused, not priced "
+                 "as if it were fp32; run/verify refuse the same tree).\n";
     return 2;
   }
   const Key key = ledger_key(*hcs, tree);
@@ -286,12 +324,7 @@ static int cmd_solve(int argc, char** argv) {
             << sol.placement_record << "\n";
   print_coverage(tree);
   if (o.emit_dir.empty()) {
-    if (gap.empty()) {
-      print_sources(sol, *hcs, tree);
-    } else {
-      std::cout << "NOTE op=" << to_string(tree.op) << ": " << gap
-                << " — no sources emitted, the solution above is model-only (R10.2)\n";
-    }
+    print_sources(sol, *hcs, tree);
   } else {
     const int rc = emit_sources(sol, *hcs, tree, o.emit_dir);
     if (rc != 0) return rc;
@@ -316,9 +349,14 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   Options o;
   const char* usage =
       "usage: unikern run --hcs <file.json> [--ledger f] [--workdir dir] "
-      "[--kml f.json | --op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple]\n"
+      "[--kml f.json | --op gemm|reduce] [--dims M N K] [--vendor amd|intel|apple] "
+      "[--migration-threshold f]\n"
       "  --op reduce/conv: run/verify refuse any op kernel generation cannot "
-      "cover (R10.2) — nothing is executed or committed.\n";
+      "cover (R10.2) — nothing is executed or committed.\n"
+      "  --migration-threshold f: R8.5 alarm rate (migrations/checks over the "
+      "device allocations the program probed). Default 0.0 — any non-resident "
+      "device allocation alarms, records a violation and triggers one re-solve "
+      "on the device's measured capacity.\n";
   if (!parse_options(argc, argv, &o) || o.hcs_path.empty()) {
     std::cerr << usage;
     return 2;
@@ -349,7 +387,9 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
               << (target ? target->name() : o.vendor) << "]\n";
     return 2;
   }
-  const Key key = ledger_key(*hcs, tree);
+  // R8.5: not const — a migration re-solve re-files under the HCS it actually
+  // used, and a solution measured on another key would be a poisoned row (R7.1).
+  Key key = ledger_key(*hcs, tree);
   auto ledger = make_ledger(o.ledger);
   Solution sol;
   if (auto rec = ledger->lookup(key)) {  // R7.2: hit reuses the recorded solution
@@ -370,56 +410,149 @@ static int cmd_run(int argc, char** argv, bool write_ledger) {
   // backend fails the run with its own honest diagnostic instead of
   // substituting another vendor (R10). The ledger flow below is identical
   // for all vendors (R6.3: only a verified PASS commits).
-  RunOutcome r;
-  const char* backend_name = nullptr;
-  if (o.vendor == "intel") {
-    std::string kernel;
-    for (auto& b : make_backends()) {
-      if (b->vendor() == Vendor::Intel) kernel = b->generate(sol, *hcs, tree);
+  // One generate+execute step, so the R8.5 re-solve below can run a second
+  // candidate without duplicating the vendor dispatch (R10: never substitute
+  // another vendor for the one asked for).
+  auto execute = [&](const Solution& s) {
+    if (o.vendor == "intel") {
+      std::string kernel;
+      for (auto& b : make_backends()) {
+        if (b->vendor() == Vendor::Intel) kernel = b->generate(s, *hcs, tree);
+      }
+      return run_ocl(kernel, s, *hcs, tree, o.workdir);
     }
-    r = run_ocl(kernel, sol, *hcs, tree, o.workdir);
-    backend_name = "intel:ocl";
-  } else if (o.vendor == "apple") {
-    std::string kernel;
-    for (auto& b : make_backends()) {
-      if (b->vendor() == Vendor::Apple) kernel = b->generate(sol, *hcs, tree);
+    if (o.vendor == "apple") {
+      std::string kernel;
+      for (auto& b : make_backends()) {
+        if (b->vendor() == Vendor::Apple) kernel = b->generate(s, *hcs, tree);
+      }
+      return run_metal(kernel, s, *hcs, tree, o.workdir);
     }
-    r = run_metal(kernel, sol, *hcs, tree, o.workdir);
-    backend_name = "apple:metal";
-  } else {
     std::string program;
     for (auto& b : make_backends()) {
-      if (b->vendor() == Vendor::Amd) program = b->generate(sol, *hcs, tree);
+      if (b->vendor() == Vendor::Amd) program = b->generate(s, *hcs, tree);
     }
-    r = run_hip(program, o.workdir);
-    backend_name = "amd:hip";
-  }
-  for (const auto& c : primitive_coverage(tree)) {
-    if (c.backend != backend_name) continue;
-    std::cout << "COVER " << c.backend << " primitive="
-              << (c.primitive_covered ? "covered" : "unsupported")
-              << " execution=" << (c.streaming ? "resident+streamed" : "resident-only")
-              << " toolchain=" << (c.toolchain_available ? "present" : "absent") << "\n";
-  }
-  std::cout << "RUN " << backend_name << " built=" << (r.built ? "yes" : "no")
-            << " ran=" << (r.ran ? "yes" : "no")
-            << " verified=" << (r.verified ? "PASS" : "FAIL")
-            << " max_rel=" << r.max_rel << " measured_ms=" << r.measured_ms;
-  // R8.5: migrations=<n> only when the backend reported it (generated HIP
-  // programs end their UNIKERN_RESULT line with the token). The in-process
-  // Metal/OpenCL runners leave the -1 sentinel — omitting the field beats
-  // printing an unmeasured 0.
-  if (r.migrations >= 0) std::cout << " migrations=" << r.migrations;
-  std::cout << "\n";
-  if (!r.log.empty()) {  // tail of the compile/run log
-    constexpr size_t kTail = 600;
-    std::cout << "-- log tail --\n"
-              << (r.log.size() > kTail ? r.log.substr(r.log.size() - kTail) : r.log);
-    if (r.log.back() != '\n') std::cout << "\n";
+    return run_hip(program, o.workdir);
+  };
+  const char* backend_name = o.vendor == "intel"   ? "intel:ocl"
+                             : o.vendor == "apple" ? "apple:metal"
+                                                   : "amd:hip";
+  // Device report + result contract line, printed for every attempt.
+  auto report = [&](const RunOutcome& x) {
+    for (const auto& c : primitive_coverage(tree)) {
+      if (c.backend != backend_name) continue;
+      std::cout << "COVER " << c.backend << " primitive="
+                << (c.primitive_covered ? "covered" : "unsupported")
+                << " execution=" << (c.streaming ? "resident+streamed" : "resident-only")
+                << " toolchain=" << (c.toolchain_available ? "present" : "absent") << "\n";
+    }
+    std::cout << "RUN " << backend_name << " built=" << (x.built ? "yes" : "no")
+              << " ran=" << (x.ran ? "yes" : "no")
+              << " verified=" << (x.verified ? "PASS" : "FAIL")
+              << " max_rel=" << x.max_rel << " measured_ms=" << x.measured_ms;
+    // R8.5: migrations=/checks= only when the backend reported them — generated
+    // HIP programs end their UNIKERN_RESULT line with the tokens. The in-process
+    // Metal/OpenCL runners leave the -1 sentinel, and omitting a field beats
+    // printing an unmeasured 0.
+    if (x.migrations >= 0) std::cout << " migrations=" << x.migrations;
+    if (x.checks >= 0) std::cout << " checks=" << x.checks;
+    std::cout << "\n";
+    if (!x.log.empty()) {  // tail of the compile/run log
+      constexpr size_t kTail = 600;
+      std::cout << "-- log tail --\n"
+                << (x.log.size() > kTail ? x.log.substr(x.log.size() - kTail) : x.log);
+      if (x.log.back() != '\n') std::cout << "\n";
+    }
+  };
+  // R8.5 alarm: the measured migration rate over the allocations probed, or the
+  // guard's own refusal (exit 5) — the signal this layer existed to consume.
+  auto alarm_of = [&](const RunOutcome& x, double* alarm_rate) {
+    const bool over = migration_rate_violation(x.migrations, x.checks,
+                                               o.migration_threshold, alarm_rate);
+    return over || x.exit_code == 5;
+  };
+  RunOutcome r = execute(sol);
+  report(r);
+
+  double rate = 0.0;
+  if (alarm_of(r, &rate)) {
+    std::cout << "UNIKERN_VIOLATION what=migration_rate rate=" << rate
+              << " threshold=" << o.migration_threshold
+              << " migrations=" << r.migrations << " checks=" << r.checks
+              << " exit=" << r.exit_code << " vram_free=" << r.vram_free
+              << " vram_total=" << r.vram_total << " committed=no\n";
+    if (write_ledger)
+      ledger->record_violation(key, rate, o.migration_threshold, r.migrations,
+                               r.checks, r.vram_free);
+    // Re-solve on the device's OWN reported capacity — measured, never a copied
+    // label and never a constant (same discipline as the UK_DEVICE probe, E13).
+    if (r.vram_free == 0) {
+      std::cerr << "RESOLVE STOP: no measured device capacity from this run; "
+                   "re-solving on an unmeasured bound would be a constant, not a "
+                   "measurement. Violation recorded, nothing committed.\n";
+      return 5;
+    }
+    Hcs tightened = *hcs;
+    bool applied = false;
+    for (auto& t : tightened.tiers) {
+      if (t.name == "vram" || t.name == "unified") {
+        t.bytes = static_cast<int64_t>(r.vram_free);
+        t.confidence = Confidence::Measured;
+        applied = true;
+      }
+    }
+    if (!applied) {
+      std::cerr << "RESOLVE STOP: this HCS declares no device tier to tighten; "
+                   "violation recorded, nothing committed.\n";
+      return 5;
+    }
+    std::cout << "RESOLVE re-solve device_capacity=" << hcs->device_capacity()
+              << "->" << r.vram_free << " (measured by hipMemGetInfo)\n";
+    Solution retry = solve(tightened, tree);
+    if (retry.feasible_count == 0) {
+      print_infeasible(retry);
+      std::cerr << "RESOLVE INFEASIBLE at the measured capacity; nothing committed "
+                   "(R8.5 stop rule, no silent degradation)\n";
+      return 5;
+    }
+    retry.placement_record +=
+        " (R8.5 re-solve: device tier from measured " + std::to_string(r.vram_free) +
+        " B, declared " + std::to_string(hcs->device_capacity()) + " B)";
+    // Filed under the HCS that was actually used: a row measured on one device
+    // capacity stored under another fingerprint would be a poisoned key (R7.1).
+    key = ledger_key(tightened, tree);
+    sol = retry;
+    r = execute(sol);
+    report(r);
+    if (alarm_of(r, &rate)) {
+      std::cout << "UNIKERN_VIOLATION stage=retry what=migration_rate rate=" << rate
+                << " threshold=" << o.migration_threshold
+                << " migrations=" << r.migrations << " checks=" << r.checks
+                << " exit=" << r.exit_code << " committed=no\n";
+      if (write_ledger)
+        ledger->record_violation(key, rate, o.migration_threshold, r.migrations,
+                                 r.checks, r.vram_free);
+      std::cerr << "RESOLVE STOP: the retry still violates; one retry is the bound "
+                   "(R8.5). Nothing committed.\n";
+      return 5;
+    }
   }
   if (!r.built || !r.ran || !r.verified) {
     std::cerr << "RUN FAILED; solution NOT committed to ledger (R6.3)\n";
     return 1;
+  }
+  // R8.4 path identity: a run whose executed data path differs from the
+  // solution's planned path (UK_GEMM_STREAM_PATH pinned an experiment arm) is
+  // an instrument reading. Under the solution's key it would poison R7.3
+  // calibration with a foreign path's time, so it verifies but never commits.
+  const std::string planned_path =
+      sol.best.path == Instance::Path::MmapStream ? "mmap" : "pinned";
+  if (!r.stream_path.empty() && r.stream_path != planned_path) {
+    std::cout << "LEDGER SKIP reason=env_path_pin executed=" << r.stream_path
+              << " planned=" << planned_path
+              << " (verify=PASS; the arm self-reports and the solution's row"
+                 " keeps its own path's measurement)\n";
+    return 0;
   }
   if (!write_ledger) {  // verify mode: read-only, no commit
     std::cout << "VERIFY PASS (no ledger write)\n";

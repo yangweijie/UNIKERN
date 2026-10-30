@@ -1,0 +1,48 @@
+# Phase 25 pinned (tile,ocb) matrix at conv 256x256x32 k3x3 Oc64 — RX 6600M / gfx1032, ROCm 7.1
+# taken 2026-10-28T19:26:06+08:00; plans pinned with UK_CONV_TILE/UK_CONV_OCB so the chooser cannot move (Phase 24 lesson)
+# pre-registered keep-line: kernel_ms <= 5.97 ms (7.16/1.2); expected magnitude if occupancy-bound: 1.1-1.4x
+# reference unpinned band (auto, tile=16/ocb=8): 7.1276-7.1750 ms over 9 readings
+=== pinned run 1: UK_CONV_TILE=16 UK_CONV_OCB=8 ===
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=10368 source=env
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.901820 kernel_ms=7.129367 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 2: UK_CONV_TILE=16 UK_CONV_OCB=4 ===
+UNIKERN_INFO conv_plan ocb=4 tile=16 smem=10368 source=env
+UNIKERN_INFO conv_plan ocb=4 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=14.246770 kernel_ms=10.514896 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 3: UK_CONV_TILE=16 UK_CONV_OCB=2 ===
+UNIKERN_INFO conv_plan ocb=2 tile=16 smem=10368 source=env
+UNIKERN_INFO conv_plan ocb=2 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=21.976110 kernel_ms=18.079030 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 4: UK_CONV_TILE=16 UK_CONV_OCB=1 ===
+UNIKERN_INFO conv_plan ocb=1 tile=16 smem=10368 source=env
+UNIKERN_INFO conv_plan ocb=1 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=35.155040 kernel_ms=31.571097 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 5: UK_CONV_TILE=8 UK_CONV_OCB=8 ===
+UNIKERN_INFO conv_plan ocb=8 tile=8 smem=3200 source=env
+UNIKERN_INFO conv_plan ocb=8 tile=8 smem=12800 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=13.280890 kernel_ms=9.638396 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 6: UK_CONV_TILE=8 UK_CONV_OCB=4 ===
+UNIKERN_INFO conv_plan ocb=4 tile=8 smem=3200 source=env
+UNIKERN_INFO conv_plan ocb=4 tile=8 smem=12800 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=17.286970 kernel_ms=13.543800 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 7: UK_CONV_TILE=8 UK_CONV_OCB=2 ===
+UNIKERN_INFO conv_plan ocb=2 tile=8 smem=3200 source=env
+UNIKERN_INFO conv_plan ocb=2 tile=8 smem=12800 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=23.880770 kernel_ms=20.141341 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== pinned run 8: UK_CONV_TILE=8 UK_CONV_OCB=1 ===
+UNIKERN_INFO conv_plan ocb=1 tile=8 smem=3200 source=env
+UNIKERN_INFO conv_plan ocb=1 tile=8 smem=12800 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=35.091170 kernel_ms=31.416699 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0
+=== control: no knobs (chooser) ===
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.858690 kernel_ms=7.150933 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+run rc=0

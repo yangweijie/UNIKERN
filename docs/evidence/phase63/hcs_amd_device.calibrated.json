@@ -1,0 +1,16 @@
+{
+  "vendor": "amd",
+  "device": "AMD Radeon RX 6600M (gfx1032) - device-reported (probe/phase63_device_probe.cpp)",
+  "unified_memory": false,
+  "link_bw_gbps": 5.7478955232123869,
+  "flops_gflops": 3370,
+  "compute_units": 14,
+  "toolchain": "rocm-7.1",
+  "constants_version": 2,
+  "confidence": "official",
+  "tiers": [
+    { "name": "vram", "bytes": 8573157376, "bw_gbps": 224, "confidence": "measured" },
+    { "name": "ram", "bytes": 68719476736, "bw_gbps": 50, "confidence": "official" },
+    { "name": "nvme", "bytes": 2000398934016, "bw_gbps": 7, "confidence": "measured" }
+  ]
+}

@@ -1,0 +1,23 @@
+# Phase 36 G11 evidence: a >2^31-element-index workload is admitted and emitted, unguarded
+# command (run in D:/git/c/gpu-math, 2026-10-28T21:35+08:00):
+  python -c 'mutate samples/hcs_amd.json vram bytes -> 17179869184' -> uk_run/hcs_vram16g.json
+  ./build/unikern.exe solve --hcs uk_run/hcs_vram16g.json --op gemm --dims 2048 64 2000000 --emit /tmp/p36big
+SOLVED  x* tile=128x128  c_ms=561.017  |X|=25  hcs_fp=1607aec9
+placement=vram+ram+nvme (scenario B, path=pinned_copy, shard=64MiB, prefetch_d=2, link=32GB/s)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+EMIT amd:hip -> D:/Temp/p36big/uk_amd.cpp lines=447
+EMIT apple:metal -> D:/Temp/p36big/uk_apple.metal lines=61 (toolchain absent)
+EMIT intel:ocl -> D:/Temp/p36big/uk_intel.cl lines=53 (toolchain absent)
+#
+# arithmetic: emitted kernel signature is 'int M, int N, int K' and it indexes A[m*K + k];
+# the streamed shard keeps SR=4096 rows resident, so max m*K+k = 4096*2000000 = 8.19e9 > INT32_MAX 2147483647.
+# allocation side is 64-bit (a_shard_f = (size_t)p->SR * p->K), so nothing fails - the index just wraps.
+25:__global__ void uk_gemm(const float* __restrict__ A, const float* __restrict__ B,
+26:                        float* __restrict__ C, int M, int N, int K) {
+63:                    std::vector<float>& C, int M, int N, int K) {
+167:  const size_t a_shard_f = (size_t)p->SR * p->K;  // floats per full A shard
+# verify instance is fixed and unrelated to the declared K:
+907:  const int VM = 256, VN = 256, VK = 256;          // differential verification size
+1114:    << "  const int VM = " << VM << ", VN = " << VN << ", VK = " << VK << ";" << '\n'

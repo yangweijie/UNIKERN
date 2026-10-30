@@ -1,0 +1,23 @@
+# Phase 26 device runs after single-plan fix (RX 6600M / gfx1032, ROCm 7.1) 2026-10-28T19:36:08+08:00
+=== uk_run/phase19conv/conv_256x256x32_k3x3_o64.json ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.8267 migrations=0 checks=6
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.826670 kernel_ms=7.160367 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+rc=0
+=== uk_run/phase19conv/conv_128x128x16_k3x3_o32.json ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.22603 migrations=0 checks=6
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=20736 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.226030 kernel_ms=0.284069 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+=== uk_run/phase19conv/conv_32x32x8_k3x3_o16.json ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.29788 migrations=0 checks=6
+UNIKERN_INFO conv_plan ocb=1 tile=0 smem=0 nothing fills the device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.297880 kernel_ms=0.012980 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+rc=0
+=== gemm + reduce regression ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.05018 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.050180 kernel_ms=0.123837 mode=resident payload_mb=3.000000 perf=512x512x512 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+=== reduce re-run with the correct dims form (the first attempt passed '--dims 1048576' alone; the CLI printed usage and nothing matched the grep filter -- E22 class, 4th recurrence, recorded here rather than hidden) ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.42433 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.424330 kernel_ms=0.164954 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+pipeline exit (not the CLI's own): 0

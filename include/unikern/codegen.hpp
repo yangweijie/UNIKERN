@@ -59,8 +59,36 @@ struct RunOutcome {
   // token (the in-process Metal/OpenCL runners) or the run never reached a
   // result line, so the RUN line omits it instead of printing an unmeasured 0.
   int migrations = -1;
+  // R8.5 alarm denominator (D7): the number of device allocations the program
+  // residency-probed. Emitted as checks=<m> on the result line AND on the
+  // oversubscription error line, so a refusal still carries a rate. Same -1
+  // sentinel convention as migrations.
+  int checks = -1;
+  // R8.5 re-solve input: the device's own reported capacity, taken from
+  // hipMemGetInfo on the generated program's tokens (0 = never measured — the
+  // consumer must not re-solve on an unmeasured value).
+  unsigned long long vram_free = 0;
+  unsigned long long vram_total = 0;
+  // Exit code of the generated program (R8.5: 5 = residency refusal, the
+  // upper layer's re-solve signal; the generic failure path must not swallow it).
+  int exit_code = 0;
+  // R8.4 self-report: which data path the generated gemm program actually ran
+  // (stream_path=<pinned|mmap> on the result line). Empty = this backend or
+  // program shape does not report the token. The ledger commit gate uses it:
+  // a run whose executed path differs from the solution's planned path is an
+  // instrument arm, not the solution's measurement, and must not land under
+  // the solution's ledger key.
+  std::string stream_path;
   std::string log;
 };
+
+// R8.5 alarm criterion (D7): violation when migrations/checks > threshold.
+// A reported migration without a usable denominator (checks <= 0 — the refusal
+// path aborts before a result line) is a violation at any threshold, because
+// the guard already treats a non-resident device allocation as oversubscription.
+// Pure, so the CLI gate and the acceptance arms share one criterion.
+bool migration_rate_violation(int migrations, int checks, double threshold,
+                              double* rate);
 // Compile + execute a HIP program with hipcc; parse the result line.
 RunOutcome run_hip(const std::string& program, const std::string& workdir);
 

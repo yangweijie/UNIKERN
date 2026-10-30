@@ -1,0 +1,4 @@
+Phase 44 reduce emitted baseline changed shape (239 -> 268 lines) by the runtime width plan.
+Regenerate:
+  ./build/unikern.exe solve --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --emit /tmp/p44b
+Files: uk_amd.cpp (emitted program), plus device-width-plan.txt for the on-device numbers.

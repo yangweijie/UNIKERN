@@ -1,0 +1,15 @@
+  [R20-nonhip] ocl/conv order=ok acc=1/1 anchors=5
+  [R20-nonhip] ocl/reduce order=ok acc=1/1 anchors=5
+  [R20-nonhip] ocl/gemm order=ok acc=1/1 anchors=4
+  [R20-nonhip] msl/conv order=ok acc=1/1 anchors=5
+  [R20-nonhip] msl/reduce order=ok acc=1/1 anchors=5
+  [R20-nonhip] msl/gemm order=ok acc=1/1 anchors=4
+[R20-nonhip] 6/6 accumulation sequences (6 verdict lines, counted here) and their single accumulation statement are pinned in BOTH non-HIP backends: conv c->kh->kw, reduce pass-1 strided sum before the pass-2 fold, gemm k0->k->r->c. The byte legs say something moved; this says whether the filed numbers still mean the same thing
+  [R20-nonhip-expr] ocl/conv expr=ok pins=1 counts=1
+  [R20-nonhip-expr] msl/conv expr=ok pins=1 counts=1
+  [R20-nonhip-expr] ocl/reduce expr=ok pins=2 counts=1/1
+  [R20-nonhip-expr] msl/reduce expr=ok pins=2 counts=1/1
+  [R20-nonhip-expr] ocl/gemm expr=ok pins=3 counts=1/1/1
+  [R20-nonhip-expr] msl/gemm expr=ok pins=3 counts=1/1/1
+[R20-nonhip-expr] 6/6 expression pins (6 verdict lines, counted here) are byte-exact in both non-HIP backends: conv's xv/wv/FMA block, reduce's pass-1 stride sum + pass-2 fold, gemm's As/Bs loads and inner product. [R20-nonhip] says the order moved; this says the arithmetic itself moved
+acc rc=0

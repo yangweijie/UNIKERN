@@ -1,0 +1,62 @@
+$ cmake --build build -> rc=0
+
+[1/5] Building CXX object CMakeFiles/unikern_core.dir/src/codegen_hip.cpp.obj
+D:/git/c/gpu-math/src/codegen_hip.cpp: In function 'std::string unikern::hip_conv_program(const Solution&, const Hcs&, const KmlTree&)':
+D:/git/c/gpu-math/src/codegen_hip.cpp:252:13: warning: unused variable 'Ho' [-Wunused-variable]
+  252 |   const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+      |             ^~
+D:/git/c/gpu-math/src/codegen_hip.cpp:252:30: warning: unused variable 'Wo' [-Wunused-variable]
+  252 |   const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+      |                              ^~
+[2/5] Linking CXX static library libunikern_core.a
+[3/5] Linking CXX executable unikern.exe
+[4/5] Linking CXX executable unikern_smoke.exe
+[5/5] Linking CXX executable unikern_acceptance.exe
+
+$ unikern run --op reduce --dims 1048576 0 0 (injected host alloc) -> rc=5
+
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=FAIL max_rel=0 measured_ms=0 migrations=1 checks=1
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_ERROR what=oversubscription ptr=vX type=1 migrations=1 checks=1 vram_free=8425177088 vram_total=8573157376 (managed/host residency is oversubscription; explicit streaming is the only path; R8.5)
+(exit=5)
+(no UNIKERN_RESULT line)
+UNIKERN_VIOLATION what=migration_rate rate=1 threshold=0 migrations=1 checks=1 exit=5 vram_free=8425177088 vram_total=8573157376 committed=no
+RESOLVE re-solve device_capacity=8589934592->8425177088 (measured by hipMemGetInfo)
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=FAIL max_rel=0 measured_ms=0 migrations=1 checks=1
+-- log tail --
+offload-arch: gfx1032
+UNIKERN_ERROR what=oversubscription ptr=vX type=1 migrations=1 checks=1 vram_free=8425177088 vram_total=8573157376 (managed/host residency is oversubscription; explicit streaming is the only path; R8.5)
+(exit=5)
+(no UNIKERN_RESULT line)
+UNIKERN_VIOLATION stage=retry what=migration_rate rate=1 threshold=0 migrations=1 checks=1 exit=5 committed=no
+RESOLVE STOP: the retry still violates; one retry is the bound (R8.5). Nothing committed.
+
+$ cmake --build build (restored) -> rc=0
+
+[1/5] Building CXX object CMakeFiles/unikern_core.dir/src/codegen_hip.cpp.obj
+D:/git/c/gpu-math/src/codegen_hip.cpp: In function 'std::string unikern::hip_conv_program(const Solution&, const Hcs&, const KmlTree&)':
+D:/git/c/gpu-math/src/codegen_hip.cpp:252:13: warning: unused variable 'Ho' [-Wunused-variable]
+  252 |   const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+      |             ^~
+D:/git/c/gpu-math/src/codegen_hip.cpp:252:30: warning: unused variable 'Wo' [-Wunused-variable]
+  252 |   const int Ho = H - Kh + 1, Wo = W - Kw + 1;
+      |                              ^~
+[2/5] Linking CXX static library libunikern_core.a
+[3/5] Linking CXX executable unikern.exe
+[4/5] Linking CXX executable unikern_smoke.exe
+[5/5] Linking CXX executable unikern_acceptance.exe
+
+$ ctest --test-dir build -> rc=0
+
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/2 Test #1: smoke ............................   Passed    0.08 sec
+    Start 2: acceptance
+2/2 Test #2: acceptance .......................   Passed    1.15 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   1.24 sec

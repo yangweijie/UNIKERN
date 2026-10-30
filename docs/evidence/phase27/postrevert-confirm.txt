@@ -1,0 +1,8 @@
+# Phase 27 post-revert confirmation (generator restored; emitted program diff-empty vs docs/evidence/phase26/conv-hip-single-plan.txt, 517 lines, sha256 161d8e19...27f3f)
+# taken 2026-10-28T19:48:22+08:00; context = runner, same as the sweep it is compared against
+=== conv_256x256x32_k3x3_o64 ===
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.793560 kernel_ms=7.156521 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+=== conv_128x128x16_k3x3_o32 ===
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=20736 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.208500 kernel_ms=0.284850 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376

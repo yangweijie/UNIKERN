@@ -4,7 +4,10 @@
 // list every violation at once, the completeness rule R9.2 already holds for
 // HCS import.
 #include <cctype>
+#include <cerrno>
+#include <climits>
 #include <cstdlib>
+#include <limits>
 #include <sstream>
 
 #include "json_flat.hpp"
@@ -20,12 +23,28 @@ using detail::json_keys;
 using detail::json_numbers;
 using detail::json_objects;
 
-bool parse_int(const std::string& tok, int* out) {
+// Digits are not a range. Converting through atoi saturates: "3000000000" is all digits,
+// lands on INT32_MAX, passes the `> 0` test, and used to be accepted as a declared length —
+// a workload asking for 3.0e9 elements got a 2^31-1 program and a success exit (Phase 38/39).
+// Parse wide and let the caller name the bound instead of silently substituting one.
+bool parse_int_wide(const std::string& tok, long long* out) {
   size_t i = (!tok.empty() && tok[0] == '-') ? 1 : 0;
   if (i >= tok.size()) return false;
   for (; i < tok.size(); ++i)
     if (!std::isdigit(static_cast<unsigned char>(tok[i]))) return false;
-  *out = std::atoi(tok.c_str());
+  errno = 0;
+  char* end = nullptr;
+  const long long v = std::strtoll(tok.c_str(), &end, 10);
+  if (end == tok.c_str() || errno == ERANGE) return false;
+  *out = v;
+  return true;
+}
+
+bool parse_int(const std::string& tok, int* out) {
+  long long wide = 0;
+  if (!parse_int_wide(tok, &wide)) return false;
+  if (wide < INT_MIN || wide > INT_MAX) return false;
+  *out = static_cast<int>(wide);
   return true;
 }
 
@@ -104,12 +123,24 @@ void parse_node(const std::string& text, const std::string& path, KmlTree* t,
       values_ok = false;
     }
     for (size_t i = 0; i < toks.size() && i < 6; ++i) {
-      int v = 0;
-      if (!parse_int(toks[i], &v)) {
+      long long wide = 0;
+      if (!parse_int_wide(toks[i], &wide)) {
         bad("dims[" + std::to_string(i) + "]='" + toks[i] + "' is not an integer");
         values_ok = false;
         continue;
       }
+      // Upper bound first: the generated kernels address their elements with `int`
+      // indices (uk_reduce_part takes `int n`, uk_gemm indexes A[m*K + k]), so a
+      // declaration past INT32_MAX is not "large", it is unrepresentable — and the
+      // old atoi path substituted INT32_MAX without saying so.
+      if (wide > INT_MAX) {
+        bad("dims[" + std::to_string(i) + "]=" + toks[i] + " exceeds " +
+            std::to_string(INT_MAX) +
+            ", the largest element index the generated kernels can address");
+        values_ok = false;
+        continue;
+      }
+      const int v = static_cast<int>(wide);
       if (v <= 0) {
         bad("dims[" + std::to_string(i) + "]=" + std::to_string(v) +
             " must be positive");

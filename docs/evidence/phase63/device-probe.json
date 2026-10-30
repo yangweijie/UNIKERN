@@ -1,0 +1,15 @@
+{
+  "name": "AMD Radeon RX 6600M",
+  "gcnArchName": "gfx1032",
+  "multiProcessorCount": 14,
+  "warpSize": 32,
+  "maxThreadsPerMultiProcessor": 2048,
+  "clockRate_kHz": 1881000,
+  "memoryClockRate_kHz": 875000,
+  "memoryBusWidth_bits": 128,
+  "totalGlobalMem": 8573157376,
+  "memFree_at_probe": 8425177088,
+  "l2CacheBytes": 2097152,
+  "sharedMemPerBlock": 65536,
+  "derived_vram_bw_gbps": 224.0
+}

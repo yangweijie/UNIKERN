@@ -1,0 +1,77 @@
+# Phase 46 D8 measurement: the two CPU reference tiers the spec mandates (requirements.md:10 / :34, design.md:132)
+# build: c++ -O2 -std=c++20 -o build/uk_ref_tiers.exe probe/phase46_reference_tiers.cpp
+# host: Windows 11, MinGW-w64 GCC 13.2 - CPU only, no device, no generator or verdict touched
+
+instrument: sizeof(long double)=16 digits=64 (mantissa bits, this toolchain)
+  -> the kahan column is only as exact as that; `exact` rows use a closed form.
+
+CASE shipped: n=2^20 fill=2^-6    n=1048576   width=16384 
+  tier_scalar=16384             tier_blocked=16384             bit_equal=YES
+  rel_vs_kahan_ld:   scalar=+0.000000e+00  blocked=+0.000000e+00   (kahan itself vs exact: see next)
+  exact=16384             rel_vs_exact: scalar=+0.000000e+00 blocked=+0.000000e+00 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=PASS blocked-as-kernel=PASS
+
+CASE n=2^20 fill=2^-6 width=4096  n=1048576   width=4096  
+  tier_scalar=16384             tier_blocked=16384             bit_equal=YES
+  rel_vs_kahan_ld:   scalar=+0.000000e+00  blocked=+0.000000e+00   (kahan itself vs exact: see next)
+  exact=16384             rel_vs_exact: scalar=+0.000000e+00 blocked=+0.000000e+00 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=PASS blocked-as-kernel=PASS
+
+CASE n=2^24 fill=2^-6 (D8 size)   n=16777216  width=16384 
+  tier_scalar=262144            tier_blocked=262144            bit_equal=YES
+  rel_vs_kahan_ld:   scalar=+0.000000e+00  blocked=+0.000000e+00   (kahan itself vs exact: see next)
+  exact=262144            rel_vs_exact: scalar=+0.000000e+00 blocked=+0.000000e+00 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=PASS blocked-as-kernel=PASS
+
+instrument: sizeof(long double)=16 digits=64 (mantissa bits, this toolchain)
+  -> the kahan column is only as exact as that; `exact` rows use a closed form.
+
+CASE n=33554433 fill=1.0 (freeze) n=33554433  width=1     
+  tier_scalar=16777216          tier_blocked=16777216          bit_equal=YES
+  rel_vs_kahan_ld:   scalar=-5.000000e-01  blocked=-5.000000e-01   (kahan itself vs exact: see next)
+  exact=33554433          rel_vs_exact: scalar=-5.000000e-01 blocked=-5.000000e-01 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=PASS blocked-as-kernel=PASS
+
+CASE n=2^25 fill=2^-6 (freeze)    n=33554432  width=16384 
+  tier_scalar=262144            tier_blocked=524288            bit_equal=no
+  rel_vs_kahan_ld:   scalar=-5.000000e-01  blocked=+0.000000e+00   (kahan itself vs exact: see next)
+  exact=524288            rel_vs_exact: scalar=-5.000000e-01 blocked=+0.000000e+00 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=FAIL blocked-as-kernel=FAIL
+
+instrument: sizeof(long double)=16 digits=64 (mantissa bits, this toolchain)
+  -> the kahan column is only as exact as that; `exact` rows use a closed form.
+
+CASE D8 alt 1e6/1e-6 n=2^20       n=1048576   width=16384 
+  tier_scalar=5.28083223e+11    tier_blocked=5.24258869e+11    bit_equal=no
+  rel_vs_kahan_ld:   scalar=+7.238812e-03  blocked=-5.556250e-05   (kahan itself vs exact: see next)
+  exact=5.24288e+11       rel_vs_exact: scalar=+7.238812e-03 blocked=-5.556250e-05 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=PASS blocked-as-kernel=PASS
+
+CASE D8 alt 1e6/1e-6 n=2^24       n=16777216  width=16384 
+  tier_scalar=8.73707078e+12    tier_blocked=8.38814191e+12    bit_equal=no
+  rel_vs_kahan_ld:   scalar=+4.154000e-02  blocked=-5.556250e-05   (kahan itself vs exact: see next)
+  exact=8.388608e+12      rel_vs_exact: scalar=+4.154000e-02 blocked=-5.556250e-05 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=FAIL blocked-as-kernel=FAIL
+
+CASE D8 alt, width=1024 (nP row)  n=16777216  width=1024  
+  tier_scalar=8.73707078e+12    tier_blocked=8.39016566e+12    bit_equal=no
+  rel_vs_kahan_ld:   scalar=+4.154000e-02  blocked=+1.856875e-04   (kahan itself vs exact: see next)
+  exact=8.388608e+12      rel_vs_exact: scalar=+4.154000e-02 blocked=+1.856875e-04 kahan=+0.000e+00
+  verdict at 2^-5 if the OTHER tier were the reference: scalar-as-kernel=FAIL blocked-as-kernel=FAIL
+
+instrument: sizeof(long double)=16 digits=64 (mantissa bits, this toolchain)
+  -> the kahan column is only as exact as that; `exact` rows use a closed form.
+
+CASE wide range n=2^20            n=1048576   width=16384 
+  tier_scalar=-1.17286405e+14   tier_blocked=-1.17286178e+14   bit_equal=no
+  rel_vs_kahan_ld:   scalar=+1.146078e-08  blocked=+1.942566e-06   (kahan itself vs exact: see next)
+  exact=n/a (no closed form for this input); kahan_ld is a labelled stand-in, not an exact reference
+
+instrument: sizeof(long double)=16 digits=64 (mantissa bits, this toolchain)
+  -> the kahan column is only as exact as that; `exact` rows use a closed form.
+
+CASE wide range n=2^24            n=16777216  width=16384 
+  tier_scalar=1.33621801e+14    tier_blocked=1.33621734e+14    bit_equal=no
+  rel_vs_kahan_ld:   scalar=+6.645552e-08  blocked=-4.357744e-07   (kahan itself vs exact: see next)
+  exact=n/a (no closed form for this input); kahan_ld is a labelled stand-in, not an exact reference
+

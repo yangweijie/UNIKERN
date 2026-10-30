@@ -1,0 +1,46 @@
+# Phase 28 — C x ocb sweep at conv 256x256, Oc=64, tile pinned to 16
+# date: 2026-10-28T19:52:41.568393
+# host: Windows 11 + RX 6600M (gfx1032), ROCm 7.1, hipcc --offload-arch=gfx1032
+# pre-registered in task_plan.md 'Phase 28 预登记': per-C spread <3%%, sign monotone in C,
+#   max_rel 0 in all 24 runs; otherwise the candidate set stays {8,4,2,1}.
+# context: generated binary run DIRECTLY (24x same context); not comparable to runner readings.
+
+build CLI with ocb=16 tier: rc=0
+emit C=8: rc=0 lines=524
+hipcc C=8: rc=0
+emit C=16: rc=0 lines=524
+hipcc C=16: rc=0
+emit C=32: rc=0 lines=524
+hipcc C=32: rc=0
+emit C=64: rc=0 lines=524
+hipcc C=64: rc=0
+
+RESTORE: generator byte-identical (done before the timed runs)
+rebuild shipping CLI: rc=0
+C=8 ocb= 8 rep=0 kernel_ms=    0.906 max_rel=0.000000e+00 verify=PASS
+C=8 ocb= 8 rep=1 kernel_ms=    0.906 max_rel=0.000000e+00 verify=PASS
+C=8 ocb= 8 rep=2 kernel_ms=    0.907 max_rel=0.000000e+00 verify=PASS
+C=8 ocb=16 rep=0 kernel_ms=    0.720 max_rel=0.000000e+00 verify=PASS
+C=8 ocb=16 rep=1 kernel_ms=    0.727 max_rel=0.000000e+00 verify=PASS
+C=8 ocb=16 rep=2 kernel_ms=    0.725 max_rel=0.000000e+00 verify=PASS
+C=16 ocb= 8 rep=0 kernel_ms=    2.071 max_rel=0.000000e+00 verify=PASS
+C=16 ocb= 8 rep=1 kernel_ms=    2.073 max_rel=0.000000e+00 verify=PASS
+C=16 ocb= 8 rep=2 kernel_ms=    2.079 max_rel=0.000000e+00 verify=PASS
+C=16 ocb=16 rep=0 kernel_ms=    1.726 max_rel=0.000000e+00 verify=PASS
+C=16 ocb=16 rep=1 kernel_ms=    1.728 max_rel=0.000000e+00 verify=PASS
+C=16 ocb=16 rep=2 kernel_ms=    1.733 max_rel=0.000000e+00 verify=PASS
+C=32 ocb= 8 rep=0 kernel_ms=    7.020 max_rel=0.000000e+00 verify=PASS
+C=32 ocb= 8 rep=1 kernel_ms=    7.017 max_rel=0.000000e+00 verify=PASS
+C=32 ocb= 8 rep=2 kernel_ms=    7.042 max_rel=0.000000e+00 verify=PASS
+C=32 ocb=16 rep=0 kernel_ms=    7.805 max_rel=0.000000e+00 verify=PASS
+C=32 ocb=16 rep=1 kernel_ms=    7.796 max_rel=0.000000e+00 verify=PASS
+C=32 ocb=16 rep=2 kernel_ms=    7.802 max_rel=0.000000e+00 verify=PASS
+C=64 ocb=8 rep=0: NO RESULT LINE rc=4
+C=64 ocb=8 rep=1: NO RESULT LINE rc=4
+C=64 ocb=8 rep=2: NO RESULT LINE rc=4
+C=64 ocb=16 rep=0: NO RESULT LINE rc=4
+C=64 ocb=16 rep=1: NO RESULT LINE rc=4
+C=64 ocb=16 rep=2: NO RESULT LINE rc=4
+
+final generator restore byte-identical=True
+final rebuild rc=0

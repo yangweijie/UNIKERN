@@ -1,0 +1,25 @@
+# Phase 56 controls -- the anchors gate's arm-label ownership and the two caps
+# date: 2026-10-29T15:08:35.628300
+
+baseline gate rc=0  anchors checked: 305 in 50 docs (window +-25 lines, arm-range checks 45, weak 107/107, unverifiable 91/91)  [2026-10-29]
+
+[L1 a label that owns another line must be reported]
+  injected: - `[R5.4-artifact-bytes-cl]`（`tests/acceptance.cpp:2790`）——故意错位。
+  gate RED want RED | weak=107 (base 107, delta 0) unverifiable=91 (base 91, delta 0)
+  owner message: YES
+    docs\evidence\phase56\tmp_anchor_control.md:3: tests/acceptance.cpp:2790 — R5.4-artifact-bytes-cl owns R5.4-cl (2846-2909) but line 2790 falls in R20-nonhip (2747-2845)
+[L2 the same label on its own section's line must stay green]
+  injected: - `[R5.4-artifact-bytes-cl]`（`tests/acceptance.cpp:2846`）——正确归属。
+  gate GREEN want GREEN | weak=107 (base 107, delta 0) unverifiable=91 (base 91, delta 0)
+[L3 a citation whose symbol sits on the wrapped line above counts as weak debt]
+  injected: - 这条引用带一个上行的符号 `tolerance_for`，自己没有邻接符号 |   （`src/runner_ocl.cpp:683`）。
+  gate RED want RED | weak=108 (base 107, delta 1) unverifiable=91 (base 91, delta 0)
+[L4 a citation with no symbol anywhere counts as unverifiable]
+  injected:  | - 这条引用完全没有可核对符号（`tests/acceptance.cpp:2846`）。
+  gate RED want RED | weak=107 (base 107, delta 0) unverifiable=92 (base 91, delta 1)
+
+
+
+
+temp file removed; gate back to rc=0 weak=107/107 unverifiable=91/91
+all 4 controls matched (mislabel reported, correct label green, wrapped symbol counted as weak, symbol-free citation counted as unverifiable)

@@ -115,5 +115,12 @@ void cpu_conv(const float* x, const float* wt, float* y, int H, int W, int C,
               int Kh, int Kw, int Oc);
 //   reduce: y[0] = x[0] + ... + x[n-1], accumulated in fp32 in index order.
 void cpu_reduce(const float* x, float* y, int64_t n);
+//   reduce, the spec's second tier (requirements.md:10 "标量 + 分块两档"): `width` strided
+//   partial sums, folded in index order. This is the differential basis since the D8 decision
+//   (Phase 47); the scalar tier above stays for the order-robustness arms that measure how far
+//   the two disagree. `width` must differ from the kernel's pass-1 width, or the comparison
+//   degrades into the instrument grading itself.
+void cpu_reduce_blocked(const float* x, float* y, int64_t n, int width);
+constexpr int kRefReduceWidth = 1024;  // the basis' own partial count, not the kernel's
 
 }  // namespace unikern

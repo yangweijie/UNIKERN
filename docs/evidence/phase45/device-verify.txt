@@ -1,0 +1,20 @@
+# Phase 45 real-device check of the artifacts whose gate line changed (D11)
+# host: Windows 11 + AMD RX 6600M (gfx1032), ROCm 7.1 hipcc; one fresh SQLite ledger per case (E35)
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op gemm --dims 512 512 512 --vendor amd --ledger build/p45_dev/gemm.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=1.16189 migrations=0 checks=6
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.161890 kernel_ms=0.118910 mode=resident payload_mb=3.000000 perf=512x512x512 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+    rc=0
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --kml workloads/conv/conv_256x256x32_k3x3_o64.json --vendor amd --ledger build/p45_dev/conv.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.9432 migrations=0 checks=6
+    UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 fills=device
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.943210 kernel_ms=7.198660 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+    rc=0
+
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --op reduce --dims 1048576 0 0 --vendor amd --ledger build/p45_dev/reduce.sqlite3
+    RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.72007 migrations=0 checks=6
+    UNIKERN_INFO reduce_width source=device width=16384 cap=28672 n=1048576
+    UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.720070 kernel_ms=0.459194 mode=resident payload_mb=4.062504 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+    rc=0
+

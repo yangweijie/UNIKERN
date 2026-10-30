@@ -1,0 +1,32 @@
+# Phase 27 pre-registration measurement: does the OCB power law extend to 16?
+# keep-line (written before this run): 256^2 kernel_ms <= 5.97 ms (7.16/1.2), max_rel must stay 0.000000e+00, 128^2 must not regress >5% vs 0.284-0.287
+# plans pinned with UK_CONV_TILE/UK_CONV_OCB (Phase 24 lesson); measurement context = runner (Phase 26 lesson)
+# reference (Phase 25 pinned matrix, tile=16): ocb 8/4/2/1 = 7.129367 / 10.514896 / 18.079030 / 31.571097 ms
+=== conv 256^2 tile=16 ocb=16 (run 16) ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=11.5803 migrations=0 checks=6
+UNIKERN_INFO conv_plan ocb=16 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=11.580280 kernel_ms=7.858002 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+=== conv 256^2 tile=16 ocb=8 (run 8) ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.7231 migrations=0 checks=6
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.723050 kernel_ms=7.160519 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+=== conv 256^2 tile=16 ocb=16 (run 16) ===
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=11.39 migrations=0 checks=6
+UNIKERN_INFO conv_plan ocb=16 tile=16 smem=41472 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=11.389980 kernel_ms=7.854852 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+=== conv 128^2 tile=16 ocb=16 ===
+UNIKERN_INFO conv_plan ocb=16 tile=16 smem=20736 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.102450 kernel_ms=0.266870 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+=== conv 128^2 tile=16 ocb=8 ===
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=20736 source=env
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.136510 kernel_ms=0.288485 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+=== auto chooser on all three shapes (candidate set now includes 16) ===
+--- conv_256x256x32_k3x3_o64 ---
+UNIKERN_INFO conv_plan ocb=16 tile=16 smem=41472 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=11.465450 kernel_ms=7.833645 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+--- conv_128x128x16_k3x3_o32 ---
+UNIKERN_INFO conv_plan ocb=16 tile=16 smem=20736 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=1.125720 kernel_ms=0.262671 mode=resident payload_mb=2.955566 perf=128x128x16x3x3x32 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+--- conv_32x32x8_k3x3_o16 ---
+UNIKERN_INFO conv_plan ocb=1 tile=0 smem=0 nothing fills the device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.390940 kernel_ms=0.014936 mode=resident payload_mb=0.090576 perf=32x32x8x3x3x16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376

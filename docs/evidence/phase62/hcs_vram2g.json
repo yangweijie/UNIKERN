@@ -1,0 +1,15 @@
+{
+  "vendor": "amd",
+  "device": "RDNA gfx103x (8GB discrete) - SYNTHETIC vram=2GiB for the phase62 mmap arm: D: had 2.1GiB free, so no payload>0.85*8GiB shape could materialize its disk-backed A file (minimum A-file = payload/3 ~= 2.27GiB). Declaring 2GiB makes 12288^3 (payload 1.81GiB) stream for real on this card; the reading characterizes the mmap data path, not real oversubscription.",
+  "unified_memory": false,
+  "link_bw_gbps": 32,
+  "flops_gflops": 22000,
+  "compute_units": 36,
+  "toolchain": "rocm-7.13",
+  "confidence": "official",
+  "tiers": [
+    { "name": "vram", "bytes": 2147483648,  "bw_gbps": 512, "confidence": "official" },
+    { "name": "ram",  "bytes": 68719476736, "bw_gbps": 50,  "confidence": "official" },
+    { "name": "nvme", "bytes": 2000398934016, "bw_gbps": 7, "confidence": "measured" }
+  ]
+}

@@ -1,0 +1,11 @@
+shadow root: D:\git\c\gpu-math\build\p49_shadow
+.cl baselines planted by the widened device: True
+acceptance rc WITH the widened device: 0 (GREEN)
+--- now delete only the planted .cl baselines (the pre-fix shadow) ---
+acceptance rc: 3221226505 (RED)
+HIP byte leg banner printed: True
+per-op drift lines printed: 0   (a real drift prints one line per op BEFORE asserting)
+last line: Assertion failed: !fresh.empty() && !stored.empty(), file D:/git/c/gpu-math/tests/acceptance.cpp, line 2787
+reading: the leg aborts on a MISSING baseline with zero per-op lines, so every
+shadow-attributed control of earlier phases would report 'acceptance RED' for a
+structural reason - the fix had to be the device, not the expectations.

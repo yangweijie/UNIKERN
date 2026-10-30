@@ -1,0 +1,24 @@
+HIP_PROGRAMS control=broken-source-refused rc=1
+HIP_PROGRAMS hipcc=D:\Program Files\AMD\ROCm\7.1\bin\hipcc.exe arches=gfx1032 (device-reported)
+HIP_PROGRAMS ok gemm lines=447 bytes=22543 (syntax-only; no GPU execution, no verify claim)
+HIP_PROGRAMS ok conv lines=542 bytes=26956 (syntax-only; no GPU execution, no verify claim)
+HIP_PROGRAMS ok reduce lines=290 bytes=13938 (syntax-only; no GPU execution, no verify claim)
+HIP_PROGRAMS RESULT PASS checked=3
+HIP_PROGRAMS control=broken-source-refused rc=1
+HIP_PROGRAMS hipcc=D:\Program Files\AMD\ROCm\7.1\bin\hipcc.exe arches=gfx1032 (override from --arch (device was not asked))
+HIP_PROGRAMS ok gemm lines=447 bytes=22543 (syntax-only; no GPU execution, no verify claim)
+HIP_PROGRAMS ok conv lines=542 bytes=26956 (syntax-only; no GPU execution, no verify claim)
+HIP_PROGRAMS ok reduce lines=290 bytes=13938 (syntax-only; no GPU execution, no verify claim)
+HIP_PROGRAMS RESULT PASS checked=3
+
+# skip path 1: no hipcc on this host (HIP_PATH unset, PATH without ROCm)
+$ env -u HIP_PATH PATH=/c/Windows/system32 python probe/hip_program_check.py
+HIP_PROGRAMS SKIPPED reason=no hipcc (HIP_PATH unset and hipcc not on PATH)
+  exit 77 = ctest reports Skipped, not Passed.
+  exit=77   # 77 -> ctest reports Skipped, not Passed
+
+# skip path 2: hipcc found, but the arch probe cannot see a ROCm device
+$ env -u HIP_PATH PATH=/c/Windows/system32:/d/Program\ Files/AMD/ROCm/7.1/bin python probe/hip_program_check.py
+HIP_PROGRAMS control=broken-source-refused rc=1
+HIP_PROGRAMS SKIPPED reason=device reported no gcnArchName: UK_ARCH_FAIL no ROCm-capable device is detected count=0
+  exit=77  # and --arch <name> is the documented override for exactly this host class

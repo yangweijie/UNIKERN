@@ -1,0 +1,24 @@
+# Phase 40 dims guard - post-fix behaviour, one fresh ledger per case
+# pre-fix behaviour is NOT reproduced here; see docs/evidence/phase38.txt and docs/evidence/phase39/
+# date: The system cannot accept the date entered.
+Enter the new date: (yy-mm-dd)
+dims=[2147483647 0 0          ] rc=0 emit=[const int L = 2147483647;]
+      SOLVED  x* tile=128x128  c_ms=570.425  |X|=25  hcs_fp=80394649
+dims=[2147483648 0 0          ] rc=2 emit=[no artifact written]
+      INVALID dims[0]='2147483648': needs an integer in [0, 2147483647]. Larger is not representable by the generated kernels' int element
+dims=[3000000000 0 0          ] rc=2 emit=[no artifact written]
+      INVALID dims[0]='3000000000': needs an integer in [0, 2147483647]. Larger is not representable by the generated kernels' int element
+dims=[99999999999999999999 0 0] rc=2 emit=[no artifact written]
+      INVALID dims[0]='99999999999999999999': needs an integer in [0, 2147483647]. Larger is not representable by the generated kernels' i
+dims=[abc 0 0                 ] rc=2 emit=[no artifact written]
+      INVALID dims[0]='abc': needs an integer in [0, 2147483647]. Larger is not representable by the generated kernels' int element indice
+dims=[1048576 0 0             ] rc=0 emit=[const int L = 1048576;]
+      SOLVED  x* tile=128x128  c_ms=0.278528  |X|=25  hcs_fp=80394649
+kml dims_over   rc=2 | KML rejected (1 violations): / dims[0]=3000000000 exceeds 2147483647, the largest element index the generated kernels can address
+             artifact: none
+kml tile_over   rc=2 | KML rejected (1 violations): / tile_m='99999999999' must be a positive integer
+             artifact: none
+
+diff conv vs phase29 baseline -> rc=0, output=[EMPTY]
+gemm    emitted lines = 447 (baseline 447) OK
+reduce  emitted lines = 239 (baseline 239) OK

@@ -1,0 +1,46 @@
+# Phase 28 -- C x ocb sweep at conv 256x256, Oc=64, tile pinned to 8
+# date: 2026-10-28T19:56:47.317571
+# host: Windows 11 + RX 6600M (gfx1032), ROCm 7.1, hipcc --offload-arch=gfx1032
+# pre-registered in task_plan.md 'Phase 28 预登记': per-C spread <3%%, sign monotone in C,
+#   max_rel 0 in all 24 runs; otherwise the candidate set stays {8,4,2,1}.
+# context: generated binary run DIRECTLY (24x same context); not comparable to runner readings.
+
+build CLI with ocb=16 tier: rc=0
+emit C=8: rc=0 lines=549
+hipcc C=8: rc=0
+emit C=16: rc=0 lines=549
+hipcc C=16: rc=0
+emit C=32: rc=0 lines=549
+hipcc C=32: rc=0
+emit C=64: rc=0 lines=549
+hipcc C=64: rc=0
+
+RESTORE: generator byte-identical (done before the timed runs)
+rebuild shipping CLI: rc=0
+C=8 ocb= 8 rep=0 kernel_ms=    0.954 max_rel=0.000000e+00 verify=PASS
+C=8 ocb= 8 rep=1 kernel_ms=    0.955 max_rel=0.000000e+00 verify=PASS
+C=8 ocb= 8 rep=2 kernel_ms=    0.972 max_rel=0.000000e+00 verify=PASS
+C=8 ocb=16 rep=0 kernel_ms=    0.774 max_rel=0.000000e+00 verify=PASS
+C=8 ocb=16 rep=1 kernel_ms=    0.772 max_rel=0.000000e+00 verify=PASS
+C=8 ocb=16 rep=2 kernel_ms=    0.789 max_rel=0.000000e+00 verify=PASS
+C=16 ocb= 8 rep=0 kernel_ms=    2.754 max_rel=0.000000e+00 verify=PASS
+C=16 ocb= 8 rep=1 kernel_ms=    2.735 max_rel=0.000000e+00 verify=PASS
+C=16 ocb= 8 rep=2 kernel_ms=    2.745 max_rel=0.000000e+00 verify=PASS
+C=16 ocb=16 rep=0 kernel_ms=    2.251 max_rel=0.000000e+00 verify=PASS
+C=16 ocb=16 rep=1 kernel_ms=    2.261 max_rel=0.000000e+00 verify=PASS
+C=16 ocb=16 rep=2 kernel_ms=    2.244 max_rel=0.000000e+00 verify=PASS
+C=32 ocb= 8 rep=0 kernel_ms=    9.470 max_rel=0.000000e+00 verify=PASS
+C=32 ocb= 8 rep=1 kernel_ms=    9.444 max_rel=0.000000e+00 verify=PASS
+C=32 ocb= 8 rep=2 kernel_ms=    9.475 max_rel=0.000000e+00 verify=PASS
+C=32 ocb=16 rep=0 kernel_ms=   10.441 max_rel=0.000000e+00 verify=PASS
+C=32 ocb=16 rep=1 kernel_ms=   10.370 max_rel=0.000000e+00 verify=PASS
+C=32 ocb=16 rep=2 kernel_ms=   10.405 max_rel=0.000000e+00 verify=PASS
+C=64 ocb= 8 rep=0 kernel_ms=   41.434 max_rel=0.000000e+00 verify=PASS
+C=64 ocb= 8 rep=1 kernel_ms=   41.425 max_rel=0.000000e+00 verify=PASS
+C=64 ocb= 8 rep=2 kernel_ms=   41.420 max_rel=0.000000e+00 verify=PASS
+C=64 ocb=16 rep=0 kernel_ms=   37.216 max_rel=0.000000e+00 verify=PASS
+C=64 ocb=16 rep=1 kernel_ms=   37.169 max_rel=0.000000e+00 verify=PASS
+C=64 ocb=16 rep=2 kernel_ms=   37.153 max_rel=0.000000e+00 verify=PASS
+
+final generator restore byte-identical=True
+final rebuild rc=0

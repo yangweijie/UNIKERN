@@ -1,0 +1,32 @@
+# Phase 35 completion run: one process per n so a lost device cannot poison later cells
+# started 2026-10-28T21:08:28+08:00
+# --- n=67108864 nP=5120 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=67108864 n_bytes=268435456 exact=1048576.0
+UNIKERN_INFO nP=   5120 part=  3.7023 ms sum=  0.1350 ms both=  3.8065 ms part_GBps=  72.51 sum_share=  3.5% result=1048636.0 rel=5.722e-05
+rc(67108864/5120)=0
+# --- n=33554433 nP=12288 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=33554433 n_bytes=134217732 exact=524288.0
+UNIKERN_INFO nP=  12288 part=  0.8659 ms sum=  0.3149 ms both=  1.1992 ms part_GBps= 155.00 sum_share= 26.3% result=524320.0 rel=6.101e-05
+rc(33554433/12288)=0
+# --- n=100000000 nP=6144 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=100000000 n_bytes=400000000 exact=1562500.0
+UNIKERN_INFO nP=   6144 part=  4.7352 ms sum=  0.1674 ms both=  4.8611 ms part_GBps=  84.47 sum_share=  3.4% result=1562373.8 rel=-8.080e-05
+rc(100000000/6144)=0
+# --- n=100000000 nP=8 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=100000000 n_bytes=400000000 exact=1562500.0
+UNIKERN_INFO nP=      8 part=2682.2515 ms sum=  0.0009 ms both=2666.0977 ms part_GBps=   0.15 sum_share=  0.0% result=1562500.0 rel=0.000e+00
+rc(100000000/8)=0
+# --- n=100000000 nP=4 ---
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO fill=0.015625
+UNIKERN_INFO n=100000000 n_bytes=400000000 exact=1562500.0
+PROBE_ERROR what=ev2 nP=4 msg=unspecified launch failure
+rc(100000000/4)=2

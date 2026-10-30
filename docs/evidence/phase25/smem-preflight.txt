@@ -1,0 +1,50 @@
+# Phase 25 pre-flight — device-reported shared memory and what a launch may actually use (RX 6600M / gfx1032, ROCm 7.1, hipcc HIP version: 7.13.99004-3309c6114a)
+# taken 2026-10-28T19:25:12+08:00; build: hipcc --offload-arch=gfx1032 probe/phase25_smem_probe.cpp -o uk_run/phase25/probe.exe
+
+===== mode: attr opt-in (hipFuncSetAttribute called per request) =====
+UNIKERN_INFO name=AMD Radeon RX 6600M
+UNIKERN_INFO multiProcessorCount=14
+UNIKERN_INFO sharedMemPerBlock=65536
+UNIKERN_INFO sharedMemPerMultiprocessor=65536
+UNIKERN_INFO maxSharedMemoryPerBlockOptin=65536
+UNIKERN_INFO regsPerBlock=131072 warpSize=32 maxThreadsPerMultiProcessor=2048
+UNIKERN_INFO mode=attr-opt-in
+UNIKERN_INFO smem_request=12800 setattr=hipSuccess occupancy=hipSuccess per_cu=5
+UNIKERN_INFO smem_launch=12800 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=41472 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=41472 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=49152 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=49152 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=50688 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=50688 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=53248 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=53248 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=64512 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=64512 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=65536 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=65536 launch=hipSuccess sync=hipSuccess
+rc=0
+
+===== mode: --noattr (no opt-in anywhere in this process) =====
+UNIKERN_INFO name=AMD Radeon RX 6600M
+UNIKERN_INFO multiProcessorCount=14
+UNIKERN_INFO sharedMemPerBlock=65536
+UNIKERN_INFO sharedMemPerMultiprocessor=65536
+UNIKERN_INFO maxSharedMemoryPerBlockOptin=65536
+UNIKERN_INFO regsPerBlock=131072 warpSize=32 maxThreadsPerMultiProcessor=2048
+UNIKERN_INFO mode=no-attr
+UNIKERN_INFO smem_request=12800 setattr=hipSuccess occupancy=hipSuccess per_cu=5
+UNIKERN_INFO smem_launch=12800 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=41472 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=41472 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=49152 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=49152 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=50688 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=50688 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=53248 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=53248 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=64512 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=64512 launch=hipSuccess sync=hipSuccess
+UNIKERN_INFO smem_request=65536 setattr=hipSuccess occupancy=hipSuccess per_cu=1
+UNIKERN_INFO smem_launch=65536 launch=hipSuccess sync=hipSuccess
+rc=0

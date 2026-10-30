@@ -1,0 +1,42 @@
+# Phase 57 controls -- [R20-nonhip-expr] (arithmetic expressions of the non-HIP backends)
+# date: 2026-10-29T15:15:59.193150
+# host: Windows 11 + AMD RX 6600M. arm table read at run time:
+#   R5.4                   2014-2074
+#   R20 (Phase 20)         2487-2609
+#   R20-nonhip             2747-2845
+#   R20-nonhip-expr        2846-2934
+#   R5.4-cl                2935-2998
+#   R5.4-msl               2999-3065
+
+baseline build rc=0
+baseline acceptance rc=0 expr verdicts=6 order verdicts=6
+
+[E1 rewrite the conv index expression inside ocl_conv_kernel (arithmetic shape moves)]
+  acceptance RED want RED | expr lines=6 bad=['ocl/conv'] | order lines=6 bad=(none)
+  assert expr='exact == 6' owner='R20-nonhip-expr' want owner='R20-nonhip-expr' | gate#7 rc=0
+    expr verdict: [R20-nonhip-expr] ocl/conv expr=BAD pins=1 counts=0 MISSING         const float xv = X[((ho + kh) * W + (w
+
+[E2 reword a comment inside ocl_reduce_kernels (bytes move, arithmetic does not)]
+  acceptance RED want RED | expr lines=6 bad=(none) | order lines=6 bad=(none)
+  assert expr='drift == 0' owner='R5.4-cl' want owner='R5.4-cl' | gate#7 rc=0
+
+[E3 reverse the conv channel loop inside ocl_conv_kernel (order moves, expressions do not)]
+  acceptance RED want RED | expr lines=0 bad=(none) | order lines=6 bad=['ocl/conv']
+  assert expr='order_ok == 6' owner='R20-nonhip' want owner='R20-nonhip' | gate#7 rc=0
+    order verdict: [R20-nonhip] ocl/conv order=missing:for (int c = 0; c < C; ++c) acc=1/1 anchors=5
+
+[E4 reword a comment in the generator source that is never emitted (neutral)]
+  acceptance GREEN want GREEN | expr lines=6 bad=(none) | order lines=6 bad=(none)
+  assert expr='' owner='(no assert)' want owner='(no assert)' | gate#7 rc=0
+
+--- restoring and rebuilding ---
+sources back byte-identical: YES  build rc=0  ctest rc=0
+  1/7 Test #1: smoke ............................   Passed    0.08 sec
+  2/7 Test #2: acceptance .......................   Passed    3.00 sec
+  3/7 Test #3: anchors ..........................   Passed    0.14 sec
+  4/7 Test #4: probe_hygiene ....................   Passed    0.05 sec
+  5/7 Test #5: record_audit .....................   Passed    0.12 sec
+  6/7 Test #6: runner_tu ........................   Passed    1.60 sec
+  7/7 Test #7: generated_programs ...............   Passed    9.26 sec
+  100% tests passed out of 7
+all 4 controls matched (E1 expression axis naming one backend with order intact, E2 byte axis with both arms green, E3 order axis with expressions intact, E4 neutral)

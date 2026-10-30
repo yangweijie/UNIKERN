@@ -1,0 +1,30 @@
+# Phase 45 ctest gates #6 (runner_tu) and #4 (probe_hygiene, re-tightened)
+# reproduce: ctest --test-dir build  (or run the two scripts directly, as shown below)
+
+$ python probe/runner_tu_check.py
+    RUNNER_TU control=broken-TU-refused rc=1
+    RUNNER_TU ok src/runner_ocl.cpp defines=UK_HAS_OCL (syntax-only; no device, no link)
+    RUNNER_TU gap=src/runner_metal.mm reason=Objective-C++/Metal framework is not compilable on this host; that TU is covered by [R6.8-dtype] source text and by a real run on a macOS host only
+    RUNNER_TU RESULT PASS checked=1
+
+$ python probe/probe_hygiene_check.py --verbose
+    checked probe/phase11_arm_probes.py
+    checked probe/phase12_arm_probes.py
+    checked probe/phase13_arm_probes.py
+    checked probe/phase14_arm_probes.py
+    checked probe/phase15_arm_probes.py
+    checked probe/phase16_arm_probes.py
+    checked probe/phase18_alarm_probe.py
+    checked probe/phase18_leg_removal_probe.py
+    checked probe/phase19_order_arm_probe.py
+    checked probe/phase20_conv_arm_probe.py
+    checked probe/phase21_conv_arm_probe.py
+    checked probe/phase26_plan_arm_probe.py
+    checked probe/phase28_ocb_c_sweep.py
+    checked probe/phase29_knob_arm_probe.py
+    checked probe/phase45_d11_removal_probe.py
+    probe hygiene: 15 src-writing probes checked (self + read-only gates excluded)  [probe/probe_hygiene_check.py]
+    every src-writing probe restores under a guard and derives its repo root
+
+$ python probe/probe_hygiene_check.py --self-test
+    self_test ok

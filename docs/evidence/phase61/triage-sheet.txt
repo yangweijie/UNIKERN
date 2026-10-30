@@ -1,0 +1,134 @@
+# Phase 59 triage sheet - every counted debt row next to what its number points at
+# gate rc=0  rows=19  anchors checked: 428 in 55 docs (+31 numbers beyond the first of a `:A/B/C` group, which the old regex never looked at; window +-25 lines, arm-range c
+
+### docs/acceptance-mvp.md:475  [weak]  -> src/hcs.cpp:95   (suggested:symbol)
+    DOC  `hcs_import` `src/main.cpp:213`，而被拒字段串本体在 `src/hcs.cpp:95`——那是归错文件而非行号漂移）。
+    CODE     os << "missing required fields:";
+    CODE(stripped of comments) os << missing required fields:;
+    SUGGESTION symbol:required
+
+### docs/acceptance-mvp.md:501  [unverifiable]  -> src/codegen_hip.cpp:463   (suggested:symbol)
+    DOC  `src/codegen_hip.cpp:463` 的 ` source=env` 后缀（该 token 在 `docs/evidence/phase21/tiled-sweep.txt`
+    CODE     << "              << \" source=env\" << std::endl;" << '\n'
+    CODE(stripped of comments) <<               << \" source=env\" << std::endl; << '\n'
+    SUGGESTION symbol:source
+
+### docs\evidence\phase23\README.md:75  [unverifiable]  -> src/codegen_hip.cpp:463   (suggested:symbol)
+    DOC  - `src/codegen_hip.cpp:463` 的 ` source=env` 后缀——该 token 在 `docs/evidence/phase21/tiled-sweep.txt`
+    CODE     << "              << \" source=env\" << std::endl;" << '\n'
+    CODE(stripped of comments) <<               << \" source=env\" << std::endl; << '\n'
+    SUGGESTION symbol:source
+
+### docs\evidence\phase31\README.md:12  [unverifiable]  -> src/codegen_hip.cpp:781   (suggested:symbol)
+    DOC  src/codegen_hip.cpp:781   // Differential verify: 2^20 values of 2^-6 sum to 16384 in ANY fp32
+    CODE     << "#include <iostream>" << '\n'
+    CODE(stripped of comments) << #include <iostream> << '\n'
+    SUGGESTION symbol:iostream
+
+### docs\evidence\phase31\README.md:13  [unverifiable]  -> src/codegen_hip.cpp:724   (suggested:symbol)
+    DOC  src/codegen_hip.cpp:724   int width = L < 4096 ? L : 4096;
+    CODE     << "            << \" payload_mb=\" << payload_mb" << '\n'
+    CODE(stripped of comments) <<             << \" payload_mb=\" << payload_mb << '\n'
+    SUGGESTION symbol:payload_mb
+
+### docs\evidence\phase31\README.md:14  [unverifiable]  -> src/codegen_hip.cpp:808   (manual)
+    DOC  src/codegen_hip.cpp:808   const int UK_REDUCE_WIDTH = " << width << ";
+    CODE     << "  float acc = 0.f;" << '\n'
+    CODE(stripped of comments) <<   float acc = 0.f; << '\n'
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase36\README.md:9  [weak]  -> src/main.cpp:86   (manual)
+    DOC  > saturation in `src/main.cpp:86` (see docs/evidence/phase37/).
+    CODE   return true;
+    CODE(stripped of comments) return true;
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase37\README.md:12  [weak]  -> src/codegen_hip.cpp:924   (manual)
+    DOC  (`src/codegen_hip.cpp:924`), so it shrinks as K grows. Across the sweep `SR*K` stayed in
+    CODE     << "    float *dX, *dP, *dY;" << '\n'
+    CODE(stripped of comments) <<     float *dX, *dP, *dY; << '\n'
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase37\README.md:23  [weak]  -> src/main.cpp:86   (manual)
+    DOC  `src/main.cpp:86` parses `--dims` with `std::atoi`, so an out-of-range dimension saturates
+    CODE   return true;
+    CODE(stripped of comments) return true;
+    SUGGESTION (no suggestion)
+
+### docs\evidence\phase44\README.md:7  [unverifiable]  -> src/codegen_hip.cpp:809   (suggested:symbol)
+    DOC  static int uk_reduce_width_plan(int n)      // emitted, src/codegen_hip.cpp:809
+    CODE     << "  const size_t w = (size_t)UK_REF_REDUCE_WIDTH;" << '\n'
+    CODE(stripped of comments) <<   const size_t w = (size_t)UK_REF_REDUCE_WIDTH; << '\n'
+    SUGGESTION symbol:UK_REF_REDUCE_WIDTH
+
+### docs\evidence\phase44\README.md:53  [unverifiable]  -> src/runner_ocl.cpp:164   (suggested:symbol)
+    DOC  `src/runner_ocl.cpp:164` and `src/runner_metal.mm:116` still return `min(L, 4096)`. No Apple or Intel
+    CODE   int warm = 2, iters = 10;
+    CODE(stripped of comments) int warm = 2, iters = 10;
+    SUGGESTION symbol:iters
+
+### docs\evidence\phase44\README.md:53  [unverifiable]  -> src/runner_metal.mm:116   (suggested:symbol)
+    DOC  `src/runner_ocl.cpp:164` and `src/runner_metal.mm:116` still return `min(L, 4096)`. No Apple or Intel
+    CODE   bool ws_refuse = false;       // payload > the device's working-set cap
+    CODE(stripped of comments) bool ws_refuse = false;
+    SUGGESTION symbol:ws_refuse
+
+### docs\evidence\phase45\README.md:13  [unverifiable]  -> src/codegen_hip.cpp:638   (suggested:symbol)
+    DOC  3. 三个 HIP 发射器把 `0.03125f` **写死**在产物里（`src/codegen_hip.cpp:638`、`:878`、`:1212`）；
+    CODE     << "    if (max_rel > " << dtype_tol_literal(tree) << "f) rc = 1;" << '\n'
+    CODE(stripped of comments) <<     if (max_rel >  << dtype_tol_literal(tree) << f) rc = 1; << '\n'
+    SUGGESTION symbol:dtype_tol_literal
+
+### findings.md:699  [unverifiable]  -> src/codegen_hip.cpp:463   (suggested:symbol)
+    DOC  `src/codegen_hip.cpp:463` 的 ` source=env` 后缀与 `:412` 的 `if (p.tile == 0 && p.smem != 0) p.smem = 0;`，
+    CODE     << "              << \" source=env\" << std::endl;" << '\n'
+    CODE(stripped of comments) <<               << \" source=env\" << std::endl; << '\n'
+    SUGGESTION symbol:source
+
+### findings.md:1783  [weak]  -> include/unikern/components.hpp:133   (suggested:symbol)
+    DOC  `include/unikern/components.hpp:133` 引用的主语。**改法**：拆出大小写敏感的 `ARMISH`。
+    CODE   double fp16_rel = 0.0625;   // 2^-4
+    CODE(stripped of comments) double fp16_rel = 0.0625;
+    SUGGESTION symbol:fp16_rel
+
+### progress.md:494  [weak]  -> src/hcs.cpp:95   (suggested:symbol)
+    DOC  字段串实际在 `src/hcs.cpp:95`——那一条是归错文件）；当前 29 条全绿
+    CODE     os << "missing required fields:";
+    CODE(stripped of comments) os << missing required fields:;
+    SUGGESTION symbol:required
+
+### progress.md:527  [unverifiable]  -> src/codegen_hip.cpp:463   (suggested:symbol)
+    DOC  （`src/codegen_hip.cpp:463` / `:412`）；前者在 Phase 21 转录里 **0 次**、今天 **1 次**（token 计数取证）。
+    CODE     << "              << \" source=env\" << std::endl;" << '\n'
+    CODE(stripped of comments) <<               << \" source=env\" << std::endl; << '\n'
+    SUGGESTION symbol:source
+
+### progress.md:1209  [weak]  -> src/runner_metal.mm:623   (suggested:symbol)
+    DOC  `tolerance_for`（`src/runner_ocl.cpp:683`、`src/runner_metal.mm:623`）。
+    CODE     r.verified = max_rel <= tolerance_for(tree.dtype);
+    CODE(stripped of comments) r.verified = max_rel <= tolerance_for(tree.dtype);
+    SUGGESTION symbol:tolerance_for
+
+### task_plan.md:323  [weak]  -> src/hcs.cpp:95   (suggested:symbol)
+    DOC  | 22 | Phase 17 Harness 复核的修复（本次做三条不碰代码的：High 主机口径 / Medium agent 入口 / Medium 锚点机检） | **complete（2026-10-28；①`docs/acceptance-mvp.md` 的"Windows 本机事实"段改为**带时点的历史读数**并补 202
+    CODE     os << "missing required fields:";
+    CODE(stripped of comments) os << missing required fields:;
+    SUGGESTION symbol:required
+
+== rows per document ==
+    3  docs\evidence\phase31\README.md
+    3  docs\evidence\phase44\README.md
+    3  progress.md
+    2  docs/acceptance-mvp.md
+    2  docs\evidence\phase37\README.md
+    2  findings.md
+    1  docs\evidence\phase23\README.md
+    1  docs\evidence\phase36\README.md
+    1  docs\evidence\phase45\README.md
+    1  task_plan.md
+== classes ==
+   15  suggested:symbol
+    4  manual
+== the DEAD list: cited line has no code identifier and the file has no arm table at all ==
+
+triage complete: 19 rows, 10 docs, 0 dead, 0 pointing at a line with no code identifier

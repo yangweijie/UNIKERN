@@ -1,0 +1,34 @@
+# Phase 30 step 2 — is the optimal partial count proportional to sqrt(n)? (RX 6600M) 2026-10-28T20:04:28+08:00
+# law under test: nP* = 4096 * sqrt(n / 2^20), anchored at the SHIPPED width 4096 (measured best at n=2^20 in step 1)
+# predicted optima: n=2^20 -> 4096 ; 2^22 -> 8192 ; 2^24 -> 16384 ; 2^26 -> 32768
+# adoption rule from the pre-registration: measured optimum must sit within one grid step of the prediction at every fresh n
+UNIKERN_INFO name=AMD Radeon RX 6600M cu=14 sharedMemPerBlock=65536
+UNIKERN_INFO n=1048576 n_bytes=4194304 exact=16384.0
+UNIKERN_INFO nP=   1024 part=  0.1966 ms sum=  0.0336 ms both=  0.2262 ms part_GBps=  21.33 sum_share= 14.9% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=   2048 part=  0.0960 ms sum=  0.0579 ms both=  0.1572 ms part_GBps=  43.68 sum_share= 36.8% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  0.0469 ms sum=  0.1079 ms both=  0.1582 ms part_GBps=  89.48 sum_share= 68.2% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  0.0257 ms sum=  0.2317 ms both=  0.2372 ms part_GBps= 163.52 sum_share= 97.7% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.0133 ms sum=  0.4062 ms both=  0.4185 ms part_GBps= 315.60 sum_share= 97.1% result=16384.0 rel=0.000e+00
+UNIKERN_INFO nP=  32768 part=  0.0148 ms sum=  0.8266 ms both=  0.8195 ms part_GBps= 283.21 sum_share=100.9% result=16384.0 rel=0.000e+00
+UNIKERN_INFO n=4194304 n_bytes=16777216 exact=65536.0
+UNIKERN_INFO nP=   1024 part=  0.7580 ms sum=  0.0364 ms both=  0.7785 ms part_GBps=  22.13 sum_share=  4.7% result=65536.0 rel=0.000e+00
+UNIKERN_INFO nP=   2048 part=  0.3782 ms sum=  0.0620 ms both=  0.4399 ms part_GBps=  44.36 sum_share= 14.1% result=65536.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  0.2021 ms sum=  0.1102 ms both=  0.3046 ms part_GBps=  83.03 sum_share= 36.2% result=65536.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  0.1025 ms sum=  0.2093 ms both=  0.3078 ms part_GBps= 163.63 sum_share= 68.0% result=65536.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.0502 ms sum=  0.4154 ms both=  0.4523 ms part_GBps= 333.94 sum_share= 91.8% result=65536.0 rel=0.000e+00
+UNIKERN_INFO nP=  32768 part=  0.0522 ms sum=  0.8146 ms both=  0.8460 ms part_GBps= 321.53 sum_share= 96.3% result=65536.0 rel=0.000e+00
+UNIKERN_INFO n=16777216 n_bytes=67108864 exact=262144.0
+UNIKERN_INFO nP=   1024 part=  4.5897 ms sum=  0.0347 ms both=  4.6479 ms part_GBps=  14.62 sum_share=  0.7% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   2048 part=  2.2916 ms sum=  0.0512 ms both=  2.3586 ms part_GBps=  29.29 sum_share=  2.2% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  1.1380 ms sum=  0.1070 ms both=  1.2487 ms part_GBps=  58.97 sum_share=  8.6% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  0.6014 ms sum=  0.2121 ms both=  0.7995 ms part_GBps= 111.59 sum_share= 26.5% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  0.3449 ms sum=  0.4051 ms both=  0.7484 ms part_GBps= 194.56 sum_share= 54.1% result=262144.0 rel=0.000e+00
+UNIKERN_INFO nP=  32768 part=  0.4146 ms sum=  0.8146 ms both=  1.2345 ms part_GBps= 161.88 sum_share= 66.0% result=262144.0 rel=0.000e+00
+UNIKERN_INFO n=67108864 n_bytes=268435456 exact=1048576.0
+UNIKERN_INFO nP=   1024 part= 18.3197 ms sum=  0.0323 ms both= 18.3453 ms part_GBps=  14.65 sum_share=  0.2% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=   2048 part=  9.1187 ms sum=  0.0569 ms both=  9.1987 ms part_GBps=  29.44 sum_share=  0.6% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=   4096 part=  4.5761 ms sum=  0.1128 ms both=  4.6537 ms part_GBps=  58.66 sum_share=  2.4% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=   8192 part=  2.4418 ms sum=  0.2110 ms both=  2.6583 ms part_GBps= 109.93 sum_share=  7.9% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=  16384 part=  1.4270 ms sum=  0.4043 ms both=  1.8723 ms part_GBps= 188.11 sum_share= 21.6% result=1048576.0 rel=0.000e+00
+UNIKERN_INFO nP=  32768 part=  1.6110 ms sum=  0.8241 ms both=  2.5777 ms part_GBps= 166.63 sum_share= 32.0% result=1048576.0 rel=0.000e+00
+probe rc=0

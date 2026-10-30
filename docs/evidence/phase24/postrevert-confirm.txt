@@ -1,0 +1,27 @@
+# Phase 24 post-revert confirmation runs (RX 6600M, fresh ledgers) 2026-10-28T19:18:29+08:00
+# emitted conv HIP program is byte-identical to docs/evidence/phase23/conv-hip-postrevert.txt
+# sha256 8464d86cf3f07beb733a874a7cae9b0d538adb091d858e69f74b4b5a8e42bb28 (diff empty, lines=508)
+=== run 1 ===
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.874 migrations=0 checks=6
+-- log tail --
+threads=524288 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=4 smem=0 threads=1048576 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=2 smem=0 threads=2097152 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=1 smem=0 threads=4194304 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.873970 kernel_ms=7.152313 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.898551 measured_ms=10.874 epsilon_abs=9.97542 epsilon_rel=11.1017
+run rc=0
+=== run 2 ===
+COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=10.8021 migrations=0 checks=6
+-- log tail --
+threads=524288 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=4 smem=0 threads=1048576 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=2 smem=0 threads=2097152 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_probe tile=0 ocb=1 smem=0 threads=4194304 resident_capacity=28672 cu=14
+UNIKERN_INFO conv_plan ocb=8 tile=16 smem=41472 fills=device
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=10.802070 kernel_ms=7.152326 mode=resident payload_mb=23.821289 perf=256x256x32x3x3x64 migrations=0 checks=6 vram_free=8386772992 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.898551 measured_ms=10.8021 epsilon_abs=9.90352 epsilon_rel=11.0217
+run rc=0

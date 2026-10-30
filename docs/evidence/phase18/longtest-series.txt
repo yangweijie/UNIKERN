@@ -1,0 +1,66 @@
+# Phase 18 long-run series (R8.5 back half) — host: Windows 11 + RX 6600M (gfx1032), ROCm 7.1
+# started: 2026-10-28T18:00:23+08:00
+# note: first attempt recorded NOTHING because the ledger dirs were missing and a
+# grep filter hid the 'sqlite ledger open failed' lines; rerun captures full output + rc
+
+## resident: reduce L=1048576, 5 rounds on ONE ledger (round1 COMMIT, rounds2+ HIT)
+--- round 1 2026-10-28T18:00:23+08:00 ---
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.42371 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.423710 kernel_ms=0.165506 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.42371 epsilon_abs=0.145182 epsilon_rel=0.521247
+rc=0
+--- round 2 2026-10-28T18:00:27+08:00 ---
+LEDGER HIT  c_cached_ms=0.278528  tile=128x128  (from ledger)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.3894 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.389400 kernel_ms=0.162420 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.3894 epsilon_abs=0.110872 epsilon_rel=0.398064
+rc=0
+--- round 3 2026-10-28T18:00:31+08:00 ---
+LEDGER HIT  c_cached_ms=0.278528  tile=128x128  (from ledger)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.35075 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.350750 kernel_ms=0.166703 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.35075 epsilon_abs=0.072222 epsilon_rel=0.259299
+rc=0
+--- round 4 2026-10-28T18:00:35+08:00 ---
+LEDGER HIT  c_cached_ms=0.278528  tile=128x128  (from ledger)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.49046 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.490460 kernel_ms=0.163710 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.49046 epsilon_abs=0.211932 epsilon_rel=0.7609
+rc=0
+--- round 5 2026-10-28T18:00:39+08:00 ---
+LEDGER HIT  c_cached_ms=0.278528  tile=128x128  (from ledger)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.37905 migrations=0 checks=6
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.379050 kernel_ms=0.164035 mode=resident payload_mb=4.015629 perf=1048576 migrations=0 checks=6 vram_free=8407547904 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.278528 measured_ms=0.37905 epsilon_abs=0.100522 epsilon_rel=0.360904
+rc=0
+
+# resident finished: 2026-10-28T18:00:43+08:00
+
+## streamed: gemm 32768^3, 2 rounds on ONE ledger (round1 COMMIT, round2 HIT)
+--- streamed round 1 2026-10-28T18:01:04+08:00 ---
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=21789.8 migrations=0 checks=6
+UNIKERN_INFO mode=streamed shards=64 shard_rows=512 prefetch_d=2
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=21789.816406 kernel_ms=20626.984375 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768 migrations=0 checks=6 vram_free=3848339456 vram_total=8573157376
+LEDGER COMMIT predicted_ms=3601.23 measured_ms=21789.8 epsilon_abs=18188.6 epsilon_rel=5.05066
+rc=0
+--- streamed round 2 2026-10-28T18:02:15+08:00 ---
+LEDGER HIT  c_cached_ms=3601.23  tile=128x128  (from ledger)
+RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=23162.3 migrations=0 checks=6
+UNIKERN_INFO mode=streamed shards=64 shard_rows=512 prefetch_d=2
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=23162.335938 kernel_ms=31288.341797 mode=streamed payload_mb=12288.000000 perf=32768x32768x32768 migrations=0 checks=6 vram_free=3848339456 vram_total=8573157376
+LEDGER COMMIT predicted_ms=3601.23 measured_ms=23162.3 epsilon_abs=19561.1 epsilon_rel=5.43178
+rc=0
+
+## extra resident rounds 6-15 (same ledger) — rate sample size
+round 6: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.46774 migrations=0 checks=6
+round 7: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.36945 migrations=0 checks=6
+round 8: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.43702 migrations=0 checks=6
+round 9: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.42196 migrations=0 checks=6
+round 10: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.43543 migrations=0 checks=6
+round 11: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.39776 migrations=0 checks=6
+round 12: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.48301 migrations=0 checks=6
+round 13: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.39633 migrations=0 checks=6
+round 14: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.40737 migrations=0 checks=6
+round 15: RUN amd:hip built=yes ran=yes verified=PASS max_rel=0 measured_ms=0.42135 migrations=0 checks=6
+
+# series finished: 2026-10-28T18:04:22+08:00

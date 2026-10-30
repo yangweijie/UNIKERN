@@ -1,0 +1,412 @@
+file=D:/Users/Administrator/.herdsman/models/qwen3-embedding-4b/windows/amd64/amd/Qwen3-Embedding-4B-Q4_K_M.gguf
+gguf_version=3 kv_count=36 tensor_count=398
+kv general.file_type = 15
+kv general.name = Qwen3 Embedding 4B
+kv qwen3.attention.head_count = 32
+kv qwen3.attention.head_count_kv = 8
+kv qwen3.attention.key_length = 128
+kv qwen3.attention.layer_norm_rms_epsilon = 9.999999974752427e-07
+kv qwen3.block_count = 36
+kv qwen3.context_length = 40960
+kv qwen3.embedding_length = 2560
+kv qwen3.feed_forward_length = 9728
+kv qwen3.pooling_type = 3
+arch=qwen3 ; tensors shown 398/398
+  output_norm.weight  dims=[2560]  F32  offset=0
+  token_embd.weight  [151665 -> 2560]  Q6_K  offset=10240
+  blk.0.attn_k.weight  [1024 -> 2560]  Q4_K  offset=318506752
+  blk.0.attn_k_norm.weight  dims=[128]  F32  offset=319981312
+  blk.0.attn_norm.weight  dims=[2560]  F32  offset=319981824
+  blk.0.attn_output.weight  [2560 -> 4096]  Q4_K  offset=319992064
+  blk.0.attn_q.weight  [4096 -> 2560]  Q4_K  offset=325890304
+  blk.0.attn_q_norm.weight  dims=[128]  F32  offset=331788544
+  blk.0.attn_v.weight  [1024 -> 2560]  Q6_K  offset=331789056
+  blk.0.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=333939456
+  blk.0.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=354368256
+  blk.0.ffn_norm.weight  dims=[2560]  F32  offset=368376576
+  blk.0.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=368386816
+  blk.1.attn_k.weight  [1024 -> 2560]  Q4_K  offset=382395136
+  blk.1.attn_k_norm.weight  dims=[128]  F32  offset=383869696
+  blk.1.attn_norm.weight  dims=[2560]  F32  offset=383870208
+  blk.1.attn_output.weight  [2560 -> 4096]  Q4_K  offset=383880448
+  blk.1.attn_q.weight  [4096 -> 2560]  Q4_K  offset=389778688
+  blk.1.attn_q_norm.weight  dims=[128]  F32  offset=395676928
+  blk.1.attn_v.weight  [1024 -> 2560]  Q6_K  offset=395677440
+  blk.1.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=397827840
+  blk.1.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=418256640
+  blk.1.ffn_norm.weight  dims=[2560]  F32  offset=432264960
+  blk.1.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=432275200
+  blk.2.attn_k.weight  [1024 -> 2560]  Q4_K  offset=446283520
+  blk.2.attn_k_norm.weight  dims=[128]  F32  offset=447758080
+  blk.2.attn_norm.weight  dims=[2560]  F32  offset=447758592
+  blk.2.attn_output.weight  [2560 -> 4096]  Q4_K  offset=447768832
+  blk.2.attn_q.weight  [4096 -> 2560]  Q4_K  offset=453667072
+  blk.2.attn_q_norm.weight  dims=[128]  F32  offset=459565312
+  blk.2.attn_v.weight  [1024 -> 2560]  Q6_K  offset=459565824
+  blk.2.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=461716224
+  blk.2.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=482145024
+  blk.2.ffn_norm.weight  dims=[2560]  F32  offset=496153344
+  blk.2.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=496163584
+  blk.3.attn_k.weight  [1024 -> 2560]  Q4_K  offset=510171904
+  blk.3.attn_k_norm.weight  dims=[128]  F32  offset=511646464
+  blk.3.attn_norm.weight  dims=[2560]  F32  offset=511646976
+  blk.3.attn_output.weight  [2560 -> 4096]  Q4_K  offset=511657216
+  blk.3.attn_q.weight  [4096 -> 2560]  Q4_K  offset=517555456
+  blk.3.attn_q_norm.weight  dims=[128]  F32  offset=523453696
+  blk.3.attn_v.weight  [1024 -> 2560]  Q6_K  offset=523454208
+  blk.3.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=525604608
+  blk.3.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=546033408
+  blk.3.ffn_norm.weight  dims=[2560]  F32  offset=560041728
+  blk.3.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=560051968
+  blk.4.attn_k.weight  [1024 -> 2560]  Q4_K  offset=574060288
+  blk.4.attn_k_norm.weight  dims=[128]  F32  offset=575534848
+  blk.4.attn_norm.weight  dims=[2560]  F32  offset=575535360
+  blk.4.attn_output.weight  [2560 -> 4096]  Q4_K  offset=575545600
+  blk.4.attn_q.weight  [4096 -> 2560]  Q4_K  offset=581443840
+  blk.4.attn_q_norm.weight  dims=[128]  F32  offset=587342080
+  blk.4.attn_v.weight  [1024 -> 2560]  Q4_K  offset=587342592
+  blk.4.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=588817152
+  blk.4.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=602825472
+  blk.4.ffn_norm.weight  dims=[2560]  F32  offset=616833792
+  blk.4.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=616844032
+  blk.5.attn_k.weight  [1024 -> 2560]  Q4_K  offset=630852352
+  blk.5.attn_k_norm.weight  dims=[128]  F32  offset=632326912
+  blk.5.attn_norm.weight  dims=[2560]  F32  offset=632327424
+  blk.5.attn_output.weight  [2560 -> 4096]  Q4_K  offset=632337664
+  blk.5.attn_q.weight  [4096 -> 2560]  Q4_K  offset=638235904
+  blk.5.attn_q_norm.weight  dims=[128]  F32  offset=644134144
+  blk.5.attn_v.weight  [1024 -> 2560]  Q4_K  offset=644134656
+  blk.5.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=645609216
+  blk.5.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=659617536
+  blk.5.ffn_norm.weight  dims=[2560]  F32  offset=673625856
+  blk.5.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=673636096
+  blk.6.attn_k.weight  [1024 -> 2560]  Q4_K  offset=687644416
+  blk.6.attn_k_norm.weight  dims=[128]  F32  offset=689118976
+  blk.6.attn_norm.weight  dims=[2560]  F32  offset=689119488
+  blk.6.attn_output.weight  [2560 -> 4096]  Q4_K  offset=689129728
+  blk.6.attn_q.weight  [4096 -> 2560]  Q4_K  offset=695027968
+  blk.6.attn_q_norm.weight  dims=[128]  F32  offset=700926208
+  blk.6.attn_v.weight  [1024 -> 2560]  Q6_K  offset=700926720
+  blk.6.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=703077120
+  blk.6.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=723505920
+  blk.6.ffn_norm.weight  dims=[2560]  F32  offset=737514240
+  blk.6.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=737524480
+  blk.7.attn_k.weight  [1024 -> 2560]  Q4_K  offset=751532800
+  blk.7.attn_k_norm.weight  dims=[128]  F32  offset=753007360
+  blk.7.attn_norm.weight  dims=[2560]  F32  offset=753007872
+  blk.7.attn_output.weight  [2560 -> 4096]  Q4_K  offset=753018112
+  blk.7.attn_q.weight  [4096 -> 2560]  Q4_K  offset=758916352
+  blk.7.attn_q_norm.weight  dims=[128]  F32  offset=764814592
+  blk.7.attn_v.weight  [1024 -> 2560]  Q4_K  offset=764815104
+  blk.7.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=766289664
+  blk.7.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=780297984
+  blk.7.ffn_norm.weight  dims=[2560]  F32  offset=794306304
+  blk.7.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=794316544
+  blk.8.attn_k.weight  [1024 -> 2560]  Q4_K  offset=808324864
+  blk.8.attn_k_norm.weight  dims=[128]  F32  offset=809799424
+  blk.8.attn_norm.weight  dims=[2560]  F32  offset=809799936
+  blk.8.attn_output.weight  [2560 -> 4096]  Q4_K  offset=809810176
+  blk.8.attn_q.weight  [4096 -> 2560]  Q4_K  offset=815708416
+  blk.8.attn_q_norm.weight  dims=[128]  F32  offset=821606656
+  blk.8.attn_v.weight  [1024 -> 2560]  Q4_K  offset=821607168
+  blk.8.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=823081728
+  blk.8.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=837090048
+  blk.8.ffn_norm.weight  dims=[2560]  F32  offset=851098368
+  blk.8.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=851108608
+  blk.9.attn_k.weight  [1024 -> 2560]  Q4_K  offset=865116928
+  blk.9.attn_k_norm.weight  dims=[128]  F32  offset=866591488
+  blk.9.attn_norm.weight  dims=[2560]  F32  offset=866592000
+  blk.9.attn_output.weight  [2560 -> 4096]  Q4_K  offset=866602240
+  blk.9.attn_q.weight  [4096 -> 2560]  Q4_K  offset=872500480
+  blk.9.attn_q_norm.weight  dims=[128]  F32  offset=878398720
+  blk.9.attn_v.weight  [1024 -> 2560]  Q6_K  offset=878399232
+  blk.9.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=880549632
+  blk.9.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=900978432
+  blk.9.ffn_norm.weight  dims=[2560]  F32  offset=914986752
+  blk.9.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=914996992
+  blk.10.attn_k.weight  [1024 -> 2560]  Q4_K  offset=929005312
+  blk.10.attn_k_norm.weight  dims=[128]  F32  offset=930479872
+  blk.10.attn_norm.weight  dims=[2560]  F32  offset=930480384
+  blk.10.attn_output.weight  [2560 -> 4096]  Q4_K  offset=930490624
+  blk.10.attn_q.weight  [4096 -> 2560]  Q4_K  offset=936388864
+  blk.10.attn_q_norm.weight  dims=[128]  F32  offset=942287104
+  blk.10.attn_v.weight  [1024 -> 2560]  Q4_K  offset=942287616
+  blk.10.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=943762176
+  blk.10.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=957770496
+  blk.10.ffn_norm.weight  dims=[2560]  F32  offset=971778816
+  blk.10.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=971789056
+  blk.11.attn_k.weight  [1024 -> 2560]  Q4_K  offset=985797376
+  blk.11.attn_k_norm.weight  dims=[128]  F32  offset=987271936
+  blk.11.attn_norm.weight  dims=[2560]  F32  offset=987272448
+  blk.11.attn_output.weight  [2560 -> 4096]  Q4_K  offset=987282688
+  blk.11.attn_q.weight  [4096 -> 2560]  Q4_K  offset=993180928
+  blk.11.attn_q_norm.weight  dims=[128]  F32  offset=999079168
+  blk.11.attn_v.weight  [1024 -> 2560]  Q4_K  offset=999079680
+  blk.11.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1000554240
+  blk.11.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1014562560
+  blk.11.ffn_norm.weight  dims=[2560]  F32  offset=1028570880
+  blk.11.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1028581120
+  blk.12.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1042589440
+  blk.12.attn_k_norm.weight  dims=[128]  F32  offset=1044064000
+  blk.12.attn_norm.weight  dims=[2560]  F32  offset=1044064512
+  blk.12.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1044074752
+  blk.12.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1049972992
+  blk.12.attn_q_norm.weight  dims=[128]  F32  offset=1055871232
+  blk.12.attn_v.weight  [1024 -> 2560]  Q6_K  offset=1055871744
+  blk.12.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=1058022144
+  blk.12.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1078450944
+  blk.12.ffn_norm.weight  dims=[2560]  F32  offset=1092459264
+  blk.12.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1092469504
+  blk.13.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1106477824
+  blk.13.attn_k_norm.weight  dims=[128]  F32  offset=1107952384
+  blk.13.attn_norm.weight  dims=[2560]  F32  offset=1107952896
+  blk.13.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1107963136
+  blk.13.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1113861376
+  blk.13.attn_q_norm.weight  dims=[128]  F32  offset=1119759616
+  blk.13.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1119760128
+  blk.13.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1121234688
+  blk.13.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1135243008
+  blk.13.ffn_norm.weight  dims=[2560]  F32  offset=1149251328
+  blk.13.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1149261568
+  blk.14.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1163269888
+  blk.14.attn_k_norm.weight  dims=[128]  F32  offset=1164744448
+  blk.14.attn_norm.weight  dims=[2560]  F32  offset=1164744960
+  blk.14.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1164755200
+  blk.14.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1170653440
+  blk.14.attn_q_norm.weight  dims=[128]  F32  offset=1176551680
+  blk.14.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1176552192
+  blk.14.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1178026752
+  blk.14.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1192035072
+  blk.14.ffn_norm.weight  dims=[2560]  F32  offset=1206043392
+  blk.14.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1206053632
+  blk.15.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1220061952
+  blk.15.attn_k_norm.weight  dims=[128]  F32  offset=1221536512
+  blk.15.attn_norm.weight  dims=[2560]  F32  offset=1221537024
+  blk.15.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1221547264
+  blk.15.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1227445504
+  blk.15.attn_q_norm.weight  dims=[128]  F32  offset=1233343744
+  blk.15.attn_v.weight  [1024 -> 2560]  Q6_K  offset=1233344256
+  blk.15.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=1235494656
+  blk.15.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1255923456
+  blk.15.ffn_norm.weight  dims=[2560]  F32  offset=1269931776
+  blk.15.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1269942016
+  blk.16.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1283950336
+  blk.16.attn_k_norm.weight  dims=[128]  F32  offset=1285424896
+  blk.16.attn_norm.weight  dims=[2560]  F32  offset=1285425408
+  blk.16.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1285435648
+  blk.16.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1291333888
+  blk.16.attn_q_norm.weight  dims=[128]  F32  offset=1297232128
+  blk.16.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1297232640
+  blk.16.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1298707200
+  blk.16.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1312715520
+  blk.16.ffn_norm.weight  dims=[2560]  F32  offset=1326723840
+  blk.16.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1326734080
+  blk.17.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1340742400
+  blk.17.attn_k_norm.weight  dims=[128]  F32  offset=1342216960
+  blk.17.attn_norm.weight  dims=[2560]  F32  offset=1342217472
+  blk.17.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1342227712
+  blk.17.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1348125952
+  blk.17.attn_q_norm.weight  dims=[128]  F32  offset=1354024192
+  blk.17.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1354024704
+  blk.17.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1355499264
+  blk.17.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1369507584
+  blk.17.ffn_norm.weight  dims=[2560]  F32  offset=1383515904
+  blk.17.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1383526144
+  blk.18.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1397534464
+  blk.18.attn_k_norm.weight  dims=[128]  F32  offset=1399009024
+  blk.18.attn_norm.weight  dims=[2560]  F32  offset=1399009536
+  blk.18.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1399019776
+  blk.18.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1404918016
+  blk.18.attn_q_norm.weight  dims=[128]  F32  offset=1410816256
+  blk.18.attn_v.weight  [1024 -> 2560]  Q6_K  offset=1410816768
+  blk.18.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=1412967168
+  blk.18.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1433395968
+  blk.18.ffn_norm.weight  dims=[2560]  F32  offset=1447404288
+  blk.18.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1447414528
+  blk.19.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1461422848
+  blk.19.attn_k_norm.weight  dims=[128]  F32  offset=1462897408
+  blk.19.attn_norm.weight  dims=[2560]  F32  offset=1462897920
+  blk.19.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1462908160
+  blk.19.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1468806400
+  blk.19.attn_q_norm.weight  dims=[128]  F32  offset=1474704640
+  blk.19.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1474705152
+  blk.19.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1476179712
+  blk.19.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1490188032
+  blk.19.ffn_norm.weight  dims=[2560]  F32  offset=1504196352
+  blk.19.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1504206592
+  blk.20.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1518214912
+  blk.20.attn_k_norm.weight  dims=[128]  F32  offset=1519689472
+  blk.20.attn_norm.weight  dims=[2560]  F32  offset=1519689984
+  blk.20.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1519700224
+  blk.20.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1525598464
+  blk.20.attn_q_norm.weight  dims=[128]  F32  offset=1531496704
+  blk.20.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1531497216
+  blk.20.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1532971776
+  blk.20.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1546980096
+  blk.20.ffn_norm.weight  dims=[2560]  F32  offset=1560988416
+  blk.20.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1560998656
+  blk.21.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1575006976
+  blk.21.attn_k_norm.weight  dims=[128]  F32  offset=1576481536
+  blk.21.attn_norm.weight  dims=[2560]  F32  offset=1576482048
+  blk.21.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1576492288
+  blk.21.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1582390528
+  blk.21.attn_q_norm.weight  dims=[128]  F32  offset=1588288768
+  blk.21.attn_v.weight  [1024 -> 2560]  Q6_K  offset=1588289280
+  blk.21.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=1590439680
+  blk.21.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1610868480
+  blk.21.ffn_norm.weight  dims=[2560]  F32  offset=1624876800
+  blk.21.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1624887040
+  blk.22.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1638895360
+  blk.22.attn_k_norm.weight  dims=[128]  F32  offset=1640369920
+  blk.22.attn_norm.weight  dims=[2560]  F32  offset=1640370432
+  blk.22.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1640380672
+  blk.22.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1646278912
+  blk.22.attn_q_norm.weight  dims=[128]  F32  offset=1652177152
+  blk.22.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1652177664
+  blk.22.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1653652224
+  blk.22.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1667660544
+  blk.22.ffn_norm.weight  dims=[2560]  F32  offset=1681668864
+  blk.22.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1681679104
+  blk.23.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1695687424
+  blk.23.attn_k_norm.weight  dims=[128]  F32  offset=1697161984
+  blk.23.attn_norm.weight  dims=[2560]  F32  offset=1697162496
+  blk.23.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1697172736
+  blk.23.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1703070976
+  blk.23.attn_q_norm.weight  dims=[128]  F32  offset=1708969216
+  blk.23.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1708969728
+  blk.23.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1710444288
+  blk.23.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1724452608
+  blk.23.ffn_norm.weight  dims=[2560]  F32  offset=1738460928
+  blk.23.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1738471168
+  blk.24.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1752479488
+  blk.24.attn_k_norm.weight  dims=[128]  F32  offset=1753954048
+  blk.24.attn_norm.weight  dims=[2560]  F32  offset=1753954560
+  blk.24.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1753964800
+  blk.24.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1759863040
+  blk.24.attn_q_norm.weight  dims=[128]  F32  offset=1765761280
+  blk.24.attn_v.weight  [1024 -> 2560]  Q6_K  offset=1765761792
+  blk.24.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=1767912192
+  blk.24.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1788340992
+  blk.24.ffn_norm.weight  dims=[2560]  F32  offset=1802349312
+  blk.24.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1802359552
+  blk.25.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1816367872
+  blk.25.attn_k_norm.weight  dims=[128]  F32  offset=1817842432
+  blk.25.attn_norm.weight  dims=[2560]  F32  offset=1817842944
+  blk.25.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1817853184
+  blk.25.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1823751424
+  blk.25.attn_q_norm.weight  dims=[128]  F32  offset=1829649664
+  blk.25.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1829650176
+  blk.25.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1831124736
+  blk.25.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1845133056
+  blk.25.ffn_norm.weight  dims=[2560]  F32  offset=1859141376
+  blk.25.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1859151616
+  blk.26.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1873159936
+  blk.26.attn_k_norm.weight  dims=[128]  F32  offset=1874634496
+  blk.26.attn_norm.weight  dims=[2560]  F32  offset=1874635008
+  blk.26.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1874645248
+  blk.26.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1880543488
+  blk.26.attn_q_norm.weight  dims=[128]  F32  offset=1886441728
+  blk.26.attn_v.weight  [1024 -> 2560]  Q4_K  offset=1886442240
+  blk.26.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=1887916800
+  blk.26.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1901925120
+  blk.26.ffn_norm.weight  dims=[2560]  F32  offset=1915933440
+  blk.26.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1915943680
+  blk.27.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1929952000
+  blk.27.attn_k_norm.weight  dims=[128]  F32  offset=1931426560
+  blk.27.attn_norm.weight  dims=[2560]  F32  offset=1931427072
+  blk.27.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1931437312
+  blk.27.attn_q.weight  [4096 -> 2560]  Q4_K  offset=1937335552
+  blk.27.attn_q_norm.weight  dims=[128]  F32  offset=1943233792
+  blk.27.attn_v.weight  [1024 -> 2560]  Q6_K  offset=1943234304
+  blk.27.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=1945384704
+  blk.27.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=1965813504
+  blk.27.ffn_norm.weight  dims=[2560]  F32  offset=1979821824
+  blk.27.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=1979832064
+  blk.28.attn_k.weight  [1024 -> 2560]  Q4_K  offset=1993840384
+  blk.28.attn_k_norm.weight  dims=[128]  F32  offset=1995314944
+  blk.28.attn_norm.weight  dims=[2560]  F32  offset=1995315456
+  blk.28.attn_output.weight  [2560 -> 4096]  Q4_K  offset=1995325696
+  blk.28.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2001223936
+  blk.28.attn_q_norm.weight  dims=[128]  F32  offset=2007122176
+  blk.28.attn_v.weight  [1024 -> 2560]  Q4_K  offset=2007122688
+  blk.28.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=2008597248
+  blk.28.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2022605568
+  blk.28.ffn_norm.weight  dims=[2560]  F32  offset=2036613888
+  blk.28.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2036624128
+  blk.29.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2050632448
+  blk.29.attn_k_norm.weight  dims=[128]  F32  offset=2052107008
+  blk.29.attn_norm.weight  dims=[2560]  F32  offset=2052107520
+  blk.29.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2052117760
+  blk.29.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2058016000
+  blk.29.attn_q_norm.weight  dims=[128]  F32  offset=2063914240
+  blk.29.attn_v.weight  [1024 -> 2560]  Q4_K  offset=2063914752
+  blk.29.ffn_down.weight  [2560 -> 9728]  Q4_K  offset=2065389312
+  blk.29.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2079397632
+  blk.29.ffn_norm.weight  dims=[2560]  F32  offset=2093405952
+  blk.29.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2093416192
+  blk.30.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2107424512
+  blk.30.attn_k_norm.weight  dims=[128]  F32  offset=2108899072
+  blk.30.attn_norm.weight  dims=[2560]  F32  offset=2108899584
+  blk.30.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2108909824
+  blk.30.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2114808064
+  blk.30.attn_q_norm.weight  dims=[128]  F32  offset=2120706304
+  blk.30.attn_v.weight  [1024 -> 2560]  Q6_K  offset=2120706816
+  blk.30.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=2122857216
+  blk.30.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2143286016
+  blk.30.ffn_norm.weight  dims=[2560]  F32  offset=2157294336
+  blk.30.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2157304576
+  blk.31.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2171312896
+  blk.31.attn_k_norm.weight  dims=[128]  F32  offset=2172787456
+  blk.31.attn_norm.weight  dims=[2560]  F32  offset=2172787968
+  blk.31.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2172798208
+  blk.31.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2178696448
+  blk.31.attn_q_norm.weight  dims=[128]  F32  offset=2184594688
+  blk.31.attn_v.weight  [1024 -> 2560]  Q6_K  offset=2184595200
+  blk.31.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=2186745600
+  blk.31.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2207174400
+  blk.31.ffn_norm.weight  dims=[2560]  F32  offset=2221182720
+  blk.31.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2221192960
+  blk.32.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2235201280
+  blk.32.attn_k_norm.weight  dims=[128]  F32  offset=2236675840
+  blk.32.attn_norm.weight  dims=[2560]  F32  offset=2236676352
+  blk.32.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2236686592
+  blk.32.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2242584832
+  blk.32.attn_q_norm.weight  dims=[128]  F32  offset=2248483072
+  blk.32.attn_v.weight  [1024 -> 2560]  Q6_K  offset=2248483584
+  blk.32.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=2250633984
+  blk.32.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2271062784
+  blk.32.ffn_norm.weight  dims=[2560]  F32  offset=2285071104
+  blk.32.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2285081344
+  blk.33.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2299089664
+  blk.33.attn_k_norm.weight  dims=[128]  F32  offset=2300564224
+  blk.33.attn_norm.weight  dims=[2560]  F32  offset=2300564736
+  blk.33.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2300574976
+  blk.33.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2306473216
+  blk.33.attn_q_norm.weight  dims=[128]  F32  offset=2312371456
+  blk.33.attn_v.weight  [1024 -> 2560]  Q6_K  offset=2312371968
+  blk.33.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=2314522368
+  blk.33.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2334951168
+  blk.33.ffn_norm.weight  dims=[2560]  F32  offset=2348959488
+  blk.33.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2348969728
+  blk.34.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2362978048
+  blk.34.attn_k_norm.weight  dims=[128]  F32  offset=2364452608
+  blk.34.attn_norm.weight  dims=[2560]  F32  offset=2364453120
+  blk.34.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2364463360
+  blk.34.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2370361600
+  blk.34.attn_q_norm.weight  dims=[128]  F32  offset=2376259840
+  blk.34.attn_v.weight  [1024 -> 2560]  Q6_K  offset=2376260352
+  blk.34.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=2378410752
+  blk.34.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2398839552
+  blk.34.ffn_norm.weight  dims=[2560]  F32  offset=2412847872
+  blk.34.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2412858112
+  blk.35.attn_k.weight  [1024 -> 2560]  Q4_K  offset=2426866432
+  blk.35.attn_k_norm.weight  dims=[128]  F32  offset=2428340992
+  blk.35.attn_norm.weight  dims=[2560]  F32  offset=2428341504
+  blk.35.attn_output.weight  [2560 -> 4096]  Q4_K  offset=2428351744
+  blk.35.attn_q.weight  [4096 -> 2560]  Q4_K  offset=2434249984
+  blk.35.attn_q_norm.weight  dims=[128]  F32  offset=2440148224
+  blk.35.attn_v.weight  [1024 -> 2560]  Q6_K  offset=2440148736
+  blk.35.ffn_down.weight  [2560 -> 9728]  Q6_K  offset=2442299136
+  blk.35.ffn_gate.weight  [9728 -> 2560]  Q4_K  offset=2462727936
+  blk.35.ffn_norm.weight  dims=[2560]  F32  offset=2476736256
+  blk.35.ffn_up.weight  [9728 -> 2560]  Q4_K  offset=2476746496

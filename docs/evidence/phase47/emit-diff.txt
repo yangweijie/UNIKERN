@@ -1,0 +1,12 @@
+# Phase 47 emitted-artifact impact of moving the reduce basis to the spec's blocked tier (D8)
+# reproduce: ./build/unikern.exe solve --hcs samples/hcs_amd.json --op gemm --dims 512 512 512 \
+#              --ledger docs/evidence/phase47/l_gemm.sqlite3 --emit docs/evidence/phase47/emit/gemm
+#            (same shape for --kml workloads/conv/... and --op reduce --dims 1048576 0 0)
+gemm solve rc=0  conv solve rc=0  reduce solve rc=0
+
+[gemm] lines 447 (was 447)  changed-hunks=0
+  sha256 7a451491ed9b28f8c02ebe00159dc5b5a7ed8f85816755ec3cef79f43d1d6479
+[conv] lines 542 (was 542)  changed-hunks=0
+  sha256 09e9b5706cba661cbc861bb4d96d450dd62520d21c2c3b602f09ce3ec7c80d3f
+[reduce] lines 276 (was 268)  changed-hunks=16
+  sha256 44231aef0e9567eb96a015bc18272fa24b861f65691577524b6111845387c5e4

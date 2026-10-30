@@ -18,13 +18,33 @@ ledger.sqlite3
 *.exe
 *.obj
 *.o
-uk_*.cpp
-# ... but probe sources under probe/ are tracked (the pattern above is for generated programs)
-!probe/uk_*.cpp
+# Generated programs land only in scratch (uk_run/, build/ — both ignored below).
+# The EVIDENCE emit baselines under docs/evidence/**/emit ARE tracked: the byte leg
+# [R5.4-artifact-bytes] compares fresh emissions against them, and a global uk_*.cpp
+# rule here used to swallow every HIP baseline (uk_amd*.cpp), which would have broken
+# that leg on any fresh clone (fixed Phase 62 提交日; the metal/.cl baselines never
+# matched the rule, which is why only the HIP half went missing).
 uk_evidence/
 uk_run/
+build-run/
+build-run-stream/
 
 # probes: source tracked, compiled Mach-O/ELF binaries not
 probe/uk_metal_probe
 probe/uk_op_gap_probe
 probe/uk_op_refuse_probe
+
+# Evidence and workloads must live where git can see them.
+# uk_run/ is scratch (emitted programs, per-run ledgers, compiled probes): it is ignored on
+# purpose, which is why the DECLARED workload inputs moved to workloads/ in Phase 43 - six
+# evidence READMEs reproduced conv runs by pointing at a file no clone would ever contain.
+# Rule: if a docs/evidence README names a path as a required input, that path is tracked
+# (workloads/ is deliberately NOT ignored - the line that used to be here ignored it).
+
+# python probe caches (py_compile / imports) - generated, never evidence
+__pycache__/
+*.pyc
+
+# machine-local tool session dirs (serena MCP, qoder runs)
+.serena/
+.qoder/

@@ -1,0 +1,42 @@
+# Phase 26 removal controls — [R20] single-plan arms
+# date: 2026-10-28T19:38:39.838429
+# host: Windows 11 + MinGW g++ 13 + AMD RX 6600M (gfx1032), ROCm 7.1
+# assert abort on this platform is rc=3221226505 (0xC0000409) = RED
+
+$ baseline build rc=0 acceptance rc=0
+  [R20] conv channel blocking: four instantiations, factor from hipOccupancy + multiProcessorCount, single FMA body and single dispatch point, op isolation intact OK
+  ACCEPTANCE PASS
+
+=== leg 1: verify derives its own plan again ===
+build rc=0
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R8.5-long] alarm criterion boundaries, checks=/vram_free= tokens in all three programs, violation recorded apart from solutions, threshold validated at parse OK
+  Assertion failed: count_of("uk_conv_plan(") == 2, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1694
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 2: timed passes derive their own plan instead of reusing uk_plan ===
+build rc=0
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R8.5-long] alarm criterion boundaries, checks=/vram_free= tokens in all three programs, violation recorded apart from solutions, threshold validated at parse OK
+  Assertion failed: count_of("uk_conv_launch(uk_plan,") == 4, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1697
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+=== leg 3: verify launches a different plan object than the run-wide one ===
+build rc=0
+acceptance rc=3221226505 -> RED (load-bearing)
+  [R8.5-long] alarm criterion boundaries, checks=/vram_free= tokens in all three programs, violation recorded apart from solutions, threshold validated at parse OK
+  Assertion failed: count_of("uk_conv_launch(uk_plan,") == 4, file D:/git/c/gpu-math/tests/acceptance.cpp, line 1697
+restored byte-identical=True; build rc=0 acceptance rc=0
+
+$ final restore: build rc=0
+Test project D:/git/c/gpu-math/build
+    Start 1: smoke
+1/3 Test #1: smoke ............................   Passed    0.08 sec
+    Start 2: acceptance
+2/3 Test #2: acceptance .......................   Passed    1.23 sec
+    Start 3: anchors
+3/3 Test #3: anchors ..........................   Passed    0.47 sec
+
+100% tests passed out of 3
+
+Total Test time (real) =   1.79 sec

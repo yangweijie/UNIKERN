@@ -1,0 +1,5 @@
+# Phase 44 emitted-artifact proof (generator change must move reduce only)
+2026-10-29T00:14:22+08:00
+reduce: 268 lines (was 239); sha256 a541b05ef13103aae394df173bb89f2fb69a904f1a9888577ffbc0116fecdf31
+gemm: 447 lines (baseline 447)
+conv vs phase29 baseline: EMPTY diff (rc=0)

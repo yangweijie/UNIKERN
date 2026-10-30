@@ -1,0 +1,48 @@
+# Phase 45 dtype refusal on the CLI (D11)
+# host: Windows 11 + AMD RX 6600M (gfx1032) — amd=yes apple=no intel=no (backends.txt)
+# run from the repo root; only the decision lines of each solve are kept (SOLVED/COVER/EMIT/UNSUPPORTED/NOTE)
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml build/p45_refuse/k_fp32.json \
+      --ledger build/p45_refuse/led_fp32.sqlite3 --emit build/p45_refuse/emit_fp32
+    SOLVED  x* tile=128x128  c_ms=0.278528  |X|=25  hcs_fp=80394649
+    COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+    COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+    COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+    EMIT amd:hip -> build/p45_refuse/emit_fp32/uk_amd.cpp lines=268
+    EMIT apple:metal -> build/p45_refuse/emit_fp32/uk_apple.metal lines=36 (toolchain absent)
+    EMIT intel:ocl -> build/p45_refuse/emit_fp32/uk_intel.cl lines=31 (toolchain absent)
+    rc=0  artifacts=[uk_amd.cpp uk_apple.metal uk_intel.cl ]  sqlite_ledger_exists=yes
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml build/p45_refuse/k_fp32.json \
+      --ledger build/p45_refuse/flat_fp32.sqlite3            # same tree, NO --emit
+    SOLVED  x* tile=128x128  c_ms=0.278528  |X|=25  hcs_fp=80394649
+    COVER amd:hip primitive=covered execution=resident+streamed toolchain=present
+    COVER apple:metal primitive=covered execution=resident-only toolchain=absent
+    COVER intel:ocl primitive=covered execution=resident-only toolchain=absent
+    rc=0  sqlite_ledger_exists=yes
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml build/p45_refuse/k_fp16.json \
+      --ledger build/p45_refuse/led_fp16.sqlite3 --emit build/p45_refuse/emit_fp16
+    UNSUPPORTED: kernel generation emits dtype=fp32 kernels only; dtype=fp16 has no kernels in any backend yet (D11) — solve emits nothing AND files no ledger row for a tree no backend can build (R10.2: an uncovered interval is refused, not priced as if it were fp32; run/verify refuse the same tree).
+    rc=2  artifacts=[]  sqlite_ledger_exists=no
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml build/p45_refuse/k_fp16.json \
+      --ledger build/p45_refuse/flat_fp16.sqlite3            # same tree, NO --emit
+    UNSUPPORTED: kernel generation emits dtype=fp32 kernels only; dtype=fp16 has no kernels in any backend yet (D11) — solve emits nothing AND files no ledger row for a tree no backend can build (R10.2: an uncovered interval is refused, not priced as if it were fp32; run/verify refuse the same tree).
+    rc=2  sqlite_ledger_exists=no
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml build/p45_refuse/k_int8.json \
+      --ledger build/p45_refuse/led_int8.sqlite3 --emit build/p45_refuse/emit_int8
+    UNSUPPORTED: kernel generation emits dtype=fp32 kernels only; dtype=int8 has no kernels in any backend yet (D11) — solve emits nothing AND files no ledger row for a tree no backend can build (R10.2: an uncovered interval is refused, not priced as if it were fp32; run/verify refuse the same tree).
+    rc=2  artifacts=[]  sqlite_ledger_exists=no
+
+$ ./build/unikern.exe solve --hcs samples/hcs_amd.json --kml build/p45_refuse/k_int8.json \
+      --ledger build/p45_refuse/flat_int8.sqlite3            # same tree, NO --emit
+    UNSUPPORTED: kernel generation emits dtype=fp32 kernels only; dtype=int8 has no kernels in any backend yet (D11) — solve emits nothing AND files no ledger row for a tree no backend can build (R10.2: an uncovered interval is refused, not priced as if it were fp32; run/verify refuse the same tree).
+    rc=2  sqlite_ledger_exists=no
+
+# and the execute path, same tree as the run/verify gate:
+$ ./build/unikern.exe run --hcs samples/hcs_amd.json --kml build/p45_refuse/k_int8.json --vendor amd \
+      --ledger build/p45_refuse/run_int8.sqlite3
+    UNSUPPORTED: kernel generation emits dtype=fp32 kernels only; dtype=int8 has no kernels in any backend yet (D11) — run/verify execute nothing and write no ledger row for this tree (R10.2: unsupported interval, never a silent workload swap). [backend=amd:hip]
+    rc=2  sqlite_ledger_exists=no
