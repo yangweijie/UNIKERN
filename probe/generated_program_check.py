@@ -37,6 +37,11 @@ SPECS = [
     ("softmax", ["--kml", str(ROOT / "samples" / "kml_softmax.json")]),
     ("rmsnorm", ["--kml", str(ROOT / "samples" / "kml_rmsnorm.json")]),
     ("channelscale", ["--kml", str(ROOT / "samples" / "kml_channelscale.json")]),
+    # Phase 65: fp16 gemm. The HIP artifact is a REAL half-storage program (the
+    # exact class of artifact that once reached the GPU without any compile
+    # leg); the non-HIP artifacts are refusal files, which the OCL leg still
+    # parses - a comments-only .cl is valid OpenCL C.
+    ("gemm-f16", ["--kml", str(ROOT / "samples" / "kml_gemm_f16.json")]),
 ]
 # (label, emitted file name, how to invoke the checker, the control snippets)
 BACKENDS = [

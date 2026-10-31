@@ -47,6 +47,7 @@ namespace unikern {
 std::string hip_conv_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
 std::string hip_reduce_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
 std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
+std::string hip_gemm_f16_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
 std::string hip_softmax_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
 std::string hip_rmsnorm_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
 std::string hip_channelscale_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree);
@@ -69,27 +70,41 @@ EmittedTile emit_tile_for(const KmlTree& tree, const Solution& sol) {
 bool codegen_layout_supported(const std::string& layout) { return layout == "NT"; }
 
 // D11 (R6.2 tiering vs what the emitter can build): the tolerance POLICY knows fp16 and integer
-// results and the front end accepts `fp32|fp16|int8`, but no backend emits half or integer
-// kernels. Accepting such a tree used to price and emit an FP32 program under an fp16/int8 ledger
-// key - and gate an int8 result with a 2^-5 RELATIVE tolerance when R6.2 demands bit-level
-// equality for integer results. Refuse per backend at the capability layer, naming the dtype: the
-// failure mode to avoid is a silent dtype-blind emit, not an honest "not yet".
+// results and the front end accepts `fp32|fp16|int8`, but emitting a dtype the backend cannot
+// build used to price an FP32 program under an fp16/int8 ledger key - and gate an int8 result
+// with a 2^-5 RELATIVE tolerance when R6.2 demands bit-level equality for integer results.
+// Refuse per backend at the capability layer, naming the dtype: the failure mode to avoid is a
+// silent dtype-blind emit, not an honest "not yet".
+// Phase 65: the HIP emitter builds fp16 GEMM (half storage, fp32 accumulate), so this interval
+// is op-aware now; every other (dtype, op) pair stays refused. The message must keep naming
+// `dtype=<x>` - the [R6.8] coverage leg matches on that token.
 std::string dtype_gap(const KmlTree& tree) {
   if (tree.dtype == DType::F32) return "";
+  if (tree.dtype == DType::F16 && tree.op == OpKind::Gemm) return "";
+  if (tree.dtype == DType::F16)
+    return std::string("dtype=fp16 kernels exist for gemm only; op=") +
+           to_string(tree.op) + " has no fp16 kernel yet (D11)";
   return std::string("kernel generation emits dtype=fp32 kernels only; dtype=") +
          to_string(tree.dtype) + " has no kernels in any backend yet (D11)";
 }
 
 // The gate an emitted program compares against, from the DECLARED dtype: 2^-5 for fp32, 2^-4 for
-// fp16, 0 for integer results (bit-level equality per R6.2). Today only the fp32 branch can reach
-// an artifact - the others are refused above - but the value must come from the same table the
-// CPU verify uses, so landing a half/integer kernel cannot silently reuse the fp32 gate.
+// fp16, 0 for integer results (bit-level equality per R6.2). Phase 65: the fp16 branch can now
+// reach an artifact (fp16 gemm) - the others are refused above - but the value must come from the
+// same table the CPU verify uses, so landing a half/integer kernel cannot silently reuse the
+// fp32 gate.
 std::string dtype_tol_literal(const KmlTree& tree) {
   return std::to_string(tolerance_for(tree.dtype));
 }
 
+// The non-HIP backends do NOT inherit dtype_gap's fp16-gemm allowance: their generators still
+// build fp32 storage only, and delegating to dtype_gap here would let an fp16 gemm tree emit an
+// fp32 MSL/OpenCL kernel under an fp16 key - the exact D11 silent substitution this layer exists
+// to prevent. Each backend names its own interval.
 std::string msl_op_gap(const KmlTree& tree) {
-  if (const std::string dg = dtype_gap(tree); !dg.empty()) return dg;
+  if (tree.dtype != DType::F32)
+    return std::string("msl kernel generation emits dtype=fp32 kernels only; dtype=") +
+           to_string(tree.dtype) + " has no MSL kernels yet (D11)";
   if (!codegen_layout_supported(tree.layout))
     return "kernel generation implements layout=NT only; layout=" + tree.layout;
   // gemm, conv, reduce, softmax, rmsnorm, channelscale all have MSL kernels
@@ -97,7 +112,9 @@ std::string msl_op_gap(const KmlTree& tree) {
 }
 
 std::string ocl_op_gap(const KmlTree& tree) {
-  if (const std::string dg = dtype_gap(tree); !dg.empty()) return dg;
+  if (tree.dtype != DType::F32)
+    return std::string("ocl kernel generation emits dtype=fp32 kernels only; dtype=") +
+           to_string(tree.dtype) + " has no OpenCL C kernels yet (D11)";
   if (!codegen_layout_supported(tree.layout))
     return "kernel generation implements layout=NT only; layout=" + tree.layout;
   // gemm, conv, reduce, softmax, rmsnorm, channelscale all have OpenCL C kernels
@@ -139,6 +156,10 @@ std::string hip_runnable_program(const Solution& sol, const Hcs& hcs, const KmlT
   if (tree.op == OpKind::Softmax) return hip_softmax_program(sol, hcs, tree);
   if (tree.op == OpKind::RmsNorm) return hip_rmsnorm_program(sol, hcs, tree);
   if (tree.op == OpKind::ChannelScale) return hip_channelscale_program(sol, hcs, tree);
+  // Only gemm reaches this fallthrough (the other ops dispatched above), and
+  // dtype_gap already refused every non-(F32|F16) gemm tree, so an fp16 tree
+  // here is exactly the fp16 gemm interval.
+  if (tree.dtype == DType::F16) return hip_gemm_f16_program(sol, hcs, tree);
   return hip_gemm_program(sol, hcs, tree);
 }
 
@@ -1695,6 +1716,239 @@ std::string hip_gemm_program(const Solution& sol, const Hcs& hcs, const KmlTree&
     << "            << \" stream_path=\" << (eff_path == 2 ? \"mmap\" : \"pinned\")" << '\n'
     << "            << \" payload_mb=\" << payload_mb" << '\n'
     << "            << \" perf=\" << PM << \"x\" << PN << \"x\" << PK" << '\n'
+    << "            << \" migrations=\" << UK_MIGRATIONS" << '\n'
+    << "            << \" checks=\" << UK_RESIDENT_CHECKS" << '\n'
+    << "            << \" vram_free=\" << UK_VRAM_FREE" << '\n'
+    << "            << \" vram_total=\" << UK_VRAM_TOTAL << std::endl;" << '\n'
+    << "  return rc;" << '\n'
+    << "}" << '\n';
+  return o.str();
+}
+
+// ---------------------------------------------------------------------------
+// fp16 gemm (Phase 65, increment 1): half storage, fp32 accumulate, RESIDENT
+// ONLY. The fp32 program's R8.3 streaming machinery is deliberately not
+// duplicated here; a payload above the resident threshold refuses loudly
+// instead (same shape as the conv/reduce stream_refused gate, R10: no silent
+// fallback). Host keeps the fp32 init values and converts to half for device
+// storage; the kernel AND the CPU reference consume the SAME half-quantized
+// inputs, so max_rel isolates half rounding of inputs and outputs, and the
+// gate literal comes from tolerance_for(F16) = 2^-4 through dtype_tol_literal
+// - never a bare constant. Accumulation order is k-ascending, identical to
+// cpu_ref, so the fp32 accumulator adds no reorder error on top.
+// ---------------------------------------------------------------------------
+std::string hip_gemm_f16_program(const Solution& sol, const Hcs& hcs, const KmlTree& tree) {
+  const EmittedTile tile = emit_tile_for(tree, sol);
+  const int RPT = tile.tm / 16;
+  const int RPN = tile.tn / 16;
+  const int TK = 16;
+  const int VM = 256, VN = 256, VK = 256;          // differential verification size
+  auto floor16 = [](int64_t v) { const int a = int((v / 16) * 16); return a < 32 ? 32 : a; };
+  const int PM = floor16(tree.dims[0]), PN = floor16(tree.dims[1]), PK = floor16(tree.dims[2]);
+  const int64_t vram_bytes = hcs.tier_bytes("vram");
+  const int64_t payload_bytes =
+      (int64_t(tree.dims[0]) * tree.dims[1] + int64_t(tree.dims[1]) * tree.dims[2] +
+       int64_t(tree.dims[0]) * tree.dims[2]) * 2;  // half = 2 bytes, three matrices
+
+  std::ostringstream o;
+  o << "// unikern generated — AMD HIP / RDNA (fp16 gemm, Phase 65; independent generation, R5.1)" << '\n'
+    << "// hcs=" << hcs.vendor << "/" << hcs.device
+    << " fp=" << hcs_fingerprint(hcs).substr(0, 12)
+    << " toolchain=" << (hcs.toolchain.empty() ? "unknown" : hcs.toolchain)
+    << " constants_v=" << sol.constants_version << '\n'
+    << "// declared dtype=fp16: half storage, fp32 accumulate, resident-only" << '\n'
+    << "// solved tile=" << sol.best.tile_m << "x" << sol.best.tile_n
+    << " -> emitted block tile=" << tile.tm << "x" << tile.tn
+    << (tile.clamped ? " (clamped for register budget)" : "") << '\n'
+    << "// placement: " << sol.placement_record << '\n'
+    << "// R8 timing basis: measured_ms = end-to-end per pass (H2D + kernel +" << '\n'
+    << "// D2H); kernel_ms is a kernel-only reference pass between two events." << '\n'
+    << "#include <hip/hip_runtime.h>" << '\n'
+    << "#include <hip/hip_fp16.h>" << '\n'
+    << "#include <cmath>" << '\n'
+    << "#include <iomanip>" << '\n'
+    << "#include <iostream>" << '\n'
+    << "#include <vector>" << '\n' << '\n'
+    << "#define TM " << tile.tm << '\n'
+    << "#define TN " << tile.tn << '\n'
+    << "#define TK " << TK << '\n'
+    << "#define RPT " << RPT << '\n'
+    << "#define RPN " << RPN << '\n' << '\n'
+    << "__global__ void uk_gemm_h(const __half* __restrict__ A, const __half* __restrict__ B," << '\n'
+    << "                          __half* __restrict__ C, int M, int N, int K) {" << '\n'
+    << "  __shared__ float As[TK][TM];" << '\n'
+    << "  __shared__ float Bs[TK][TN];" << '\n'
+    << "  const int bm = blockIdx.y * TM, bn = blockIdx.x * TN;" << '\n'
+    << "  const int tx = threadIdx.x, ty = threadIdx.y;" << '\n'
+    << "  float acc[RPT][RPN];" << '\n'
+    << "  for (int r = 0; r < RPT; ++r)" << '\n'
+    << "    for (int c = 0; c < RPN; ++c) acc[r][c] = 0.f;" << '\n'
+    << "  for (int k0 = 0; k0 < K; k0 += TK) {" << '\n'
+    << "    for (int i = ty; i < TK; i += 16)" << '\n'
+    << "      for (int j = tx; j < TM; j += 16)" << '\n'
+    << "        As[i][j] = (bm + j < M && k0 + i < K) ? __half2float(A[(size_t)(bm + j) * K + k0 + i]) : 0.f;" << '\n'
+    << "    for (int i = ty; i < TK; i += 16)" << '\n'
+    << "      for (int j = tx; j < TN; j += 16)" << '\n'
+    << "        Bs[i][j] = (k0 + i < K && bn + j < N) ? __half2float(B[(size_t)(k0 + i) * N + bn + j]) : 0.f;" << '\n'
+    << "    __syncthreads();" << '\n'
+    << "    for (int k = 0; k < TK; ++k) {" << '\n'
+    << "      float a[RPT], b[RPN];" << '\n'
+    << "      for (int r = 0; r < RPT; ++r) a[r] = As[k][ty + r * 16];" << '\n'
+    << "      for (int c = 0; c < RPN; ++c) b[c] = Bs[k][tx + c * 16];" << '\n'
+    << "      for (int r = 0; r < RPT; ++r)" << '\n'
+    << "        for (int c = 0; c < RPN; ++c) acc[r][c] += a[r] * b[c];" << '\n'
+    << "    }" << '\n'
+    << "    __syncthreads();" << '\n'
+    << "  }" << '\n'
+    << "  for (int r = 0; r < RPT; ++r)" << '\n'
+    << "    for (int c = 0; c < RPN; ++c) {" << '\n'
+    << "      const int row = bm + ty + r * 16, col = bn + tx + c * 16;" << '\n'
+    << "      if (row < M && col < N) C[(size_t)row * N + col] = __float2half(acc[r][c]);" << '\n'
+    << "    }" << '\n'
+    << "}" << '\n' << '\n'
+    << "// Deterministic init, bit-identical to the CPU reference (same sawtooth" << '\n'
+    << "// as every other program; the half conversion happens AFTER init, on the" << '\n'
+    << "// host, so both sides of the comparison see the same quantized inputs)." << '\n'
+    << "static float initA(int idx) { return ((idx % 17) - 8) * 0.0625f; }" << '\n'
+    << "static float initB(int idx) { return ((idx % 13) - 6) * 0.0625f; }" << '\n' << '\n'
+    << "static void cpu_ref(const std::vector<float>& A, const std::vector<float>& B," << '\n'
+    << "                    std::vector<float>& C, int M, int N, int K) {" << '\n'
+    << "  for (int i = 0; i < M; ++i)" << '\n'
+    << "    for (int j = 0; j < N; ++j) {" << '\n'
+    << "      float s = 0.f;" << '\n'
+    << "      for (int k = 0; k < K; ++k) s += A[(size_t)i * K + k] * B[(size_t)k * N + j];" << '\n'
+    << "      C[(size_t)i * N + j] = s;" << '\n'
+    << "    }" << '\n'
+    << "}" << '\n' << '\n'
+    << "// Every HIP call is checked." << '\n'
+    << "static bool uk_ok(hipError_t e, const char* what) {" << '\n'
+    << "  if (e == hipSuccess) return true;" << '\n'
+    << "  std::cerr << \"UNIKERN_ERROR what=\" << what" << '\n'
+    << "            << \" msg=\" << hipGetErrorString(e) << std::endl;" << '\n'
+    << "  return false;" << '\n'
+    << "}" << '\n' << '\n';
+  emit_residency_guard85(o);
+  o << "int main() {" << '\n'
+    << "  const int M = " << tree.dims[0] << ", N = " << tree.dims[1] << ", K = " << tree.dims[2] << ";" << '\n'
+    << "  const int VM = " << VM << ", VN = " << VN << ", VK = " << VK << ";" << '\n'
+    << "  const int PM = " << PM << ", PN = " << PN << ", PK = " << PK << ";" << '\n'
+    << "  const unsigned long long UK_VRAM_BYTES = " << vram_bytes << "ULL;" << '\n'
+    << "  const unsigned long long UK_PAYLOAD_BYTES = " << payload_bytes << "ULL;" << '\n'
+    << "  // Resident-only (Phase 65 increment 1): an oversubscribed fp16 payload" << '\n'
+    << "  // refuses instead of silently paging; the fp32 program's streaming" << '\n'
+    << "  // machinery is a later increment, not a silent absence." << '\n'
+    << "  if (UK_PAYLOAD_BYTES > 0.85 * (double)UK_VRAM_BYTES) {" << '\n'
+    << "    std::cerr << \"UNIKERN_ERROR what=stream_refused payload_bytes=\"" << '\n'
+    << "              << UK_PAYLOAD_BYTES << \" vram_bytes=\" << UK_VRAM_BYTES" << '\n'
+    << "              << \" (fp16 gemm is resident-only in this increment;\"" << '\n'
+    << "              << \" the timing payload exceeds 0.85 * vram; R10: no\"" << '\n'
+    << "              << \" silent fallback)\" << std::endl;" << '\n'
+    << "    return 4;" << '\n'
+    << "  }" << '\n'
+    << "  int rc = 0;" << '\n'
+    << "  float max_rel = 0.f;" << '\n'
+    << "  {" << '\n'
+    << "    std::vector<float> Af((size_t)VM * VK), Bf((size_t)VK * VN), R((size_t)VM * VN);" << '\n'
+    << "    for (size_t i = 0; i < Af.size(); ++i) Af[i] = initA((int)i);" << '\n'
+    << "    for (size_t i = 0; i < Bf.size(); ++i) Bf[i] = initB((int)i);" << '\n'
+    << "    std::vector<__half> hA(Af.size()), hB(Bf.size()), hY((size_t)VM * VN);" << '\n'
+    << "    for (size_t i = 0; i < Af.size(); ++i) hA[i] = __float2half(Af[i]);" << '\n'
+    << "    for (size_t i = 0; i < Bf.size(); ++i) hB[i] = __float2half(Bf[i]);" << '\n'
+    << "    // The reference consumes the SAME half-quantized values the kernel" << '\n'
+    << "    // reads, so max_rel measures half rounding, not an input disagreement." << '\n'
+    << "    std::vector<float> qA(Af.size()), qB(Bf.size());" << '\n'
+    << "    for (size_t i = 0; i < Af.size(); ++i) qA[i] = __half2float(hA[i]);" << '\n'
+    << "    for (size_t i = 0; i < Bf.size(); ++i) qB[i] = __half2float(hB[i]);" << '\n'
+    << "    cpu_ref(qA, qB, R, VM, VN, VK);" << '\n'
+    << "    __half *dA, *dB, *dC;" << '\n'
+    << "    if (uk_mmalloc((void**)&dA, hA.size() * sizeof(__half), \"hipMalloc vA\", \"vA\")) return 4;" << '\n'
+    << "    if (uk_mmalloc((void**)&dB, hB.size() * sizeof(__half), \"hipMalloc vB\", \"vB\")) return 4;" << '\n'
+    << "    if (uk_mmalloc((void**)&dC, hY.size() * sizeof(__half), \"hipMalloc vC\", \"vC\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(dA, hA.data(), hA.size() * sizeof(__half), hipMemcpyHostToDevice), \"hipMemcpy A\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(dB, hB.data(), hB.size() * sizeof(__half), hipMemcpyHostToDevice), \"hipMemcpy B\")) return 4;" << '\n'
+    << "    dim3 blk(16, 16);" << '\n'
+    << "    dim3 grd((VN + TN - 1) / TN, (VM + TM - 1) / TM);" << '\n'
+    << "    uk_gemm_h<<<grd, blk>>>(dA, dB, dC, VM, VN, VK);" << '\n'
+    << "    if (!uk_ok(hipGetLastError(), \"launch verify\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipDeviceSynchronize(), \"sync verify\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpy(hY.data(), dC, hY.size() * sizeof(__half), hipMemcpyDeviceToHost), \"hipMemcpy C\")) return 4;" << '\n'
+    << "    for (size_t i = 0; i < hY.size(); ++i) {" << '\n'
+    << "      const float y = __half2float(hY[i]);" << '\n'
+    << "      float den = std::fabs(R[i]);" << '\n'
+    << "      if (den < 1e-6f) den = 1e-6f;" << '\n'
+    << "      const float rel = std::fabs(y - R[i]) / den;" << '\n'
+    << "      if (rel > max_rel) max_rel = rel;" << '\n'
+    << "    }" << '\n'
+    << "    if (max_rel > " << dtype_tol_literal(tree) << "f) rc = 1;" << '\n'
+    << "    hipFree(dA); hipFree(dB); hipFree(dC);" << '\n'
+    << "  }" << '\n'
+    << "  const int warm = 1, iters = 10;" << '\n'
+    << "  double ms = 0.0, kms = 0.0;" << '\n'
+    << "  std::vector<float> Af((size_t)PM * PK), Bf((size_t)PK * PN);" << '\n'
+    << "  for (size_t i = 0; i < Af.size(); ++i) Af[i] = initA((int)i);" << '\n'
+    << "  for (size_t i = 0; i < Bf.size(); ++i) Bf[i] = initB((int)i);" << '\n'
+    << "  std::vector<__half> hA(Af.size()), hB(Bf.size()), hY((size_t)PM * PN);" << '\n'
+    << "  for (size_t i = 0; i < Af.size(); ++i) hA[i] = __float2half(Af[i]);" << '\n'
+    << "  for (size_t i = 0; i < Bf.size(); ++i) hB[i] = __float2half(Bf[i]);" << '\n'
+    << "  __half *dA, *dB, *dC;" << '\n'
+    << "  if (uk_mmalloc((void**)&dA, hA.size() * sizeof(__half), \"hipMalloc tA\", \"tA\")) return 4;" << '\n'
+    << "  if (uk_mmalloc((void**)&dB, hB.size() * sizeof(__half), \"hipMalloc tB\", \"tB\")) return 4;" << '\n'
+    << "  if (uk_mmalloc((void**)&dC, hY.size() * sizeof(__half), \"hipMalloc tC\", \"tC\")) return 4;" << '\n'
+    << "  hipStream_t st;" << '\n'
+    << "  if (!uk_ok(hipStreamCreate(&st), \"hipStreamCreate t\")) return 4;" << '\n'
+    << "  hipEvent_t t0, t1, k0, k1;" << '\n'
+    << "  if (!uk_ok(hipEventCreate(&t0), \"hipEventCreate t0\")) return 4;" << '\n'
+    << "  if (!uk_ok(hipEventCreate(&t1), \"hipEventCreate t1\")) return 4;" << '\n'
+    << "  if (!uk_ok(hipEventCreate(&k0), \"hipEventCreate k0\")) return 4;" << '\n'
+    << "  if (!uk_ok(hipEventCreate(&k1), \"hipEventCreate k1\")) return 4;" << '\n'
+    << "  dim3 blk(16, 16);" << '\n'
+    << "  dim3 grd((PN + TN - 1) / TN, (PM + TM - 1) / TM);" << '\n'
+    << "  for (int w = 0; w < warm; ++w) {" << '\n'
+    << "    if (!uk_ok(hipMemcpyAsync(dA, hA.data(), hA.size() * sizeof(__half), hipMemcpyHostToDevice, st), \"warm h2d tA\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpyAsync(dB, hB.data(), hB.size() * sizeof(__half), hipMemcpyHostToDevice, st), \"warm h2d tB\")) return 4;" << '\n'
+    << "    uk_gemm_h<<<grd, blk, 0, st>>>(dA, dB, dC, PM, PN, PK);" << '\n'
+    << "    if (!uk_ok(hipGetLastError(), \"launch warm\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpyAsync(hY.data(), dC, hY.size() * sizeof(__half), hipMemcpyDeviceToHost, st), \"warm d2h tC\")) return 4;" << '\n'
+    << "  }" << '\n'
+    << "  if (!uk_ok(hipStreamSynchronize(st), \"warm sync\")) return 4;" << '\n'
+    << "  double total = 0.0;" << '\n'
+    << "  for (int i = 0; i < iters; ++i) {" << '\n'
+    << "    if (!uk_ok(hipEventRecord(t0, st), \"record t0\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpyAsync(dA, hA.data(), hA.size() * sizeof(__half), hipMemcpyHostToDevice, st), \"h2d tA\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpyAsync(dB, hB.data(), hB.size() * sizeof(__half), hipMemcpyHostToDevice, st), \"h2d tB\")) return 4;" << '\n'
+    << "    uk_gemm_h<<<grd, blk, 0, st>>>(dA, dB, dC, PM, PN, PK);" << '\n'
+    << "    if (!uk_ok(hipGetLastError(), \"launch timed\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipMemcpyAsync(hY.data(), dC, hY.size() * sizeof(__half), hipMemcpyDeviceToHost, st), \"d2h tC\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventRecord(t1, st), \"record t1\")) return 4;" << '\n'
+    << "    if (!uk_ok(hipEventSynchronize(t1), \"sync t1\")) return 4;" << '\n'
+    << "    float e = 0.f;" << '\n'
+    << "    if (!uk_ok(hipEventElapsedTime(&e, t0, t1), \"elapsed e2e\")) return 4;" << '\n'
+    << "    total += e;" << '\n'
+    << "  }" << '\n'
+    << "  ms = total / iters;" << '\n'
+    << "  if (!uk_ok(hipEventRecord(k0, st), \"record k0\")) return 4;" << '\n'
+    << "  for (int i = 0; i < iters; ++i) {" << '\n'
+    << "    uk_gemm_h<<<grd, blk, 0, st>>>(dA, dB, dC, PM, PN, PK);" << '\n'
+    << "    if (!uk_ok(hipGetLastError(), \"launch kref\")) return 4;" << '\n'
+    << "  }" << '\n'
+    << "  if (!uk_ok(hipEventRecord(k1, st), \"record k1\")) return 4;" << '\n'
+    << "  if (!uk_ok(hipEventSynchronize(k1), \"sync k1\")) return 4;" << '\n'
+    << "  float ke = 0.f;" << '\n'
+    << "  if (!uk_ok(hipEventElapsedTime(&ke, k0, k1), \"elapsed kref\")) return 4;" << '\n'
+    << "  kms = double(ke) / iters;" << '\n'
+    << "  hipEventDestroy(t0); hipEventDestroy(t1);" << '\n'
+    << "  hipEventDestroy(k0); hipEventDestroy(k1);" << '\n'
+    << "  hipStreamDestroy(st);" << '\n'
+    << "  hipFree(dA); hipFree(dB); hipFree(dC);" << '\n'
+    << "  const double payload_mb = double(UK_PAYLOAD_BYTES) / (1024.0 * 1024.0);" << '\n'
+    << "  std::cout << \"UNIKERN_RESULT backend=amd verify=\" << (rc == 0 ? \"PASS\" : \"FAIL\")" << '\n'
+    << "            << \" max_rel=\" << std::scientific << std::setprecision(6) << (double)max_rel" << '\n'
+    << "            << std::fixed << std::setprecision(6)" << '\n'
+    << "            << \" measured_ms=\" << ms" << '\n'
+    << "            << \" kernel_ms=\" << kms" << '\n'
+    << "            << \" mode=resident\"" << '\n'
+    << "            << \" payload_mb=\" << payload_mb" << '\n'
+    << "            << \" perf=\" << PM << \"x\" << PN << \"x\" << PK << \" dtype=fp16\"" << '\n'
     << "            << \" migrations=\" << UK_MIGRATIONS" << '\n'
     << "            << \" checks=\" << UK_RESIDENT_CHECKS" << '\n'
     << "            << \" vram_free=\" << UK_VRAM_FREE" << '\n'

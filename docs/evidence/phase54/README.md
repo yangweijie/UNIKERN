@@ -30,8 +30,8 @@ wasi-sdk 34 的 clang 23.1-rc3 只带 wasm 目标；`-x metalpp` 也一样被拒
 
 ## 2. 字节锚不需要前端：`[R5.4-artifact-bytes-msl]`
 
-`[R5.4-artifact-bytes-msl]` `tests/acceptance.cpp:3070` 起，形状与 Phase 53 那条一致：逐 op 现场发射，把 `uk_apple.metal`
-与入库基线逐字节比较，**先打印 `identical`/`DRIFT` 再断言计数**（`tests/acceptance.cpp:3051`）。
+`[R5.4-artifact-bytes-msl]` `tests/acceptance.cpp:3117` 起，形状与 Phase 53 那条一致：逐 op 现场发射，把 `uk_apple.metal`
+与入库基线逐字节比较，**先打印 `identical`/`DRIFT` 再断言计数**（`tests/acceptance.cpp:3077`）。
 
 ```text
   [R5.4-byte-msl] gemm identical fresh=2893B stored=2893B

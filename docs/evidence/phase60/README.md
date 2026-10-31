@@ -46,7 +46,7 @@ L6 第一次跑出来是 **GREEN**，因为我把标签注入成了 `` `R1.1/R1.
 Phase 59 给 `src/codegen_hip.cpp` 的重置行配了 `` `smem` `` 当符号——它过不了 `code_tokens` 的
 **≥5 字**规则（这条规则存在是因为 `run`/`int` 这类短词会匹配到 500 行外造成噪声）。
 于是那两条引用从"没符号"变成"配了个不被认的符号"，债没减。本相改配
-`uk_conv_plan`（`src/codegen_hip.cpp:418`，在 435 的 ±25 窗口内）才真的降下来。
+`uk_conv_plan`（`src/codegen_hip.cpp:451`，在 435 的 ±25 窗口内）才真的降下来。
 ⇒ 配符号时要同时过两道：出现在那一行附近，**并且长度≥5**。
 
 ## 重读之后改的 8 组行号（全部 grep 现取，门随后复核）
@@ -54,13 +54,13 @@ Phase 59 给 `src/codegen_hip.cpp` 的重置行配了 `` `smem` `` 当符号—�
 | 记录里的写法 | 那个号码今天是什么 | 改为 |
 |---|---|---|
 | tile=0 时 smem 的重置在 codegen_hip 的 412 行（2 处） | 412 是 `: p.ocb == 4` 那行发射文本 | `uk_conv_plan` 里的 `smem` 重置在 `src/codegen_hip.cpp:435` |
-| 边界写进生成器注释（739） | 739 是"any FP32 order"那句；"partial FREEZES"已在 762 | `FREEZES`（`src/codegen_hip.cpp:762`） |
+| 边界写进生成器注释（739） | 739 是"any FP32 order"那句；"partial FREEZES"已在 762 | `FREEZES`（`src/codegen_hip.cpp:795`） |
 | 计时段 d2h 发射点 844（phase33 / phase34 两份证据） | 844 是 D9 的解释性注释 | `hipMemcpyAsync`（`src/codegen_hip.cpp:946`），并注明原文号码是当时的位置 |
-| 发射程序 CPU 参考 805、runner 的 562/530（phase47 表格） | 805 是注释；那两个号码今天是 kernel 名选择与 gemm 发射 | `cpu_reduce_ref`（`src/codegen_hip.cpp:807`）、`cpu_reduce_blocked`（`src/runner_ocl.cpp:660`）与 `cpu_reduce_blocked`（`src/runner_metal.mm:593`） |
+| 发射程序 CPU 参考 805、runner 的 562/530（phase47 表格） | 805 是注释；那两个号码今天是 kernel 名选择与 gemm 发射 | `cpu_reduce_ref`（`src/codegen_hip.cpp:840`）、`cpu_reduce_blocked`（`src/runner_ocl.cpp:660`）与 `cpu_reduce_blocked`（`src/runner_metal.mm:593`） |
 | ε 口径在 main.cpp 的 311-312 | 311 是一条 `--emit` 的注释 | `epsilon_rel`（`src/main.cpp:552`） |
 | 文件侧 dims 走 kml_front 的 108/113（2 处） | 108 今天是 dtype 的拒绝；且"上界不在清单里"这一条**已被 D10/R1.2 关掉** | 历史部分降级为文本；活引用给 `parse_int_wide`（`src/kml_front.cpp:127`） |
 | Metal 的 resident 预算取声明的 32 GiB（110 行） | 110 今天是 `int TM = 0, TN = 0;`；G6 后来落地了 | 数字降级为文本 + 现状态指向 `max_ws`（`src/runner_metal.mm:112`）与 `ws_refuse`（`src/runner_metal.mm:213`） |
-| `nP = min(L, 4096)` 生成期定死（829） | 829 是 D9 的注释 | 降级为文本；活引用给 `uk_reduce_width_plan`（`src/codegen_hip.cpp:841`） |
+| `nP = min(L, 4096)` 生成期定死（829） | 829 是 D9 的注释 | 降级为文本；活引用给 `uk_reduce_width_plan`（`src/codegen_hip.cpp:874`） |
 
 **值得单独说一句**：最后四行的"结论"本身也已经过期（上界校验、G6 交叉校验、D9 运行时宽度）。
 仪器只能保证"号码指的是什么"是对的；**句子对不对要靠重读**，这正是逐条还债的产出。

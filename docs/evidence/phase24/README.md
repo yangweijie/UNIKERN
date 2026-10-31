@@ -50,7 +50,7 @@ Phase 23 回退后发射程序 508 行 vs Phase 21 记的 506，当时只能说"
 **`diff` 空输出**、`lines=508` ⇒ 这次是真正的逐字节回退。
 `postrevert-confirm.txt`：两次真机 fresh-ledger run `kernel_ms=7.152313 / 7.152326 ms`、
 `verify=PASS max_rel=0.000000e+00`、`migrations=0 checks=6`、rc=0；`ctest` 3/3 绿
-（`[R20]` 的字节钉住在 padding 版下于 `tests/acceptance.cpp:2569` 当场变红（Phase 24 当时是 :1682），回退后自动复原——
+（`[R20]` 的字节钉住在 padding 版下于 `tests/acceptance.cpp:2605` 当场变红（Phase 24 当时是 :1682），回退后自动复原——
 先让旧钉住变红再决定去留，不是事后追认）。
 
 ## 下一手（不是决定，只是靶）

@@ -46,7 +46,7 @@ rc=77（`gate-output.txt` 第 2 节是原样命令与输出）。MSL 那一半�
 **入库的字节**为准）。
 三条都通过影子 `SOURCE_DIR` 归属（`phase49_widthpin_removal_probe.shadow_root`），否则 `[R5.4]`
 会先把红吞掉，控制就回答不了"是哪一条款红的"（E50）。Q3 的锚点第一次跑就撞上
-`GEMM_ARG found 2 times`——`int M, int N, int K) {` 在 `__restrict__` `src/codegen_hip.cpp:1054` 与 `:1089` 各一次，
+`GEMM_ARG found 2 times`——`int M, int N, int K) {` 在 `__restrict__` `src/codegen_hip.cpp:1089` 与 `:1089` 各一次，
 换成 `std::vector<float>& C, int M, int N, int K) {` 才唯一（E21/E24 同族：锚点唯一性要在写下的
 那一刻按次数取，不许凭记忆）。
 

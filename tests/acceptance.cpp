@@ -1857,11 +1857,12 @@ int main(int argc, char** argv) {
       const std::string src = slurp(path.string());
       const size_t a = count_of(src, a_sig), b = count_of(src, b_sig);
       // Existence is not enough (E21/E24): the HIP emitter carries the pair for gemm and conv,
-      // plus a_sig for softmax/rmsnorm/channelscale. Runners carry the pair exactly once.
-      // Parity check (a == b) only applies to files that have both patterns (runners + gemm/conv).
+      // plus a_sig for softmax/rmsnorm/channelscale and the Phase 65 fp16 gemm program.
+      // Runners carry the pair exactly once. Parity check (a == b) only applies to files
+      // that have both patterns (runners + gemm/conv).
       if (std::string(f) == "codegen_hip.cpp") {
-        assert(a == 5);  // gemm, conv, softmax, rmsnorm, channelscale all use initX with a_sig
-        assert(b == 2);  // only gemm and conv have initB with b_sig
+        assert(a == 6);  // gemm, conv, softmax, rmsnorm, channelscale, fp16-gemm use a_sig
+        assert(b == 3);  // gemm, conv, and fp16-gemm have initB with b_sig
       } else {
         assert(a == b);  // runners must have both patterns in parity
         assert(a == 1);
@@ -1977,6 +1978,50 @@ int main(int argc, char** argv) {
     }
     assert(total == 3);
 
+    // Phase 65 increment: the fp16 interval is now OP-AWARE - the HIP emitter
+    // builds fp16 GEMM (half storage, fp32 accumulate), so F16+gemm is covered
+    // by exactly one backend while every other (dtype, op) pair stays refused.
+    // The refusals keep naming `dtype=fp16`, and the non-HIP backends name
+    // their OWN generator's interval (msl/ocl), not dtype_gap's verdict.
+    {
+      KmlTree f16g;  // F16 + gemm: covered by exactly one backend
+      f16g.dims[0] = f16g.dims[1] = f16g.dims[2] = 64;
+      f16g.dtype = DType::F16;
+      assert(any_backend_covers(f16g));
+      int covered16 = 0;
+      for (const auto& cov : primitive_coverage(f16g)) {
+        if (cov.primitive_covered) { ++covered16; continue; }
+        assert(cov.reason.find("dtype=fp16") != std::string::npos);
+      }
+      assert(covered16 == 1);
+      // The fp16 program's gate IS the table's 2^-4 value, exactly once,
+      // and no bare 0.0625f literal exists beside it (counted, not found: E21/E24).
+      const std::string gate16 =
+          "if (max_rel > " + std::to_string(tolerance_for(DType::F16)) + "f)";
+      const std::string src16 = hip_runnable_program(solve(h, f16g), h, f16g);
+      size_t pos16 = 0;
+      int per16 = 0;
+      while ((pos16 = src16.find("if (max_rel > ", pos16)) != std::string::npos) {
+        assert(src16.compare(pos16, gate16.size(), gate16) == 0);
+        ++per16;
+        pos16 += 6;
+      }
+      assert(per16 == 1);
+      // No bare-literal leg here, unlike the fp32 programs: the fp16 tolerance
+      // (2^-4 = 0.0625) is NUMERICALLY the same value as the init sawtooth
+      // constant `* 0.0625f`, so a substring hunt cannot tell a stray gate from
+      // the init constants. The counted comparison above (exactly one gate, and
+      // its text IS the table's to_string value) is the load-bearing pin.
+      // F16 + non-gemm stays refused (the Reduction refusal leg above still
+      // holds under the op-aware gap): the fp16 interval did not silently widen.
+      KmlTree f16r;
+      f16r.op = OpKind::Reduction;
+      f16r.dims[0] = 1 << 16;
+      f16r.dtype = DType::F16;
+      assert(!any_backend_covers(f16r));
+      assert(op_support_gap(f16r).find("dtype=fp16") != std::string::npos);
+    }
+
     // Source-text leg for the two in-process runners this host cannot compile (UK_HAS_OCL
     // is FALSE without an Intel OpenCL SDK; runner_metal.mm is Apple-only, so the Windows
     // build uses runner_metal_stub.cpp). Both used to gate on a typed 0.03125f, i.e. a
@@ -2071,8 +2116,10 @@ int main(int argc, char** argv) {
       fs::remove_all(dir);
     }
     std::cout << "[R6.8-dtype] R6.2 tiers wired into every gate (fp32 2^-5 / fp16 2^-4 / int8 "
-                 "bit-level, configurable); all three backends refuse a non-fp32 dtype naming "
-                 "only that reason; the three HIP programs each carry exactly one table-derived "
+                 "bit-level, configurable); the fp16 interval is op-aware since Phase 65: the "
+                 "HIP emitter covers fp16 gemm (one backend, one 2^-4 table-derived gate) while "
+                 "fp16 non-gemm and int8 are refused by every backend naming only that reason; "
+                 "the three HIP programs each carry exactly one table-derived "
                  "gate; the two non-compiling runners keep one table by source text; the CLI "
                  "refuses fp16/int8 with rc=2 and writes zero artifacts and zero ledger rows on "
                  "both the --emit and the plain-solve path, and still "

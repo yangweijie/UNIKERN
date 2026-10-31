@@ -57,7 +57,7 @@ verify 段用 `uk_plan` 发射自己的小实例（`ocb` 有 `rem` 保护，`sme
 `uk_conv_launch(uk_plan,` == 4、`uk_conv_launch(uk_plan, VoW` == 1（verify 那一条）、
 且 `uk_conv_launch(plan,` 必须不存在。三条摘除控制全部当场变红（rc=3221226505）：
 
-1. verify 段恢复自己推导方案 → `count_of("uk_conv_plan(") == 2` 红（`tests/acceptance.cpp:2581`；Phase 26 当时是 :1694）；
+1. verify 段恢复自己推导方案 → `count_of("uk_conv_plan(") == 2` 红（`tests/acceptance.cpp:2624`；Phase 26 当时是 :1694）；
 2. 计时三处改成本地方案 → `count_of("uk_conv_launch(uk_plan,") == 4` 红（`:1697`）；
 3. verify 换成别的 plan 对象 → 同一条 `== 4` 红（`:1697`）。
 

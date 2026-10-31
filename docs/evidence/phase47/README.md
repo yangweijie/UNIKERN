@@ -9,9 +9,9 @@
 | --- | --- |
 | `kRefReduceWidth` `include/unikern/core.hpp:124` | `kRefReduceWidth = 1024` —— 参考档**自己**的分片数，与内核的 pass-1 宽度无关 |
 | `cpu_reduce_blocked` `src/reference.cpp:36` | `cpu_reduce_blocked`：跨步部分和 + 索引序折叠（规格第二档） |
-| `cpu_reduce_ref`（`src/codegen_hip.cpp:807`） | 发射程序里的参考实现由标量序改成第二档（本表原文写 805，是 Phase 47 当时的位置） |
+| `cpu_reduce_ref`（`src/codegen_hip.cpp:840`） | 发射程序里的参考实现由标量序改成第二档（本表原文写 805，是 Phase 47 当时的位置） |
 | `cpu_reduce_blocked`（`src/runner_ocl.cpp:660`）与 `cpu_reduce_blocked`（`src/runner_metal.mm:593`） | 两个进程内 runner 同口径（原文写 562/530，已被后续插入推走） |
-| `[R5.4]` `tests/acceptance.cpp:2087` | `[R6.9-basis]` 新腿（含反恒等断言） |
+| `[R5.4]` `tests/acceptance.cpp:2132` | `[R6.9-basis]` 新腿（含反恒等断言） |
 
 **关键设计约束：参考的分片数绝不能等于内核的 pass-1 宽度。**相同形状 = 仪器给自己打分，
 `max_rel` 会恒 0 而不再测量任何东西（本仓 E32 的同形失败）。这条不是注释里的道德要求，

@@ -472,8 +472,8 @@ def self_test_suggestions():
         print(f"GATE IS MUTE: suggested label {got} does not exist in the file")
         return False
     hip = open(os.path.join(ROOT, "src", "codegen_hip.cpp"), encoding="utf-8").read().splitlines()
-    got2 = suggest("src/codegen_hip.cpp", 87, hip, [])
-    if not got2.startswith("symbol:") or got2[len("symbol:"):] not in hip[86]:
+    got2 = suggest("src/codegen_hip.cpp", 96, hip, [])
+    if not got2.startswith("symbol:") or got2[len("symbol:"):] not in hip[95]:
         print(f"GATE IS MUTE: symbol suggestion {got2} is not on the cited line")
         return False
     if suggest("src/codegen_hip.cpp", 887, hip, []):
@@ -481,16 +481,16 @@ def self_test_suggestions():
         return False
     # And a word that only exists inside a comment/string must not qualify either: 891 is
     # `<< "  // Differential verify: 2^20 values ..."` - `Differential` is prose, not code.
-    bad = suggest("src/codegen_hip.cpp", 891, hip, [])
+    bad = suggest("src/codegen_hip.cpp", 916, hip, [])
     if bad == "symbol:Differential":
         print("GATE IS LOOSE: suggested the word `Differential` out of a comment/string")
         return False
-    if any(w in code_context(hip[890]) for w in ("Differential", "verify", "values")):
+    if any(w in code_context(hip[915]) for w in ("Differential", "verify", "values")):
         print("GATE IS MUTE: comment/string words survived code_context on the cited line")
         return False
     # The other side of the same rule: a generator's streamed body IS code, so line 853
     # (`<< "static int uk_reduce_width_plan(int n) {"`) must yield that function, not nothing.
-    got3 = suggest("src/codegen_hip.cpp", 853, hip, [])
+    got3 = suggest("src/codegen_hip.cpp", 874, hip, [])
     if got3 != "symbol:uk_reduce_width_plan":
         print(f"GATE IS MUTE: the emitted-source body at :853 suggested {got3!r} instead of "
               f"uk_reduce_width_plan")

@@ -9,7 +9,7 @@
 `uk_reduce_sum`（**一条线程**串行折叠那 `nP` 个部分和），而 `nP = UK_REDUCE_WIDTH = min(L, 4096)` 向上取到 256 的倍数，**在生成期定死**（当时 codegen_hip 的 724 行），
 运行期不看任何设备自报量。两个分量随 `nP` **反向**变化，所以"加大宽度"必须先归因才谈得上。
 **时点演进（2026-10-29 注）**：D9/Phase 44 之后这条已不成立——宽度改由设备自报量在运行时推导，
-发射点是 `uk_reduce_width_plan`（`src/codegen_hip.cpp:841`）；上面 724 是 Phase 30 当时的位置，按
+发射点是 `uk_reduce_width_plan`（`src/codegen_hip.cpp:874`）；上面 724 是 Phase 30 当时的位置，按
 "转录不改写"保留为文本。
 
 ## 仪器

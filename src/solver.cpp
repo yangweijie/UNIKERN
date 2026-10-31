@@ -48,8 +48,10 @@ std::vector<Instance> sketch(const Hcs& h, const KmlTree& t) {
 
 // F(x): capacity + tile legality predicates. Violation records replace
 // full Farkas certificates in the MVP (decision D1, R2.3).
-bool feasible(const Instance& x, const Hcs& h, Violation* v) {
-  const int64_t elem = 4;  // fp32 working set in the skeleton
+// elem comes from the DECLARED dtype (dtype_size), not a hardcoded 4: an fp16
+// tree's working set is half the bytes, and pricing it as fp32 would silently
+// shrink the feasible tile set (the D11 lesson, on the cost side).
+bool feasible(const Instance& x, const Hcs& h, Violation* v, int64_t elem) {
   // R10.2: a capability interval feeds back as an F constraint — the mmap
   // path's page-in term is modelled from the nvme tier, so an HCS without
   // that constant leaves the path infeasible rather than silently costed.
@@ -150,7 +152,7 @@ Solution solve(const Hcs& hcs, const KmlTree& tree) {
 
   for (const auto& x : cands) {
     Violation v;
-    if (!feasible(x, hcs, &v)) {  // R2.3: record violation
+    if (!feasible(x, hcs, &v, int64_t(dtype_size(tree.dtype)))) {  // R2.3: record violation
       // Twin candidates (same tile, both paths) produce identical records;
       // the sample keeps distinct violations only.
       bool seen = false;

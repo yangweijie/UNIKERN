@@ -47,12 +47,12 @@ python probe/anchors_check.py
 | 记录里写的 | 那行今天是什么 | 改为 |
 |---|---|---|
 | 计时段 Y 拷回主机的发射点 `:887`（8 处：AGENTS / acceptance-mvp / findings / progress / task_plan） | 887 是 `<< "  {"`，一个裸花括号 | `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）的 `"d2h tY"` |
-| 差分验证实例发射点 `:840`（3 处） | 840 是 `<< "}"` | `Differential`（`src/codegen_hip.cpp:883`） |
+| 差分验证实例发射点 `:840`（3 处） | 840 是 `<< "}"` | `Differential`（`src/codegen_hip.cpp:916`） |
 | conv/gemm 共用 init 的精确性注释 `:587`（4 处，含 phase36 证据 README） | 587 是 `acc += xv * wv;`，没有 ≥5 字的标识符 | `max_rel`（`src/codegen_hip.cpp:610`）那句发射注释 |
-| "the partial FREEZES" 的生成器注释 `:739`（2 处） | 739 是另一句注释（"any FP32 order…"），FREEZES 已漂到 762 | `FREEZES`（`src/codegen_hip.cpp:762`） |
-| 三后端的 CPU 参考同口径 `:805` 与 runner 的 `:562`/`:530`（findings） | 805 是注释；runner 那两行今天是 kernel 名选择与 gemm 发射 | `cpu_reduce_ref`（`src/codegen_hip.cpp:807`）、`cpu_reduce_blocked`（`src/runner_ocl.cpp:660`）与 `cpu_reduce_blocked`（`src/runner_metal.mm:593`） |
+| "the partial FREEZES" 的生成器注释 `:739`（2 处） | 739 是另一句注释（"any FP32 order…"），FREEZES 已漂到 762 | `FREEZES`（`src/codegen_hip.cpp:795`） |
+| 三后端的 CPU 参考同口径 `:805` 与 runner 的 `:562`/`:530`（findings） | 805 是注释；runner 那两行今天是 kernel 名选择与 gemm 发射 | `cpu_reduce_ref`（`src/codegen_hip.cpp:840`）、`cpu_reduce_blocked`（`src/runner_ocl.cpp:660`）与 `cpu_reduce_blocked`（`src/runner_metal.mm:593`） |
 | Metal 侧宽度旋钮（AGENTS rule 4 原先写成 runner_metal.mm 的 136 行，但那一格没有邻接符号） | 136 是 `ReduceWidthPlan plan_reduce_width(int64_t L) {` ✓ **行号是对的** | 补上它自己的函数名 `plan_reduce_width`（`src/runner_metal.mm:136`） |
-| phase30 README 的"宽度在生成期定死 `:724`" | 724 今天是一条 payload_mb 输出；而且 **D9 之后这个结论本身已不成立** | 数字降级为文本 + 就地注时点演进，活引用给 `uk_reduce_width_plan`（`src/codegen_hip.cpp:841`）与 `UK_REDUCE_WIDTH`（`src/codegen_hip.cpp:880`） |
+| phase30 README 的"宽度在生成期定死 `:724`" | 724 今天是一条 payload_mb 输出；而且 **D9 之后这个结论本身已不成立** | 数字降级为文本 + 就地注时点演进，活引用给 `uk_reduce_width_plan`（`src/codegen_hip.cpp:874`）与 `UK_REDUCE_WIDTH`（`src/codegen_hip.cpp:880`） |
 | findings 的"验证实例发射点 `:840`、宽度 `:829`"（Phase 30 口径） | 829 今天是 D9 的解释性注释 | 同上行重写：历史口径留作文本，活引用只给今天为真的两条 |
 
 **这批错号的共同点**：它们不是新写的，而是**旧记录在新仪器下第一次被读**。

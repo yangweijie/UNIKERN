@@ -61,7 +61,7 @@ python probe/anchors_check.py                            # 第 3 条门
 
 | 记录里的旧写法（下面的数字都是**文本**，不是活引用：它们当时就是错的） | 那个数字上实际是什么 | 现在的活引用 |
 |---|---|---|
-| codegen_hip 的 548/549 与 996/997、runner_ocl 的 133/134、runner_metal 的 84/85（"三后端的 init 逐字相同"） | 548/549 是 conv 的 launch 维度、996/997 是 gemm 的 tile 常量；ocl 133/134 与 metal 84/85 是**注释**行 | `initA`（`src/codegen_hip.cpp:571/1086`）两处发射、`initA`（`src/runner_ocl.cpp:136`）、`initA`（`src/runner_metal.mm:87`）；HIP 侧多一个 `static`，"逐字相同"就表达式而言成立 |
+| codegen_hip 的 548/549 与 996/997、runner_ocl 的 133/134、runner_metal 的 84/85（"三后端的 init 逐字相同"） | 548/549 是 conv 的 launch 维度、996/997 是 gemm 的 tile 常量；ocl 133/134 与 metal 84/85 是**注释**行 | `initA`（`src/codegen_hip.cpp:604/1122`）两处发射、`initA`（`src/runner_ocl.cpp:136`）、`initA`（`src/runner_metal.mm:87`）；HIP 侧多一个 `static`，"逐字相同"就表达式而言成立 |
 | kml_front 的 89/93（"前端明确允许 fp32\|fp16\|int8"） | 89 是未知键拒绝、93 是 `op` | `dtype`（`src/kml_front.cpp:106/108/112`） |
 | kml 的 107/117（"成本与规范键认 dtype"） | **两个数都对**：107 是规范键里的 `to_string(t.dtype)`，117 是 `dtype_size` | 只缺邻接符号，现写作 `dtype`（`src/kml.cpp:107/117`） |
 | 四行"Phase 53/54 写下的 acceptance.cpp 2747/2787/2800/2811/2863 整体偏移约 99 行" | 那些数是**当时**的位置；且 2863 本就不属于 `[R20-nonhip]` | 降级为"当时写在 :2747/:2787/:2800/:2811/:2863"（不带 `path:` 前缀就不是活引用；G2 证明它带上前缀就会红） |

@@ -18,7 +18,7 @@ HIP 侧由 `[R20]` 按字节钉住那几段嵌套；OpenCL/Metal 侧**什么都�
 
 ## 臂
 
-`[R20-nonhip]` `tests/acceptance.cpp:2818` 起（`[R20-nonhip]`），用**进程内**生成（`ocl_kernel_source` /
+`[R20-nonhip]` `tests/acceptance.cpp:2865` 起（`[R20-nonhip]`），用**进程内**生成（`ocl_kernel_source` /
 `msl_kernel_source`，不新增 CLI 发射），对两个后端 × 三个算子各钉一条**单调锚点序列**与
 **累加语句的次数**：
 

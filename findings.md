@@ -551,7 +551,7 @@
   8425177088 (measured by hipMemGetInfo)` → 重试再违例 → `RESOLVE STOP`，**rc=5、零落库**；
   账本里两条 `#VIOLATION` 事件行、没有一行 solution 行。复原后 ctest 2/2 绿。
   转录 `docs/evidence/phase18/alarm-firing-control.txt`。
-- **`[R8.5-long]` 臂**（`tests/acceptance.cpp:2443` 起，紧邻其后的 R10.3 段在 :2610）：率的六条边界（含
+- **`[R8.5-long]` 臂**（`tests/acceptance.cpp:2490` 起，紧邻其后的 R10.3 段在 :2610）：率的六条边界（含
   `checks=0 → rate=1.0` 与"后端不报 token ≠ 0"）、三份生成程序都带 `checks=/vram_free=/
   vram_total=` 且 `++UK_RESIDENT_CHECKS` 恰好一处、两种账本格式都"事件计数与 solution
   行数分离"（`violation_count()` 新接口，`size()` 不再把事件算作解）、阈值 `nan/-1`
@@ -758,7 +758,7 @@
   本轮因为那天把发射结果入库成了基线，回退后用 `diff` 空输出 + `sha256` 相等直接证明
   **逐字节相同**（`lines=508`，`8464d86c…42bb28`），并复现 `kernel_ms=7.152313 / 7.152326`、`ctest` 3/3。
   **固化规则：任何"可回退"的改造，动手前先把产物与摘要存成基线，回退的举证成本会从"说不清"降到一条 `diff`。**
-- **`[R20]` 字节钉住的第二次真实检验**：padding 版让 `tests/acceptance.cpp:2633` 的 `nest_tile` 当场变红（Phase 24 当时是 :1682），
+- **`[R20]` 字节钉住的第二次真实检验**：padding 版让 `tests/acceptance.cpp:2672` 的 `nest_tile` 当场变红（Phase 24 当时是 :1682），
   我是**先让旧钉住红、再决定去留**（不是先改断言迁就实现），回退后自动复原 3/3。
 - **下一手的靶（只是靶，不是决定）**：内循环每步实际是 **1 次 LDS 取值 + 8 次 `Wt` 全局（L2）取 + 8 次 FMA**，
   取指令比 FMA 还多；本块权重只有 `ocb*Kh*Kw*C = 2304` 个字（≈9 KB）。
@@ -916,7 +916,7 @@
 - **盲区是读码读出来的**：发射程序里差分验证跑**固定 2²⁰ 实例**，而折叠宽度**当时**来自声明的 L
   （Phase 30 的口径；D9 之后改由设备自报量在运行时推导）⇒ `UNIKERN_RESULT` 的 `max_rel`
   描述的是那个小实例，**不是计时规模**。今天这两个发射点是
-  `Differential`（`src/codegen_hip.cpp:883`）与 `UK_REDUCE_WIDTH`（`src/codegen_hip.cpp:880`）；
+  `Differential`（`src/codegen_hip.cpp:916`）与 `UK_REDUCE_WIDTH`（`src/codegen_hip.cpp:880`）；
   Phase 30 原文写的 840/829 是当时的位置，已降级为文本、不作活引用。
 - **网格实测**（`docs/evidence/phase31/fold-exactness-grid.txt`，18 格，仪器先报 `rel` 再报时间）：
   现役宽度 4096 在 `n=2²⁴/2²⁵/2²⁶` 上 `rel=0`；`n=2²⁶+4096` 上 `rel=−4.577e−05`；
@@ -1119,7 +1119,7 @@
 - **否证过程（这是本轮的主要产出）**：G11 说发射的 `uk_gemm` 用 32 位索引、可行负载会越界读。
   两条都错，且错法不同：
   ① **常量来源错**：我把 banner 里 `shard_mb=64MiB (shard_rows=4096)` 当成固定值，实际
-  `shard_rows = int(shard_bytes / (K*4))`（`shard_rows` `src/codegen_hip.cpp:1014`）随 K 反比收缩。7 档 K
+  `shard_rows = int(shard_bytes / (K*4))`（`shard_rows` `src/codegen_hip.cpp:1047`）随 K 反比收缩。7 档 K
   （1e5…1.6e7）× 3 档 M 的扫描里 `SR*K` 落在 `[6.4e6, 1.68e7]`，恒 ≤ `64MiB/4 = 16777216`
   ⇒ 流式启动的索引空间被分片大小钉住，**结构上不可能溢出**。
   ② **类型来源错**：我看到签名 `int M, int N, int K` 就断言 `m*K + k` 是 32 位乘法；
@@ -1223,7 +1223,7 @@
 - **先查覆盖范围再谈证明**：Phase 36 的互素论证是从 `src/codegen_hip.cpp` 读出来的，而那句
   "2^-4-multiple init keeps every FP32 partial sum exact" 的注释只存在于 HIP 发射器里。
   实测三后端的 init 表达式**逐字相同**（HIP 发射的多一个 `static`；本轮把 2026-10-28 写下的四处
-  引用按现值重取：`initA` 在 `src/codegen_hip.cpp:571/1086` 两个实例、`initA` 在 `src/runner_ocl.cpp:136`、
+  引用按现值重取：`initA` 在 `src/codegen_hip.cpp:604/1122` 两个实例、`initA` 在 `src/runner_ocl.cpp:136`、
   `initA` 在 `src/runner_metal.mm:87`），所以证明对 conv/gemm 的三后端都成立，
   Phase 36 的说法**没有过宽**。
 - **但没有任何东西守着这份一致**：四处副本里任何一处被改（例如 `% 17` 改成 `% 16`），
@@ -1404,7 +1404,7 @@
 
 - **实现口径**：`kRefReduceWidth = 1024`（`kRefReduceWidth` `include/unikern/core.hpp:124`）是**参考自己的**分片数，
   与内核 `UK_REDUCE_WIDTH`（本机 16384）解耦；`cpu_reduce_blocked`（`src/reference.cpp:36`）
-  = 跨步部分和 + 索引序折叠。发射程序里的 `cpu_reduce_ref`（`src/codegen_hip.cpp:807`）与两个进程内
+  = 跨步部分和 + 索引序折叠。发射程序里的 `cpu_reduce_ref`（`src/codegen_hip.cpp:840`）与两个进程内
   runner 的 `cpu_reduce_blocked` 在 `src/runner_ocl.cpp:660` 与 `cpu_reduce_blocked` 在 `src/runner_metal.mm:593`，同口径
   （2026-10-29 按现码重取；原先写的 805/562/530 是 Phase 47 当时的位置，已被后续插入推走）。
 - **为什么这是硬约束而不是风格**：如果基准用与内核**相同的形状**（同分片数、同折叠次序），
@@ -1430,7 +1430,7 @@
 - **此前的真实状态**（不是推测，是流程事实）：`run --vendor amd` 让 runner 在 workdir 里**现场重新
   生成**程序再编译，因此 `docs/evidence/**/emit/uk_amd.cpp` 从来没有作为**这些字节**被编译过。
   证据链里「存下来的程序 = 跑出那个数的程序」这句话，只验了「它长得像生成器输出」这一半。
-- **两半各自的仪器**：`[R5.4-artifact-bytes]`（`tests/acceptance.cpp:2087`）用 CLI 重新发射同样的三个
+- **两半各自的仪器**：`[R5.4-artifact-bytes]`（`tests/acceptance.cpp:2132`）用 CLI 重新发射同样的三个
   形状并**逐字节**比较（先 `size()` 后内容，避免只比行数的假象）；
   `probe/phase48_artifact_build_run.py` 用与 runner 同源的 hipcc（`HIP_PATH/bin/hipcc.exe`）、
   `-O3`、显式 `--offload-arch=gfx1032` 编译存盘文件并直接运行。
@@ -1438,7 +1438,7 @@
   `perf=` 字段与形状一致；`kernel_ms` = 0.115690 / 7.253811 / 0.468358，runner 侧是
   0.118630 / 7.210240 / 0.459194（差 0.6%~2.4%，本机计时离散度是已记录的事实，登记不解释）。
 - **A2 才是这一相的新能力**：给存盘证据文件追加一个换行，门立刻红在
-  `fresh.size() == stored.size()`（`tests/acceptance.cpp:2124`）。以前改动 `docs/evidence/` 里的
+  `fresh.size() == stored.size()`（`tests/acceptance.cpp:2178`）。以前改动 `docs/evidence/` 里的
   产物不会让任何东西变红——**「证据不可变」以前是靠约定的，现在有一条腿看着它**。
 - **两条自己的坑**：E47（手动绿/ctest 红，cwd 不同导致相对 `--kml` 路径解析不了 ⇒ 会 spawn CLI 的腿
   必须用绝对输入路径，并且必须在 ctest 下跑过一次才算数）；E48（脚本里混进 U+200B 零宽空格，会静默
@@ -1467,7 +1467,7 @@
   值不在 `[256, n]` 时打印 `UNIKERN_ERROR what=reduce_width_pin_unfit` 并 `exit(2)`
   ——**静默回落等于把「我钉过了」变成假话**；`getenv` 只出现一次。conv 早有 `UK_CONV_TILE`/`UK_CONV_OCB`，
   reduce 缺这个通道正是这次事故的根。
-- **新臂 `[R15c-width-pin]`**（`tests/acceptance.cpp:2146`）：单调锚点序列
+- **新臂 `[R15c-width-pin]`**（`tests/acceptance.cpp:2193`）：单调锚点序列
   `pin < use < refuse < decl < query`、`source=env` 横幅、`exit(2)`、单次读取。
   `[R5.4-artifact-bytes]` 基线移到 `docs/evidence/phase49/emit/`：reduce 276→**290 行**
   （`sha256=b8862c99…`），gemm 447 行 `7a451491…` 与 conv 542 行 `09e9b570…` **逐字节不变**。
@@ -1556,7 +1556,7 @@
 
 - **洞是真的**（先证明再补）：改发射出去的**一句 OpenCL 注释**，Phase 52 的全部仪器一件都不红——
   门 #7 的 Q2 期望本来就是 GREEN（它明说自己不是字节指纹），HIP 字节腿不看 `.cl`。
-- **新臂 `[R5.4-artifact-bytes-cl]`**（`tests/acceptance.cpp:3006`）：CLI 现场发射三份 `uk_intel.cl`
+- **新臂 `[R5.4-artifact-bytes-cl]`**（`tests/acceptance.cpp:3053`）：CLI 现场发射三份 `uk_intel.cl`
   与入库基线逐字节比较；逐 op 先打印 `identical`/`DRIFT` 与字节数，**再**断言
   `identical`（`tests/acceptance.cpp:3052`）。
   打印先于断言的实测理由：一个二进制里有两条字节腿时，CRT assert 会让后一条**根本没机会说话**——
@@ -1572,7 +1572,7 @@
   `[R5.4-artifact-bytes-cl]` 在**每个**影子控制上因"基线文件不存在"假红。
   `probe/phase53_shadow_pre_fix_replay.py` 把这件事测出来了：影子树带 `.cl` ⇒ acceptance **rc=0**；
   只删掉那三份 `.cl` ⇒ **rc=3221226505**，`Assertion failed: !fresh.empty() && !stored.empty()`
-  （臂 `[R5.4-artifact-bytes-cl]` 的 `tests/acceptance.cpp:3039`），且逐 op 行 **0** 条。⇒ 修**装置**（`shadow_root` 现在也种 `.cl`，
+  （臂 `[R5.4-artifact-bytes-cl]` 的 `tests/acceptance.cpp:3053`），且逐 op 行 **0** 条。⇒ 修**装置**（`shadow_root` 现在也种 `.cl`，
   `probe/phase49_widthpin_removal_probe.py:113`），Phase 52 的 Q1/Q2/Q3 期望一条都不必改就重新全中。
   **如果当时去改期望，改的是仪器故障而不是被测性质。**
 - **期望的粒度=控制的粒度**（E55）：`split()[2]` 应为 `[1]`，于是"漂移到哪个 op"读成字面量 `DRIFT`；
@@ -1590,7 +1590,7 @@
   `docs/evidence/phase54/msl-probe.txt`。**以前那句 gap 理由是断言，现在是前端自己的话。**
 - **形状上的改进**：认 Metal 的主机上同一段代码会自动继续（控制 → 三份 `.metal`），
   跳过行不会伪装成绿，也不需要有人记得在未来改代码。
-- **新臂 `[R5.4-artifact-bytes-msl]`**（`tests/acceptance.cpp:3070`，断言 `[R5.4-artifact-bytes-msl]` 的 `tests/acceptance.cpp:3115`）：
+- **新臂 `[R5.4-artifact-bytes-msl]`**（`tests/acceptance.cpp:3117`，断言 `[R5.4-artifact-bytes-msl]` 的 `tests/acceptance.cpp:3117`）：
   字节比较不需要前端，所以"MSL 产物被改过"这件事在本机从今天起可见。基线入库
   `emit/<op>/uk_apple.metal` = 61/40/36 行、**2893 / 2105 / 1885 B**，sha256 记在 README。
 - **三条控制的读数**：M1 改发射出去的 Metal 注释 → acceptance RED、`{gemm:identical,
@@ -1613,7 +1613,7 @@
 - **区分是什么**：硬约束第 3 条说改算术顺序 = 改结论。HIP 侧有 `[R20]` 按字节钉嵌套；
   OpenCL/Metal 侧此前**没有任何臂**——改折叠次序与改一句注释在仪器上是同一种红（都只说"字节变了"）。
   后果不抽象：Intel/Apple 的入库读数来自 Phase 9/10 的那几段嵌套，次序一动它们就不再可比。
-- **臂的形状** `[R20-nonhip]`（`tests/acceptance.cpp:2818`）：进程内调用 `ocl_kernel_source`/`msl_kernel_source`
+- **臂的形状** `[R20-nonhip]`（`tests/acceptance.cpp:2865`）：进程内调用 `ocl_kernel_source`/`msl_kernel_source`
   （**不新增 CLI 发射**），2 后端 × 3 算子 = 6 个 pin，每个 pin 钉两件事：一条**单调锚点序列**
   （conv `c→kh→kw→FMA→存储`；reduce `s=0→X 累加→P 写→P 折叠→Y 写`；gemm `k0→k→r/c→FMA→存储`）
   与**累加语句恰好 1 次**。序列而非相邻（E50）、次数而非存在（E21/E24）。
@@ -1683,7 +1683,7 @@
 - **轴的区分**：`[R20]`（HIP）钉的是整段嵌套的**字节**，次序与表达式一起在内；Phase 55 的
   `[R20-nonhip]` 只钉**次序**。于是 `((ho + kh) * W + (wo + kw))` 换成 `((kh + ho) * W + (kw + wo))`
   ——循环、次序、FMA 位置都不变——只让字节腿红，而字节腿不说"算术形状变了"。第 3 条要求的正是这句区分。
-- **臂 `[R20-nonhip-expr]`**（`tests/acceptance.cpp:2917`）：6 个 pin（2 后端 × 3 算子），每 pin 是逐字节多行片段，
+- **臂 `[R20-nonhip-expr]`**（`tests/acceptance.cpp:2964`）：6 个 pin（2 后端 × 3 算子），每 pin 是逐字节多行片段，
   次数必须 = 1（E21/E24），逐 pin 先打印 `expr=ok/BAD + counts` 再断言，且臂自己数打印行数。
   片段**从当前发射文本 grep 现取**（含缩进），凭记忆写会在下一拍被门 #3 抓（上一相刚示范过）。
 - **两条控制才证得开两根轴**：E1 在 `ocl_conv_kernel` 内改索引式 → **次序臂 6/6 干净 + 表达式臂点名
@@ -1696,7 +1696,7 @@
   全部 grep 现取改指（`2846→2935`、`2886→2975`、`2899→2988`、`2910→2999`、`2962→3051`）。
 - **棘轮对新文档也响（两次）**：本相 README/结果段引入的 `path:line` 有两条所在行没有可核符号，
   `unverifiable` 91→92 直接压红。改法是写引用时把符号或臂标签放在**同一物理行**
-  （`[R20-nonhip-expr]`（`tests/acceptance.cpp:2917`）），**上限一格没调**。
+  （`[R20-nonhip-expr]`（`tests/acceptance.cpp:2964`）），**上限一格没调**。
   ⇒ 记 E59：写文档与写代码同律——引用形状要就地可核；且文档改完立刻跑门 #3（它 0.15 s）。
 - 自己的期望又错一次：预登记断言"E1 时次序臂一行都不打印"，实际次序臂先跑且干净——**先怀疑期望**
   这条第四次生效。
@@ -1724,7 +1724,7 @@
   是 `return 0;`。不变量为真、位置为真：拒绝在 `r.verified`（`src/main.cpp:540`），提交行打印在 553 行。
   ⇒ E21/E24 的对偶：**多项目只验一项** + **符号看不见** 两个盲区叠起来，一个假符号就等价于一个真断言。
 - **重读债目抓出的其余三条**（都是收紧当场照出来的，不是先改文档再找理由）：三后端 init 的四处行号
-  全错（现为 `initA`（`src/codegen_hip.cpp:571/1086`）、`initA`（`src/runner_ocl.cpp:136`）、
+  全错（现为 `initA`（`src/codegen_hip.cpp:604/1122`）、`initA`（`src/runner_ocl.cpp:136`）、
   `initA`（`src/runner_metal.mm:87`），HIP 侧多一个 `static`，"表达式逐字相同"成立）；
   dtype 允许表被写到 `op` 那行（现为 `dtype`（`src/kml_front.cpp:106/108/112`））；
   `dtype`（`src/kml.cpp:107/117`）两个数其实都对，只缺邻接符号。
@@ -1748,10 +1748,10 @@
   分类本身就是产出——它决定了每条债要"补符号"还是"重指"还是"降级为文本"。
 - **最大的一条发现：多数 dead 不是缺符号，而是行号漂了。**逐条 grep 现取后的对照：
   计时段 d2h 发射点写 `:887` 8 处（今天是 `hipMemcpyAsync` 那句，`src/codegen_hip.cpp:946`）、
-  差分验证实例写 `:840` 3 处（`Differential` 在 `src/codegen_hip.cpp:883`）、
+  差分验证实例写 `:840` 3 处（`Differential` 在 `src/codegen_hip.cpp:916`）、
   conv/gemm 的 init 精确性注释写 `:587` 4 处（`max_rel` 那句在 `src/codegen_hip.cpp:610`）、
-  "the partial FREEZES" 写 `:739` 2 处（`FREEZES` 已在 `src/codegen_hip.cpp:762`）、
-  CPU 参考同口径写 `:805`/`:562`/`:530`（现分别为 `cpu_reduce_ref` 在 `src/codegen_hip.cpp:807`、
+  "the partial FREEZES" 写 `:739` 2 处（`FREEZES` 已在 `src/codegen_hip.cpp:795`）、
+  CPU 参考同口径写 `:805`/`:562`/`:530`（现分别为 `cpu_reduce_ref` 在 `src/codegen_hip.cpp:840`、
   `cpu_reduce_blocked` 在 `src/runner_ocl.cpp:660` 与 `cpu_reduce_blocked` 在 `src/runner_metal.mm:593`）。
   这些号码在整个 Phase 34–57 期间一直"绿"，因为它们的句子**从来没有可核邻接符号**。
   ⇒ 计数债的价值不是好看，而是把"没人看过"变成可操作的清单。
@@ -1781,8 +1781,8 @@
 - **11 条 dead 债的真面目**：8 组是**行号又漂了**，3 组是句子引用**发射出去的注释文本**（那一行确实是
   所指对象，但里面没有 ≥5 字标识符可配）。重指的八组，每条各配自己的主语（完整对照见
   `docs/evidence/phase60/README.md`）：
-  `uk_conv_plan`（`src/codegen_hip.cpp:435`）、`FREEZES`（`src/codegen_hip.cpp:762`）、
-  `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）、`cpu_reduce_ref`（`src/codegen_hip.cpp:807`）、
+  `uk_conv_plan`（`src/codegen_hip.cpp:435`）、`FREEZES`（`src/codegen_hip.cpp:795`）、
+  `hipMemcpyAsync`（`src/codegen_hip.cpp:946`）、`cpu_reduce_ref`（`src/codegen_hip.cpp:840`）、
   `cpu_reduce_blocked`（`src/runner_ocl.cpp:660`）、`cpu_reduce_blocked`（`src/runner_metal.mm:593`）、
   `epsilon_rel`（`src/main.cpp:552`）、`parse_int_wide`（`src/kml_front.cpp:127`）、
   `max_ws`（`src/runner_metal.mm:112`）与 `ws_refuse`（`src/runner_metal.mm:213`）。
@@ -1909,3 +1909,22 @@
 - **MSL buffer 绑定纪律**：标量参数继续排在最后一个 buffer 之后（conv 的
   X=0..Oc=8 是家法）；rmsnorm/channelscale 第一版把 L 绑到 buffer(2) 与 Y 冲突，
   已改为 L=3/C=4。本机无 Metal 前端，此修复是检视级，真编译验证待 Metal 主机。
+
+## Phase 65 增量 1 实测事实（2026-10-31，本机 RX 6600M / gfx1032）
+
+- **fp16 gemm 真机读数**（512³，half 存储 / fp32 累加 / resident-only，两次
+  run）：verify=PASS max_rel=0 measured 0.7725/0.8434 kernel 0.1166/0.1185。
+  max_rel=0 的机制：init 锯齿全是 2⁻⁸ 倍数且周期 221 把和压在 half 精确可表
+  的幅值内——**不能外推**为"fp16 gemm 恒 max_rel=0"，换输入分布即会出现
+  ~5e-4 级 half 舍入（门 2⁻⁴ 仍富余）。
+- **fp16 kernel_ms ≈ fp32 一半**（0.117 vs ~0.25 @512³）：字节减半的直接收益，
+  roofline 方向性在真机上成立。
+- **能力区间 op 感知后的拒绝拓扑**：F16+Gemm 恰好 AMD covered；Apple/Intel
+  的拒绝理由各自命名自己的生成器（"msl/ocl ... dtype=fp16 has no ... yet"），
+  不再借用 dtype_gap 的措辞——三个后端三个理由，coverage 报告说真话。
+- **容差与 init 常数撞值**：fp16 容差 2⁻⁴ 与 init 锯齿步长 1/16 数值相同，
+  "裸字面量不存在"型断言在 fp16 上不可写（E21 家族的边界案例）——只能靠
+  计数腿钉住。写容差检查前先问"这个值还出现在哪"。
+- **求解器 elem 按 dtype 后的 |X| 变化**：fp32 树不受影响（dtype_size(F32)=4），
+  [R2] 的 22/25 网格腿原样绿；fp16 树的工作集减半意味着更大 tile 可行，
+  c_ms=0.061（fp32 同形状 0.111）——cost 模型对 dtype 的方向性正确。

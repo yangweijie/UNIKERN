@@ -58,12 +58,12 @@ gemm `7a451491`、conv `09e9b570`、reduce `b8862c99`）。改动后 gemm 产物
 
 ## 生成程序（mmap 执行路径 + 旋钮）
 
-- `uk_stream_pass_mmap`（`src/codegen_hip.cpp:1217`）：A 落盘（`uk_gemm_streamA.bin`，
+- `uk_stream_pass_mmap`（`src/codegen_hip.cpp:1250`）：A 落盘（`uk_gemm_streamA.bin`，
   PM×PK×4 字节同 0.5f 图样）、fread 按 prefetch 距离 refill 两个映射舞台缓冲、内核经
   `hipHostGetDevicePointer` 的设备指针读 A（kernel 体零改动 = 加法次序不动，硬约束 3 的
   取数来源轴）；staging refill 由 done 事件门控；C 分片 D2H 与 pinned 同形。
 - kref（kernel-only 参考）：预填两个舞台缓冲后 S 个分片内核背靠背——映射读的纯内核时间。
-- `UK_GEMM_STREAM_PATH`（`src/codegen_hip.cpp:1312`）：env 旋钮，值 ∉ {auto, pinned, mmap}
+- `UK_GEMM_STREAM_PATH`（`src/codegen_hip.cpp:1339`）：env 旋钮，值 ∉ {auto, pinned, mmap}
   时 `what=stream_path_pin_unfit` 退 2（仿 `UK_REDUCE_WIDTH` 先例）；横幅与
   UNIKERN_RESULT 行自报 `stream_path=<pinned|mmap>` 与 `source=<plan|env>`（硬约束 4：
   处理组必须自报身份，两臂禁止 sed 手改源码）。

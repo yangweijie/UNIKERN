@@ -65,7 +65,7 @@ ctest --test-dir build --output-on-failure          # 全部 CPU 可测的验收
 7. **reduce 的精确性既不由宽度保证、也看不见；宽度也不再是发射期的常量**。差分验证与计时段
    现在共用**同一个**运行时规划的宽度（D9 之前 verify 写死 4096、计时用别的值——那是 rule 6
    在 reduce 侧的同形缺口，Phase 44 补上并有真机读数）；2²⁰ 验证实例发射点
-   `Differential`（`src/codegen_hip.cpp:883`），宽度推导 `uk_reduce_width_plan`（`src/codegen_hip.cpp:841`）。
+   `Differential`（`src/codegen_hip.cpp:916`），宽度推导 `uk_reduce_width_plan`（`src/codegen_hip.cpp:874`）。
    Phase 33 的 32 格网格（**只测 2 的幂宽度**）显示：`n > 1.678×10⁷` 之后精确性由 `n` 与宽度的
    组合决定，2 的幂**不保证** —— n=5×10⁷ 时四档宽度全偏（含现役 4096，`rel=+5.44e−05`），
    而 3×10⁷ 时反而是 16384 偏 `+2.41e−04`、4096 精确。所有偏差都远小于门限 2⁻⁵ ⇒
@@ -77,7 +77,7 @@ ctest --test-dir build --output-on-failure          # 全部 CPU 可测的验收
    当 `fill` 是 2 的幂且 `k <= 2^24` 时逐位等于 `k*fill`；越过 `2^24*fill` 后 `+fill` 撞上
    round-half-to-even 平局，**部分和冻结**、答案短少任意多的量（实测 `width=1, L=33554433`：
    `result=262144.0`、`rel=-5.000e-01`，超门限 16 倍 ⇒ 是判 FAIL 而不是"误差大一点"）。
-   自 D9（Phase 44）起 `width` 是**运行时**由设备自报量推导的（`uk_reduce_width_plan`，发射点 `src/codegen_hip.cpp:841`），地板 256 在发射的规划器里，由臂 `[R15c]` `tests/acceptance.cpp:2185` 一带
+   自 D9（Phase 44）起 `width` 是**运行时**由设备自报量推导的（`uk_reduce_width_plan`，发射点 `src/codegen_hip.cpp:841`），地板 256 在发射的规划器里，由臂 `[R15c]` `tests/acceptance.cpp:2193` 一带
    按**算术文本**钉住（不再是某个常量值）。触发上面那个冻结仍需要 `L > 4.3e9` 元素 = 17.2 GB fp32
    = 本仓最大 vram 档的两倍，且 `L` 本身已被 D10 的输入校验限制在 `INT32_MAX` 内 ⇒ **边界而非现役 bug**。因此模型必须写成**连加**，
    不能写成一次乘法——乘法版在它被训练的那批格里逐位相同，于是 41 格"全中"里零信息。
@@ -163,7 +163,7 @@ ctest --test-dir build --output-on-failure          # 全部 CPU 可测的验收
   表格与代码段里的竖线一律转义；`ctest` 的 `anchors` 门现在同时核 `path:line` 与表格列数。
   **引用要写成门能看见的形状**（Phase 56 把这条instrument拆成三层，就是因为旧形状看不见）：
   可核的两种形状是 ①符号紧贴在被引 `path:line` **前面**（`tolerance_for`（`src/runner_ocl.cpp:683`））、
-  ②引用臂时把**臂标签**放在前面（`[R20-nonhip]`（`tests/acceptance.cpp:2818`）——门会把标签映射到
+  ②引用臂时把**臂标签**放在前面（`[R20-nonhip]`（`tests/acceptance.cpp:2865`）——门会把标签映射到
   `  // -------- R` 臂头段与该臂打印的 banner，行号落在段外就报"标签主人/行主人"）。
   符号在**上一行**（Markdown 换行）算 weak、什么都没有算 unverifiable，两者各有一条**只许下降的上限**
   （Phase 58 收口：weak 61 / unverifiable 59；落地那天是 109/91；Phase 59/60 逐条还债后降到 **30/39**——

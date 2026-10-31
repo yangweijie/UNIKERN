@@ -1,0 +1,3 @@
+LEDGER HIT  c_cached_ms=0.0613536  tile=128x128  (from ledger)
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=0.843380 kernel_ms=0.118539 mode=resident payload_mb=1.500000 perf=512x512x512 dtype=fp16 migrations=0 checks=6 vram_free=8411742208 vram_total=8573157376
+LEDGER COMMIT predicted_ms=0.0613536 measured_ms=0.84338 epsilon_abs=0.782026 epsilon_rel=12.7462

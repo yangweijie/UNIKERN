@@ -60,7 +60,7 @@ ctest --test-dir build                                # 7/7
 | runner_ocl 的 434 行（4 处） | 434 是 `double total = 0.0;`；那句 "no Intel GPU platform/device found" 在 516 追加 | `uk_ocl_log`（`src/runner_ocl.cpp:516`） |
 | codegen_hip 的 415 行（3 处） | 415 是 occupancy 查询；` source=env` 在 463 发射 | 463 行（发射 ` source=env` 的地方，行内没有可当符号的标识符） |
 | kml_front 的 89 行 | 89 是未知键拒绝；dtype 字段在 106 读 | `dt_txt` 读到的 `src/kml_front.cpp:106` |
-| codegen_hip 的 963 行 | 963 是 kernel-only 计时行；`shard_rows` 在 1014 计算 | `shard_rows`（`src/codegen_hip.cpp:1014`） |
+| codegen_hip 的 963 行 | 963 是 kernel-only 计时行；`shard_rows` 在 1014 计算 | `shard_rows`（`src/codegen_hip.cpp:1047`） |
 | runner_metal 的 65-66 行 | 65 是 `UNIKERN_ERROR` 宏；线程组上限报告在 76 | `maxThreadsPerThreadgroup`（`src/runner_metal.mm:76`） |
 
 ## 剩下 19 条，以及为什么**故意**留着

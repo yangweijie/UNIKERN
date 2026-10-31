@@ -10,7 +10,7 @@
 在 Phase 48 之前**从未被当作自己的字节编译运行过**。"证据文件就是被运行的程序"这句话有两半：
 
 1. 文件字节 == 当次生成器的输出 —— 现在是一条常驻腿 `[R5.4-artifact-bytes]`
-   （`[R5.4]` `tests/acceptance.cpp:2087`，纯 CPU，靠 `SOURCE_DIR` 定位仓库）；
+   （`[R5.4]` `tests/acceptance.cpp:2132`，纯 CPU，靠 `SOURCE_DIR` 定位仓库）；
 2. 文件能被 hipcc 编译并在设备上 verify=PASS —— 现在是一条可复现脚本
    `probe/phase48_artifact_build_run.py`。
 
@@ -33,7 +33,7 @@
 | 控制 | 改了什么 | 首条红断言 |
 | --- | --- | --- |
 | A1 | 生成器发射的字面量里换一个词（产物仍可编译可运行，只是字节动了） | `assert(fresh == stored)` 方向（`tests/acceptance.cpp:2060` 一系） |
-| A2 | 直接给存盘证据文件追加一个换行 | `fresh.size() == stored.size()`（`tests/acceptance.cpp:2124`） |
+| A2 | 直接给存盘证据文件追加一个换行 | `fresh.size() == stored.size()`（`tests/acceptance.cpp:2178`） |
 
 A2 是这条腿存在的另一半理由：**证据文件应当是不可动的**。以前改动 `docs/evidence/` 里的产物
 不会让任何门变红；现在会。守卫复原 byte-identical，末轮 `ctest` 6/6。

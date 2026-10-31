@@ -26,7 +26,7 @@
 
 ## 腿与控制
 
-`[R15d-runner-width]`（`tests/acceptance.cpp:2202`）核：两个 runner 都读同名旋钮、都有拒绝 token、
+`[R15d-runner-width]`（`tests/acceptance.cpp:2249`）核：两个 runner 都读同名旋钮、都有拒绝 token、
 都打印 `source=`、旧写死函数已删除、verify 复用 `plan.P`、`getenv` 各只出现一次；
 OpenCL 侧另有 `CL_DEVICE_MAX_COMPUTE_UNITS` 与 256 地板算术的文本。
 
