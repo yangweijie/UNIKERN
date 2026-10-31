@@ -1,0 +1,5 @@
+{
+  "op": "channelscale",
+  "dtype": "fp32",
+  "dims": [65536, 256]
+}

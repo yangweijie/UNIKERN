@@ -32,6 +32,11 @@ SPECS = [
     ("gemm", ["--op", "gemm", "--dims", "512", "512", "512"]),
     ("conv", ["--kml", str(ROOT / "workloads" / "conv" / "conv_256x256x32_k3x3_o64.json")]),
     ("reduce", ["--op", "reduce", "--dims", "1048576", "0", "0"]),
+    # Phase 64: the three resident-only primitives. The CLI surface for them is
+    # --kml only (--op still takes gemm|reduce), so the shapes live in samples/.
+    ("softmax", ["--kml", str(ROOT / "samples" / "kml_softmax.json")]),
+    ("rmsnorm", ["--kml", str(ROOT / "samples" / "kml_rmsnorm.json")]),
+    ("channelscale", ["--kml", str(ROOT / "samples" / "kml_channelscale.json")]),
 ]
 # (label, emitted file name, how to invoke the checker, the control snippets)
 BACKENDS = [

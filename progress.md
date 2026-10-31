@@ -1376,3 +1376,29 @@ Phase 16 本体见提交 ea76c2f——G5/R8.5 驻留守卫。本轮把两项真�
 - 核心差距 10 类：①缺 Transformer 核心原语（softmax/RMSNorm/注意力/反量化/逐通道缩放）；②fp32-only（需 fp16/bf16/dtype 轴 + 量化路径）；③KML 扩展支持新 dtype/新原语；④mmap 成本数值标定 + 能力→F 合流 + calibrate 分层；⑤生成物形态迈向 per-layer 内核库 + 图执行器；⑥ Intel conv/reduce 真机 + Apple MSL 真编译；⑧ 量化生成路径；⑨ calibrate 池分层；⑩ 仪器盲区（臂标签词法、calibrate 门分层）。
 - 制定 Phase 64-70 七阶段计划（写入 task_plan.md 表格）：Phase 64 新原语（softmax/RMSNorm/逐通道缩放）→ Phase 65 dtype 轴（fp16/bf16/量化）→ Phase 66 求解增强（mmap 标定/能力→F/calibrate 分层）→ Phase 67 运行时形态（per-layer 库+图执行器）→ Phase 68 真机闭合（Intel/Apple）→ Phase 69 量化路径 → Phase 70 仪器完善。
 - `ctest` 7/7 全绿。本相产物未提交（纪律）。
+
+## 续52（2026-10-31，Phase 64 闭合：新原语真机闭环 + 门 #7 扩 6 op）
+
+- 起点：`5ae8a2a` 合并带来远端改写的文档（acceptance-mvp.md 1557→1082 行）与
+  两条引用漂移 + weak/unverifiable 超上限；Phase 64 的实现代码（softmax/rmsnorm/
+  channelscale）本来就在本地 ad36876 里。先还仪器债再干活。
+- **合并回归修复**：`print_infeasible` 退 3 重指 `src/main.cpp:318-319`、
+  `verify_fp32` 重指 `src/runtime.cpp:191`、`cmd_run` 提交门重指 540-566（主语
+  换成真在行上的 `measured_ms`）；acceptance-mvp.md 五条弱/不可核引用逐条 grep
+  现取重指（`pick_intel_gpu:532`、`sketch:16-17`、`feasible:51-70`、
+  `hcs_import:213`、`cost_ms:79`）。anchors 门恢复全绿（weak 7/8、unver 10/11）。
+- **真机实测抓出四个生成器缺陷**（三新 op 的 HIP 程序从未被任何门编译过——
+  E51 同形）：老式 `uk_mmalloc` 重复声明 `hipError_t e`；`hipFree(const_cast<
+  void*>(p))` 作用在 `void** p`（非法且语义错，guard85 的 const void* 版本不动）；
+  计时段引用 verify 块作用域里的 X/Y/W/S；计时段多一个 `}` 把 main 提前关掉。
+  修后三 op 真机全 `verify=PASS`（softmax/channelscale max_rel=0，rmsnorm
+  2.07e-07），`LEDGER HIT`→`COMMIT` 往返正常。
+- **门 #7 扩 6 op**：第一次运行当场抓到 OCL softmax 行指针缺 `__global`
+  （address space 错误）——门扩到哪里，哪里就不再是文本盲区。检视另抓 MSL
+  rmsnorm/channelscale 的 `L [[buffer(2)]]` 与 `Y` 绑定冲突（本机无 Metal 前端，
+  记为源码文本腿 + 明说缺口）。修后 `checked=12` PASS。
+- **工具教训（E69 家族再现）**：heredoc 里的 `\\n` 被吃掉一层，替换串静默不匹配
+  ——源码级批量替换一律落成 Write 的脚本文件（fix_phase64_nonhip.py），
+  heredoc 只用于无反斜杠的纯文本。
+- 证据：`docs/evidence/phase64/`（emit 九份基线 + sha256 + 两次真机 run 转录 +
+  README 写明可逐字复现命令与既知缺口）。`ctest` **7/7**。

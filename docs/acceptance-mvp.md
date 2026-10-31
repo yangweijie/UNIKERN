@@ -1,6 +1,6 @@
 # UNIKERN MVP 验收矩阵（R1-R10）— Phase 8/9/10
 
-- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**；**v10 Phase 14：Intel/OpenCL 的 conv/reduce——`ocl_kernel_source` 三算子内核 + `ocl_op_gap`/per-backend 覆盖 + runner_ocl 按算子分派；三份 .cl 过 clang 的 OpenCL 前端（负测可红），runner host 侧仅编译检查（本机无 Intel 设备，运行未验）；能力面变三向；新增 [R14]，Phase 13 中"OpenCL 仍 gemm-only"的结论据实标记取代**；**v11 Phase 15（2026-10-28）：AMD 收尾——`hip_runnable_program` 按算子分派，conv 出 `uk_conv`、reduce 出 `uk_reduce_part`+`uk_reduce_sum`（各自独立程序、CPU 参考内嵌、gemm 程序逐位不变）；`op_support_gap()` 翻转为三算子 covered（layout 是唯一拒绝轴）；RX 6600M 真机 conv/reduce/gemm 全部 verify=PASS max_rel=0 → COMMIT → 同键 HIT；新增 [R15]，R5/R6/R10 行据实更新，[R10.2] 的 op 拒绝臂改为"不可用后端诚实失败"臂**；**v12 验收收尾（2026-10-28）：两项真机成果落账——① G1 执行半边的 AMD 侧闭合确认（G1 全闭合，缺口表据实改写）；② G5/R8.5 驻留守卫（Phase 16，ea76c2f）真机验证：HIP 三程序内嵌 uk_mmalloc 驻留断言，RX 6600M 三算子真机 run 全 `migrations=0`，当前二进制上复核重采（backends / emit 三源行数 / 三 run×COMMIT+HIT / ctest 2/2 绿，`docs/evidence/phase15/phase15-recheck-v12.txt`）；Intel conv/reduce 真机运行维持如实标注（本机无 Intel 设备，backends 实测 intel=no）**；**v12.1 独立复核修订（2026-10-28）：① 汇总矩阵 R1 行与 R1 详段系 v8/v9 旧文未随 v11/v12 更新（仍写"AMD/Intel 执行半边待下一批"与"rc=2 且不建账本"），与本文件 G1 全闭合结论矛盾——已据实改判（AMD 真机 COMMIT→HIT、Intel 本机实测 `COVER covered`+`RUN FAILED` rc=1 零落库，旧 rc=2 读数标注为 Phase 12 时代）；② Phase 14 补遗引用的失败消息「no Intel GPU platform/device found」改注出处（Mac 侧构建 + `src/runner_ocl.cpp:434`），并补 Windows 构建的实测消息（消息随构建而异，rc=1 与零落库两承重事实不变）；③ Phase 9 ocloc AOT 证据产物三件（build/phase9-emit/）工作区误删已由 git 恢复；④ 自捉修复：`unikern ledger <path>` 子命令静默忽略路径参数（main.cpp 硬编码 kDefaultLedger，G7 同类静默）——已改为尊重参数并重验**；**v13 Phase 17（2026-10-28）：Intel conv/reduce/gemm 三算子真机运行验证（开放缺口①闭合）——本会话运行于 Intel Arc B390 机器（v12 的「本机无 Intel 设备」是 AMD 机器侧会话的机器相关读数），conv/reduce 首次真机执行即 verify=PASS max_rel=0 → COMMIT → 同键 HIT，gemm 回归不变；顺带修复两个真机暴露缺陷：E18（把 LOCAL 工作组上限误当全局网格上限的规格误读，reduce 被错误拒绝——verify=PASS 与 refused 并存即暴露点）与 E19（事件完成前读 profiling 的竞态，驱动返回全零时间戳 → 间歇性 measured_ms=0），前后对照转录 docs/evidence/phase17/phase17-defects-before-after.txt**
+- 日期：2026-10-27（v2 复核修订；v3 收尾审计 ε 实算；v4 校准闭环：R7.3/R3.3 实测→常量校准 + 版本号递增 + R5.3 toolchain 指纹，G2/G3 闭合；**v5 Phase 9：Intel 真机验证（G4 Intel 半闭合）——ocloc AOT + 进程内 OpenCL runner + 真机对拍/账本闭环/校准，Intel 行 ⛔→✅，Apple 维持受阻**；**v6 Phase 10：Apple 真机验证（G4 全闭合）——Metal 运行时 JIT（无需 Xcode）+ 进程内 ObjC++ runner + 真机对拍/账本闭环，Apple 行 ⛔→✅**；**v6.1：Phase 10 Apple 证据全量重采**，本文件 Apple 段的每个 ε/带宽数字均与 `docs/evidence/phase10/` 当前转录一致（此前引用的 `ε_rel=99.6471`、`5.18 GB/s` 来自未入库的一次性读数，已按重采读数替换；ε_rel 口径为比值 |C−T|/T，非百分数**）；**v7 Phase 11：G7 闭合——非 GEMM 树不再被静默当作 GEMM 执行/回写，改为 `op_support_gap()` 谓词 + 生成物自拒 + runner 入口自拒 + CLI 门三层显式拒绝，逐层"摘掉即红"（docs/evidence/phase11/）；R10 行据实改判 🟡，并新增 G6/G8 入册**）；**v8 Phase 12：KML 文本前端（R1.1 声明半边 + R1.2 完整违规清单，三算子按 arity 校验、layout 白名单、children 路径前缀）+ R10.3 每后端覆盖报告三轴 + G9 账本键按算子 arity 编码（gemm 键逐位不变）；R10 行回改 ✅、R1 行细化为"声明已验 / 执行半边仍缺"；G8/G9 入册并闭合**；**v9 Phase 13：conv/reduce 执行面（Apple 先行）——MSL 的 uk_conv/uk_reduce 内核 + per-backend 能力面（`capability_gap`）+ 异构 emit，M4 上 verify=PASS max_rel=0 与账本 COMMIT/HIT；G6 闭合（实测 Metal 工作集上限 12.7 GiB 并入第二道门）；新增 [R13] 段，R1/R5/R6/R7/R10 行据实更新**；**v10 Phase 14：Intel/OpenCL 的 conv/reduce——`ocl_kernel_source` 三算子内核 + `ocl_op_gap`/per-backend 覆盖 + runner_ocl 按算子分派；三份 .cl 过 clang 的 OpenCL 前端（负测可红），runner host 侧仅编译检查（本机无 Intel 设备，运行未验）；能力面变三向；新增 [R14]，Phase 13 中"OpenCL 仍 gemm-only"的结论据实标记取代**；**v11 Phase 15（2026-10-28）：AMD 收尾——`hip_runnable_program` 按算子分派，conv 出 `uk_conv`、reduce 出 `uk_reduce_part`+`uk_reduce_sum`（各自独立程序、CPU 参考内嵌、gemm 程序逐位不变）；`op_support_gap()` 翻转为三算子 covered（layout 是唯一拒绝轴）；RX 6600M 真机 conv/reduce/gemm 全部 verify=PASS max_rel=0 → COMMIT → 同键 HIT；新增 [R15]，R5/R6/R10 行据实更新，[R10.2] 的 op 拒绝臂改为"不可用后端诚实失败"臂**；**v12 验收收尾（2026-10-28）：两项真机成果落账——① G1 执行半边的 AMD 侧闭合确认（G1 全闭合，缺口表据实改写）；② G5/R8.5 驻留守卫（Phase 16，ea76c2f）真机验证：HIP 三程序内嵌 uk_mmalloc 驻留断言，RX 6600M 三算子真机 run 全 `migrations=0`，当前二进制上复核重采（backends / emit 三源行数 / 三 run×COMMIT+HIT / ctest 2/2 绿，`docs/evidence/phase15/phase15-recheck-v12.txt`）；Intel conv/reduce 真机运行维持如实标注（本机无 Intel 设备，backends 实测 intel=no）**；**v12.1 独立复核修订（2026-10-28）：① 汇总矩阵 R1 行与 R1 详段系 v8/v9 旧文未随 v11/v12 更新（仍写"AMD/Intel 执行半边待下一批"与"rc=2 且不建账本"），与本文件 G1 全闭合结论矛盾——已据实改判（AMD 真机 COMMIT→HIT、Intel 本机实测 `COVER covered`+`RUN FAILED` rc=1 零落库，旧 rc=2 读数标注为 Phase 12 时代）；② Phase 14 补遗引用的失败消息「no Intel GPU platform/device found」改注出处（`pick_intel_gpu` 拒绝路径的日志行（Mac 侧构建 + `src/runner_ocl.cpp:532`）），并补 Windows 构建的实测消息（消息随构建而异，rc=1 与零落库两承重事实不变）；③ Phase 9 ocloc AOT 证据产物三件（build/phase9-emit/）工作区误删已由 git 恢复；④ 自捉修复：`unikern ledger <path>` 子命令静默忽略路径参数（main.cpp 硬编码 kDefaultLedger，G7 同类静默）——已改为尊重参数并重验**；**v13 Phase 17（2026-10-28）：Intel conv/reduce/gemm 三算子真机运行验证（开放缺口①闭合）——本会话运行于 Intel Arc B390 机器（v12 的「本机无 Intel 设备」是 AMD 机器侧会话的机器相关读数），conv/reduce 首次真机执行即 verify=PASS max_rel=0 → COMMIT → 同键 HIT，gemm 回归不变；顺带修复两个真机暴露缺陷：E18（把 LOCAL 工作组上限误当全局网格上限的规格误读，reduce 被错误拒绝——verify=PASS 与 refused 并存即暴露点）与 E19（事件完成前读 profiling 的竞态，驱动返回全零时间戳 → 间歇性 measured_ms=0），前后对照转录 docs/evidence/phase17/phase17-defects-before-after.txt**
 - 规格：`.monkeycode/specs/unikern-mvp/requirements.md` v1.1（R1-R10）
 - 构建环境：Windows 11 + Git Bash；CMake 4.4.0 + Ninja；MinGW g++ 13.2.0（C++20，`-static` 链接，E2 修复）；**Phase 9（Intel 段）另用 MSVC 2022 Community（cl.exe 14.44 + vcvarsall 环境）构建，OpenCL 经 oneAPI 2026.1/lib/OpenCL.lib 导入库链接 + third_party/CL 厂商头（18 头，Apache-2.0），构建标志含 -DUK_HAS_OCL**（MSVC 编译旗标 /W4 + /utf-8 + _CRT_SECURE_NO_WARNINGS；GCC 风格 -Wall/-Wextra 按编译器翻译）
 - 构建类型：**Release**（`build/CMakeCache.txt:25 CMAKE_BUILD_TYPE:STRING=Release`；编译旗标 `build/build.ninja:278 FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra`，`CONFIG = Release`）——MinGW/GNU 的 Release 默认即 `-O3 -DNDEBUG`；E5 前提（Release 会剥除断言）在此配置下被真实行使，测试文件 `#undef NDEBUG` 保断言存活，ctest 2/2 绿
@@ -62,7 +62,7 @@ $ ./build/unikern_acceptance.exe
 
 **要求**：R2.2 可行候选入 X；R2.3 不可行候选输出约束违反记录并淘汰；R2.4 报告 |X|。
 
-**验收方式**：构造 vram=200 KiB 的 HCS，使文档化的 5×5 tile 网格 {16,32,64,128,256}²（`src/solver.cpp:16-17`）被谓词 `m*n*4B*3 ≤ cap`（`src/solver.cpp:42-57`）切成 22 可行 / 3 不可行；测试内**独立复算**该期望值（不复制 solver 状态），再断言 `feasible_count`、`worst` 违反记录（约束名 + `tile=/need=/cap=` 明细）。
+**验收方式**：构造 vram=200 KiB 的 HCS，使文档化的 5×5 tile 网格 {16,32,64,128,256}²（`sketch` 的 tile 网格（`src/solver.cpp:16-17`））被谓词 `m*n*4B*3 ≤ cap`（`feasible`（`src/solver.cpp:51-70`））切成 22 可行 / 3 不可行；测试内**独立复算**该期望值（不复制 solver 状态），再断言 `feasible_count`、`worst` 违反记录（约束名 + `tile=/need=/cap=` 明细）。
 
 **证据**：
 
@@ -70,7 +70,7 @@ $ ./build/unikern_acceptance.exe
 [R2] filter 22/25, violation records + |X| OK
 ```
 
-违反记录样例（首条，枚举序首个越界者）：`constraint="tile_working_set<=device_capacity"`，`detail` 含 `tile=128x256 need=393216B cap=204800B`。CLI 侧同口径：`solve` 输出 `|X|=25`（满容量）/ 不可行时 `INFEASIBLE` 退 3（`src/main.cpp:199-201`）。
+违反记录样例（首条，枚举序首个越界者）：`constraint="tile_working_set<=device_capacity"`，`detail` 含 `tile=128x256 need=393216B cap=204800B`。CLI 侧同口径：`solve` 输出 `|X|=25`（满容量）/ 不可行时 `INFEASIBLE` 退 3（`print_infeasible`（`src/main.cpp:318-319`））。
 
 **状态：✅ 本机已验**。
 
@@ -150,7 +150,7 @@ Phase 10（2026-10-27）经 Metal 运行时 JIT 真编译真执行**（`newLibra
 
 **要求**：R6.1 与 CPU 参考比对；R6.2 分级容差（FP32 ≤ 2⁻⁵）；R6.3 比对失败拒绝入账本。
 
-**验收方式**：两个层面。**CPU 侧（单测）**：容差函数 `verify_fp32`（`src/runtime.cpp:95`，R6.2 策略本体）五条路径——逐元素相等 → ok 且 max_rel=0；1/1024 相对误差（< 2⁻⁵ 默认容差）→ ok 且报告 worst 误差；10% 相对误差 → 拒绝并点名 `index 3`；可配置更紧容差（1/4096）→ 拒绝默认通过者；尺寸不匹配 → 明确拒绝（"size mismatch"），绝不假通过。**真机侧**：生成的 AMD 程序自带确定性初始化 + CPU 参考实现 + 2⁻⁵ 分级对拍（`UNIKERN_RESULT ... verify=` 契约行）；CLI `run` 只在 `verified=PASS` 时 LEDGER COMMIT（`src/main.cpp:274-282`，P4 不变量）。真机执行两个尺寸：1024³（resident）与 32768³（streamed）。
+**验收方式**：两个层面。**CPU 侧（单测）**：容差函数 `verify_fp32`（`src/runtime.cpp:191`，R6.2 策略本体）五条路径——逐元素相等 → ok 且 max_rel=0；1/1024 相对误差（< 2⁻⁵ 默认容差）→ ok 且报告 worst 误差；10% 相对误差 → 拒绝并点名 `index 3`；可配置更紧容差（1/4096）→ 拒绝默认通过者；尺寸不匹配 → 明确拒绝（"size mismatch"），绝不假通过。**真机侧**：生成的 AMD 程序自带确定性初始化 + CPU 参考实现 + 2⁻⁵ 分级对拍（`UNIKERN_RESULT ... verify=` 契约行）；CLI `run` 只在 `verified=PASS` 时 LEDGER COMMIT，把实测 `measured_ms` 连同解一起入账本（`src/main.cpp:540-566`，P4 不变量）。真机执行两个尺寸：1024³（resident）与 32768³（streamed）。
 
 **证据**（单测段 + 真机实测；转录入库 `docs/evidence/phase8/acceptance_tests.txt`、`run_1024_first.txt`）：
 
@@ -252,7 +252,7 @@ LEDGER COMMIT predicted_ms=3601.23 measured_ms=55354.1 epsilon_abs=51752.9 epsil
 [R9] complete missing-field rejection + fingerprint OK
 ```
 
-CLI 同口径：`HCS rejected: missing required fields: ...`（`src/main.cpp:110`）；`hcs` 子命令 `VALID amd/RDNA gfx103x ... fp=80394649`。
+CLI 同口径：`HCS rejected: missing required fields: ...`（`hcs_import` 拒绝时打印（`src/main.cpp:213`））；`hcs` 子命令 `VALID amd/RDNA gfx103x ... fp=80394649`。
 
 **状态：✅ 本机已验**。
 
@@ -409,7 +409,7 @@ Apple 半侧 G4 闭合的完整事实（命令输出转录在 `docs/evidence/pha
   却差 1.5 倍，本身就是它不是带宽测量的证据），比诚实 SKIP 更危险。默认
   `CALIBRATE SKIP`（rc=3），仅 `--allow-unified-calibrate` 显式强制，且产物如实
   标注为伪影。link_bw_gbps 本身是 scenario-B 常数（求解器仅在非 Unified 路径
-  使用，`src/solver.cpp:75`），对 Apple 预测无影响——**这条有实测背书**：强制
+  使用，`cost_ms` 的数据通路项（`src/solver.cpp:79`）），对 Apple 预测无影响——**这条有实测背书**：强制
   校准把 link 600→9.097、constants_version 1→2 之后，`PREDICTED demo c_ms
   5.28611 → 5.28611` 逐位不变。
 - **门控不只是文档事实，本机有单测约束**：`tests/acceptance.cpp` 新增 R7.3 四臂经真实
@@ -561,7 +561,7 @@ conv/reduce 在 Apple 上真机执行 + G6 工作集上限（转录在 `docs/evi
   事实，不是能力拒绝；Intel 真机的运行时验证仍待做。**失败消息随构建而异**（v12.1 注记：
   本段原文引用的「no Intel GPU platform/device found」不在所引转录的捕获输出里，出处应
   写明）——该字串出自 Mac 侧构建（UK_HAS_OCL 已定义，`build-apple/unikern`，见
-  `phase14/README.md:25` 与源码 `src/runner_ocl.cpp:434`），转录
+  `phase14/README.md:25` 与源码 `pick_intel_gpu` 拒绝日志（`src/runner_ocl.cpp:532`）），转录
   `phase14-ocl-and-regression.txt:47-52` 只捕获了 rc=1 与 ledger_created=no；Windows
   MinGW 构建（UK_HAS_OCL 未定义）则报「OpenCL runner stub: no OpenCL import library was
   found at build time (UK_HAS_OCL undefined) …」（2026-10-28 本机实测 rc=1）。两种消息

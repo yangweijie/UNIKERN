@@ -1,0 +1,12 @@
+=== run softmax ===
+LEDGER HIT  c_cached_ms=6.68467  tile=128x128  (from ledger)
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=32.447200 kernel_ms=19.014650 mode=resident payload_mb=128.000000 perf=65536x256
+LEDGER COMMIT predicted_ms=6.68467 measured_ms=32.4472 epsilon_abs=25.7625 epsilon_rel=3.85397
+=== run rmsnorm ===
+LEDGER HIT  c_cached_ms=6.68467  tile=128x128  (from ledger)
+UNIKERN_RESULT backend=amd verify=PASS max_rel=2.072579e-07 measured_ms=28.962390 kernel_ms=14.446170 mode=resident payload_mb=192.000000 perf=65536x256
+LEDGER COMMIT predicted_ms=6.68467 measured_ms=28.9624 epsilon_abs=22.2777 epsilon_rel=3.33266
+=== run channelscale ===
+LEDGER HIT  c_cached_ms=6.68467  tile=128x128  (from ledger)
+UNIKERN_RESULT backend=amd verify=PASS max_rel=0.000000e+00 measured_ms=13.910540 kernel_ms=6.778200 mode=resident payload_mb=192.000000 perf=65536x256
+LEDGER COMMIT predicted_ms=6.68467 measured_ms=13.9105 epsilon_abs=7.22587 epsilon_rel=1.08096

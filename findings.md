@@ -1889,3 +1889,23 @@
   8. **calibrate 池分层**（本机可做，Phase 66）：reduce 行噪声离群被中位吸收，建议显式分层。
   9. **仪器盲区修复**（本机可做，Phase 66）：`[R2]`/`[R4]` 个位数臂名盲区；calibrate 门分层。
 - **验收**：`ctest` 7/7 全绿；anchors 457 绿；weak/unverifiable 棘轮 8/11 未升。本相产物未提交（纪律）。
+
+## Phase 64 实测事实（2026-10-31，本机 RX 6600M / gfx1032）
+
+- **三新原语真机读数**（65536×256，fp32，两次独立 run 取两行）：softmax
+  verify=PASS max_rel=0 measured_ms 35.44/32.45 kernel_ms 19.62/19.01；
+  rmsnorm PASS max_rel=2.072579e-07 measured 26.98/28.96 kernel 14.65/14.45；
+  channelscale PASS max_rel=0 measured 14.05/13.91 kernel 8.10/6.78。
+  容差门 2⁻⁵ 全部富余 5 个数量级以上。
+- **求解器对三原语无校准**：c_ms 三者同值 6.68467（roofline 通用工作模型），
+  epsilon_rel 实测 1.08–4.30——已按 R7.3 入账本等 calibrate，不是缺陷是待标定。
+- **生成器缺陷家族**：三新 op 的 HIP 程序各自内嵌一份老式 `uk_mmalloc`
+  （非 guard85 版），四处缺陷（重复声明 e / hipFree 误转型 / 计时段越界引用
+  verify 块向量 / 多余右括号）在 ctest 七门下全绿地存活到真机编译才暴露——
+  「新 op 落地必须同时进门 #7 的 SPECS」应成为纪律，否则文本臂永远看不见。
+- **OCL C 地址空间**：行指针 `const float* x = X + row*C` 在 OpenCL C 是
+  private 指针接 global 表达式，clang 拒绝；MSL 无此问题（device 限定写对了）。
+  两个后端对同一缺陷的敏感度不同，语法腿两边都要。
+- **MSL buffer 绑定纪律**：标量参数继续排在最后一个 buffer 之后（conv 的
+  X=0..Oc=8 是家法）；rmsnorm/channelscale 第一版把 L 绑到 buffer(2) 与 Y 冲突，
+  已改为 L=3/C=4。本机无 Metal 前端，此修复是检视级，真编译验证待 Metal 主机。
